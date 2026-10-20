@@ -135,6 +135,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .ref .media{border-radius:8px;border:1px solid var(--line)}
 .ref figcaption{display:flex;flex-direction:column;gap:2px;min-width:0}
 details > summary{list-style-position:inside}
+.manual{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:12px}
 .chipbtn{border:1px solid var(--line);background:var(--surface);padding:5px 12px;border-radius:999px;cursor:pointer;font-size:13.5px}
 .chipbtn[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
 .sbt{border:1px solid var(--line);border-radius:8px;overflow:hidden}
@@ -368,7 +369,13 @@ function openReel(p){
         <div id="r-timing"></div></div>
     </div></fieldset>
     <fieldset><legend>5 · Раскадровка</legend>
-      <div class="f wide" style="margin-bottom:12px"><label>Доли кадра по времени</label>
+      <div class="row" style="margin-bottom:12px">
+        <button class="btn primary" type="button" id="r-sbGo">Предложить раскадровку</button>
+        <button class="btn" type="button" id="r-sbManual" aria-expanded="false">Выбрать самому</button>
+        <button class="btn ghost" type="button" id="r-sbStop" hidden>Остановить</button>
+        <span class="hint" id="r-sbNote">Claude расставит режимы и сцены по фразам, или выбери доли сам.</span>
+      </div>
+      <div class="f wide manual" id="r-manual" hidden><label>Доли кадра по времени</label><span class="hint">Выбери пресет или впиши свои доли — режимы в таблице подгонятся сами.</span>
         <div class="row" id="r-tgtPresets" role="group" aria-label="Пресеты долей"></div>
         <div class="trio" style="margin-top:8px">
           <label class="f"><span class="hint">A · спикер, %</span><input type="number" id="r-ta" min="0" max="100" value="${p.target?.a??10}"${ro}></label>
@@ -379,7 +386,6 @@ function openReel(p){
       </div>
       <div class="f wide" style="margin-bottom:10px"><span class="hint">Цель</span><div id="r-tgtStrip"></div><span class="hint" style="margin-top:6px">Сейчас в таблице</span><div id="r-sbStrip"></div><span class="hint" id="r-dev"></span></div>
       <div id="r-sb"></div>
-      <div class="row" style="margin-top:10px"><button class="btn primary" type="button" id="r-sbGo">Предложить раскадровку</button><button class="btn ghost" type="button" id="r-sbStop" hidden>Остановить</button><button class="btn" type="button" id="r-sbFit">Подогнать под доли</button><span class="hint" id="r-sbNote">Claude расставит режимы и сцены по фразам. Дальше выбирай сам в таблице.</span></div>
     </fieldset>
     <details><summary style="cursor:pointer;font-weight:600;margin-bottom:14px">Бриф: кадр и монтаж</summary>
     <fieldset><legend>Стиль и кадр</legend><div class="fields">
@@ -560,7 +566,7 @@ function wireTiming(p){
     const sh=rowShares(curRows); $('#r-sbStrip').innerHTML = sh ? strip(sh.a,sh.b,sh.c,true) : '<span class="hint">Пока пусто: выбери режимы или нажми «Предложить раскадровку».</span>';
     const dev=$('#r-dev');
     if(sh && sum===100){ const d=Math.max(Math.abs(sh.a-t.a),Math.abs(sh.b-t.b),Math.abs(sh.c-t.c));
-      dev.textContent = d<=5 ? 'Совпадает с целью.' : `Отклонение до ${d}%: A ${sh.a-t.a>=0?'+':''}${sh.a-t.a}, B ${sh.b-t.b>=0?'+':''}${sh.b-t.b}, C ${sh.c-t.c>=0?'+':''}${sh.c-t.c}. Поменяй режимы у пары фраз или нажми «Предложить» ещё раз.`;
+      dev.textContent = d<=5 ? 'Совпадает с целью.' : `Отклонение до ${d}%: A ${sh.a-t.a>=0?'+':''}${sh.a-t.a}, B ${sh.b-t.b>=0?'+':''}${sh.b-t.b}, C ${sh.c-t.c>=0?'+':''}${sh.c-t.c}. Нажми «Выбрать самому», чтобы подогнать, или поменяй режимы в таблице.`;
       dev.style.color = d<=5 ? 'var(--ok)' : 'var(--warn)'; }
     else dev.textContent='';
   }
@@ -568,9 +574,9 @@ function wireTiming(p){
   function renderPresets(){
     const t=readTarget();
     $('#r-tgtPresets').innerHTML = PRESETS().map(x=>`<button type="button" class="chipbtn" data-pa="${x.a}" data-pb="${x.b}" data-pc="${x.c}" aria-pressed="${x.a===t.a&&x.b===t.b&&x.c===t.c}">${esc(x.name)} <span class="code">${x.a}/${x.b}/${x.c}</span></button>`).join('');
-    $('#r-tgtPresets').querySelectorAll('button').forEach(b=>b.onclick=()=>{ $('#r-ta').value=b.dataset.pa; $('#r-tb').value=b.dataset.pb; $('#r-tc').value=b.dataset.pc; renderPresets(); showShares(); });
+    $('#r-tgtPresets').querySelectorAll('button').forEach(b=>b.onclick=()=>{ $('#r-ta').value=b.dataset.pa; $('#r-tb').value=b.dataset.pb; $('#r-tc').value=b.dataset.pc; renderPresets(); showShares(); autoFit(); });
   }
-  ['#r-ta','#r-tb','#r-tc'].forEach(id=>$(id).addEventListener('input',()=>{ renderPresets(); showShares(); }));
+  ['#r-ta','#r-tb','#r-tc'].forEach(id=>$(id).addEventListener('input',()=>{ renderPresets(); showShares(); autoFit(); }));
   renderPresets();
   function renderSb(){
     showShares();
@@ -620,9 +626,9 @@ function wireTiming(p){
   };
 
 
-  $('#r-sbFit').onclick = ()=>{
-    const t=readTarget(); if(t.a+t.b+t.c!==100){ toast('Доли должны давать 100%'); return; }
-    if(!curRows.length){ toast('Таблица пустая'); return; }
+  function fitShares(silent){
+    const t=readTarget(); if(t.a+t.b+t.c!==100) return;
+    if(!curRows.length){ if(!silent) toast('Сначала нажми «Отправить» в блоке «Материалы»'); return; }
     const want={A:t.a,B:t.b,C:t.c}, total=curRows.reduce((x,r)=>x+(r.e-r.s),0);
     curRows.forEach(r=>{ if(!r.mode) r.mode = t.b>0?'B':(t.c>0?'C':'A'); });
     const lock=new Set(); if(t.a>0){ lock.add(0); lock.add(curRows.length-1); curRows[0].mode='A'; curRows[curRows.length-1].mode='A'; }
@@ -639,8 +645,10 @@ function wireTiming(p){
       const r=curRows[best[1]]; r.mode=under; const nb=blockFor(under);
       if(nb!=='' && (r.block==='speaker'||r.block==='layer'||!r.block)) r.block=nb; else if(under==='C' && (r.block==='speaker'||r.block==='layer')) r.block='';
     }
-    renderSb(); toast('Режимы подогнаны под доли. Проверь сцены у изменённых фраз и нажми «Сохранить».');
-  };
+    renderSb(); if(!silent) toast('Режимы подогнаны под доли. Проверь сцены и нажми «Сохранить».');
+  }
+  $('#r-sbManual').onclick = ()=>{ const m=$('#r-manual'); m.hidden=!m.hidden; $('#r-sbManual').setAttribute('aria-expanded', String(!m.hidden)); if(!m.hidden) m.scrollIntoView({behavior:'smooth',block:'nearest'}); };
+  let fitT=null; const autoFit=()=>{ clearTimeout(fitT); fitT=setTimeout(()=>fitShares(true), 350); };
   let ctl=null;
   $('#r-sbStop').onclick=()=>ctl?.abort();
   $('#r-sbGo').onclick = async ()=>{
