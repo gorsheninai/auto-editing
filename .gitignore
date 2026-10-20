@@ -6,3 +6,5 @@ out/
 reels/_pult/
 reels/*/public/
 reels/*/work/matte/
+reels/*/work/stills/
+reels/*/work/*.log
