@@ -3,3 +3,6 @@ out/
 *.mp4
 *.webm
 *.wav.tmp
+reels/_pult/
+reels/*/public/
+reels/*/work/matte/
