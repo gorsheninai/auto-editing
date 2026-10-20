@@ -130,8 +130,8 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .swatches{display:flex;gap:4px}
 .swatches i{width:18px;height:18px;border-radius:4px;border:1px solid var(--line)}
 [hidden]{display:none!important}
-:root{--k-l2d:#3D63F2;--k-motion:#8B5CF6;--k-d3:#0E9F8A;--k-kinetic:#D9482B;--k-media:#C98A00}
-.k-l2d{background:var(--k-l2d)}.k-motion{background:var(--k-motion)}.k-d3{background:var(--k-d3)}.k-kinetic{background:var(--k-kinetic)}.k-media{background:var(--k-media)}
+:root{--k-gen:#E0559B;--k-l2d:#3D63F2;--k-motion:#8B5CF6;--k-d3:#0E9F8A;--k-kinetic:#D9482B;--k-media:#C98A00}
+.k-gen{background:var(--k-gen)}.k-l2d{background:var(--k-l2d)}.k-motion{background:var(--k-motion)}.k-d3{background:var(--k-d3)}.k-kinetic{background:var(--k-kinetic)}.k-media{background:var(--k-media)}
 .kdot{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:0}
 .kstrip{display:grid;grid-template-columns:18px minmax(0,1fr);gap:4px 8px;align-items:center;margin-top:6px}
 .kstrip .strip{height:8px}.kstrip .klegend{grid-column:2;font-size:12px;color:var(--muted)}.klab{font-size:11px;color:var(--muted)}
@@ -153,7 +153,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .wp-circle i{width:38px;height:38px;border-radius:50%;left:calc(50% - 19px);top:56%}
 .wp-strip i{left:0;right:0;top:62%;bottom:0}
 .subgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:12px}
-.quad{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:6px}
+.quad{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-top:6px}
 .sbsel{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:6px}
 
 .refs{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}
@@ -222,6 +222,8 @@ details > summary{list-style-position:inside}
     <div class="filters" id="kindFilters" role="group" aria-label="Тип блока"></div>
     <div id="blockEditor" hidden></div>
     <div id="blockList"></div>
+    <div class="head" style="margin-top:36px"><div><h2>Анимации текста</h2><p>Как появляются субтитры и заголовки. Берутся из видео-референсов: в ролике, в шаге «Стиль», кнопка «Анимация текста» под видео.</p></div></div>
+    <div id="animList"></div>
   </section>
 
   <!-- ПРЕСЕТЫ -->
@@ -246,7 +248,7 @@ const $ = (s, r=document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const blob = id => id ? '/_blob/' + id : '';
 let db = null, assets = null, user = null, sample = null, canWrite = true, canEdit = false;
-const S = {projects:[], templates:[], blocks:[], presets:[]};
+const S = {projects:[], templates:[], blocks:[], presets:[], textanims:[]};
 let kindFilter = 'all';
 
 const GOALS = ['слово в директ','охват','подписка','продажа'];
@@ -370,6 +372,7 @@ function openReel(p){
 
     <section class="step" id="r-sec-1"><h4>1 · Стиль</h4>
       <div class="refs" id="r-refs"></div>
+      <div class="manual" id="r-animPanel" hidden></div>
       <div class="row" style="margin-top:10px">
         <label class="btn" id="r-vidAdd" style="cursor:pointer">Загрузить видео<input type="file" id="r-vidFile" accept="video/mp4,video/webm,video/quicktime" multiple hidden></label>
         <label class="btn" id="r-imgAdd" style="cursor:pointer">Загрузить картинки<input type="file" id="r-imgFile" accept="image/jpeg,image/png,image/webp" multiple hidden></label>
@@ -403,6 +406,8 @@ function openReel(p){
         <div class="f"><label for="r-sound">Звук</label><select id="r-sound"${ro}>${opts(SOUND,p.sound)}</select></div>
         <div class="f"><label for="r-speed">Ускорение: <span class="code" id="r-speedV"></span></label><input type="range" id="r-speed" min="1" max="1.3" step="0.05" value="${p.speed??1.2}"${ro}></div>
         <div class="f"><label for="r-words">Слов в субтитре</label><select id="r-words"${ro}>${opts([1,2,3],p.subWords??2)}</select></div>
+        <div class="f"><label for="r-subAnim">Анимация субтитров</label><select id="r-subAnim" data-pid="${esc(p.id)}" data-v="${esc(p.subAnim||'static')}"${ro}>${opts(animOptions('subtitle',p.id), p.subAnim||'static')}</select></div>
+        <div class="f"><label for="r-titleAnim">Анимация заголовков и кинетического текста</label><select id="r-titleAnim" data-pid="${esc(p.id)}" data-v="${esc(p.titleAnim||'static')}"${ro}>${opts(animOptions('title',p.id), p.titleAnim||'static')}</select></div>
         <div class="f"><label for="r-subc">Цвет субтитров</label><select id="r-subc"${ro}>${opts(['по подложке','чёрный','белый'],p.subColor)}</select></div>
         <div class="f wide"><label class="row" style="gap:8px;cursor:pointer"><input type="checkbox" id="r-ctaOn"${p.ctaOn?' checked':''}${ro}> Призыв в конце</label>
           <input type="text" id="r-ctaText" value="${esc(p.ctaText||'')}" placeholder="Например: подпишись, чтобы не пропустить разбор"${p.ctaOn?'':' hidden'}${ro}>
@@ -438,7 +443,7 @@ function openReel(p){
     </section>
 
     <section class="step" id="r-sec-6"><h4>6 · Картинки для 2D-сцен</h4>
-      <span class="hint" id="r-gptScope">Картинки нужны только 2D-сценам: позы, предметы, фоны. 3D, моушн, кинетический текст и твои вставки их не требуют.</span>
+      <span class="hint" id="r-gptScope">Картинки нужны 2D-сценам (позы, предметы, фоны) и картинкам по смыслу (картина, скриншот, документ). 3D, моушн, кинетический текст и твои вставки их не требуют.</span>
       <textarea id="r-gpt" style="min-height:200px;font-family:var(--mono);font-size:13px;margin-top:8px" placeholder="Здесь появится один большой запрос: Claude разберёт 2D-сегменты раскадровки по смыслу и придумает визуал под каждый."${ro}>${esc(p.gptPrompt)}</textarea>
       <div class="row"><button class="btn primary" type="button" id="r-gptGo">Составить промпт</button><button class="btn" type="button" id="r-gptCopy">Скопировать промпт</button><button class="btn ghost" type="button" id="r-gptStop" hidden>Остановить</button><span class="hint" id="r-gptNote">Отправь его в ChatGPT (режим work) со своим фото и референсами. Готовые картинки — в ту же папку на Диске.</span></div>
       <details id="r-planWrap"${p.assetPlan?'':' hidden'} style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Смысловой план картинок</summary>
@@ -500,7 +505,7 @@ function openReel(p){
       ``,
       sh?`Раскадровка: ${curRows.length} сегментов, A ${sh.a}% / B ${sh.b}% / C ${sh.c}%. ${cnt}`:'Раскадровки ещё нет.',
       `Окно спикера по умолчанию: ${winName(d.win)}. Подложка: ${d.bg}. Звук: ${d.sound}.`,
-      `Ускорение ×${d.speed}. Субтитры: ${d.subWords} сл., цвет ${d.subColor}.`,
+      `Ускорение ×${d.speed}. Субтитры: ${d.subWords} сл., цвет ${d.subColor}, анимация: ${animName(d.subAnim)}. Заголовки: ${animName(d.titleAnim)}.`,
       d.ctaOn ? `Призыв в конце: ${d.ctaText||'да'}.` : `Призыва в конце нет — финал по тексту.`,
       d.drive?`Папка на Диске (вставки и картинки): ${d.drive}`:'',
       curAvatar?.id ? `Видео аватара загружено на пульт: ${curAvatar.name}.` : `Видео аватара пришлю файлом в чат.`
@@ -511,18 +516,18 @@ function openReel(p){
   function updateSteps(){
     const d={style:$('#r-style').value.trim(), script:$('#r-script').value.trim(), gpt:$('#r-gpt').value.trim()};
     const hasModes = curRows.length && curRows.every(r=>r.mode);
-    const need2d = curRows.some(r=>r.kind==='l2d');
+    const need2d = curRows.some(r=>r.kind==='l2d'||r.kind==='gen');
     const st=[['Стиль',!!d.style],['Текст',!!d.script],['Материалы',!!(p.timing||curWordsLen())],['Настройки',true],['Раскадровка',!!hasModes],['Картинки', hasModes ? (!need2d || !!d.gpt) : !!d.gpt],['Монтаж',$('#r-status').value==='done']];
     $('#r-steps').innerHTML = st.map(([n,ok],i)=>`<a href="#r-sec-${i+1}" class="stepchip${ok?' ok':''}" data-sec="${i+1}"><span class="code">${ok?'✓':i+1}</span>${esc(n)}</a>`).join('');
     $('#r-steps').querySelectorAll('a').forEach(a=>a.onclick=e=>{ e.preventDefault(); $('#r-sec-'+a.dataset.sec).scrollIntoView({behavior:'smooth',block:'start'}); });
   }
   function renderSummary(){
-    const sh=rowShares(curRows), d=collect(), need2d=curRows.filter(r=>r.kind==='l2d').length, media=curRows.filter(r=>r.kind==='media');
+    const sh=rowShares(curRows), d=collect(), need2d=curRows.filter(r=>r.kind==='l2d'||r.kind==='gen').length, media=curRows.filter(r=>r.kind==='media');
     const todo=[];
     if(!d.styleAnalysis.trim()) todo.push('создать стиль');
     if(!curWordsLen()) todo.push('отправить материалы: видео аватара');
     if(!curRows.length || !curRows.every(r=>r.mode)) todo.push('сделать раскадровку');
-    if(need2d && !d.gptPrompt.trim()) todo.push(`составить промпт для ${need2d} 2D-сцен`);
+    if(need2d && !d.gptPrompt.trim()) todo.push(`составить промпт для картинок (${need2d} сегм.)`);
     if(media.some(r=>!r.media)) todo.push('выбрать файлы для «Мои вставки»');
     if(!d.drive) todo.push('указать папку на Диске');
     $('#r-summary').innerHTML = `<dl class="kv">
@@ -530,6 +535,7 @@ function openReel(p){
       <dt>Доли</dt><dd>${sh?`A ${sh.a}% · B ${sh.b}% · C ${sh.c}%`:'—'}</dd>
       <dt>Сегменты</dt><dd>${curRows.length?kindCounts(curRows):'—'}</dd>
       <dt>Окно</dt><dd>${esc(winName(d.win))}</dd>
+      <dt>Текст</dt><dd>субтитры — ${esc(animName(d.subAnim))}; заголовки — ${esc(animName(d.titleAnim))}</dd>
       <dt>Осталось</dt><dd>${todo.length?esc(todo.join(', ')):'<span style="color:var(--ok)">всё готово — копируй задание для чата</span>'}</dd></dl>`;
   }
   E.scrollIntoView({behavior:'smooth', block:'start'});
@@ -541,10 +547,10 @@ const curWordsLen = () => curWords.length;
 let reelHooks = {updateSteps(){}, renderSummary(){}};
 const SEG_KINDS = {
   A:[['speaker','Спикер']],
-  B:[['l2d','2D-сцена'],['motion','Моушн-схема'],['d3','3D'],['media','Мои вставки']],
-  C:[['motion','Смысловой моушн'],['d3','3D-метафора'],['kinetic','Кинетический текст'],['media','Мои вставки']]};
+  B:[['l2d','2D-сцена'],['gen','Картинка по смыслу'],['motion','Моушн-схема'],['d3','3D'],['media','Мои вставки']],
+  C:[['motion','Смысловой моушн'],['gen','Картинка по смыслу'],['d3','3D-метафора'],['kinetic','Кинетический текст'],['media','Мои вставки']]};
 const WINS = [['popout','Вырезка','голова выходит за окно'],['window','Окно','скруглённый прямоугольник без вырезки'],['circle','Кружок','как видеосообщение'],['strip','Полоса','спикер на всю ширину внизу']];
-const SUB_DEF = {B:{l2d:50, motion:30, d3:20, media:0}, C:{motion:40, d3:30, kinetic:30, media:0}};
+const SUB_DEF = {B:{l2d:40, gen:15, motion:25, d3:20, media:0}, C:{motion:30, gen:15, d3:25, kinetic:30, media:0}};
 const winName = v => (WINS.find(w=>w[0]===v)||WINS[0])[1];
 const kindLabel = (m,k) => ((SEG_KINDS[m]||[]).find(x=>x[0]===k)||[k,k])[1];
 function readWin(){ return document.querySelector('input[name="r-win"]:checked')?.value || 'popout'; }
@@ -623,14 +629,14 @@ const SB_PROMPT = `Ты — монтажёр вертикальных рилсо
 Режимы кадра: A — спикер на весь экран; B — сцена сверху, спикер в окне снизу; C — вставка на весь экран (голос за кадром).
 Типы сцен (поле kind):
 - для A: speaker;
-- для B (сцена над окном спикера): l2d — 2D-сцена из картинок (фон + поза персонажа + предметы); motion — моушн-схема (этапы, сравнение, процесс, цифры); d3 — 3D из предметов, собранных кодом; media — файл пользователя с Диска;
-- для C (на весь экран): motion — смысловой моушн; d3 — 3D-метафора; kinetic — кинетический текст (крупные слова в ритм речи, без картинок); media — файл пользователя на весь экран.
+- для B (сцена над окном спикера): l2d — 2D-сцена из картинок (фон + поза персонажа + предметы); gen — цельная картинка по смыслу от ChatGPT (картина, о которой речь, скриншот чата или приложения, документ, обложка, фото предмета или места); motion — моушн-схема (этапы, сравнение, процесс, цифры); d3 — 3D из предметов, собранных кодом; media — файл пользователя с Диска;
+- для C (на весь экран): motion — смысловой моушн; gen — цельная картинка по смыслу на весь экран; d3 — 3D-метафора; kinetic — кинетический текст (крупные слова в ритм речи, без картинок); media — файл пользователя на весь экран.
 Окно спикера в B (поле win): popout — вырезка, голова выходит за окно; window — скруглённое окно без вырезки; circle — кружок; strip — полоса снизу. По умолчанию: {WIN}. Меняй окно, только если это усиливает момент (например, кружок на лёгкой реплике, вырезка на эмоции); не меняй его на каждом сегменте.
 {SHARES}
 {CTA}
 
 Как резать: текст НЕ обязан резаться по предложениям. Сегмент — любой непрерывный кусок слов: он может начинаться и заканчиваться посреди предложения, если визуал меняется на этом слове. Подбирай визуал под смысл слов: что именно говорится — то и показываем. Сегмент обычно 1.5–6 секунд. Сегменты идут подряд и покрывают ВСЕ слова без пропусков и наложений.
-В "visual" одной-двумя фразами: что видно на экране и что меняется на каком слове, в стиле ролика. Если подходит готовый блок библиотеки — упомяни его код. Для A пиши, что делает спикер.
+В "visual" одной-двумя фразами: что видно на экране и что меняется на каком слове, в стиле ролика. Если подходит готовый блок библиотеки — упомяни его код. Для A пиши, что делает спикер. Для gen опиши, что ровно на картинке; если это скриншот или документ — точный короткий текст на нём в кавычках. Ставь gen там, где в тексте названо что-то конкретное, что можно показать картинкой.
 
 Файлы пользователя на Диске (для kind=media, поле media — точное имя файла):
 {MEDIA}
@@ -866,6 +872,30 @@ async function videoStats(src, onProgress){
   const shots = cuts+1;
   return {duration:+d.toFixed(1), analyzed:+T.toFixed(1), cuts, cutsPerMin:+(cuts/(T/60)).toFixed(1), avgShot:+(T/shots).toFixed(2)};
 }
+async function captureAnim(src, t0){
+  const v=await loadVideo(src), d=v.duration||0, cols=6, rows=2, fw=180, fh=320, cv=document.createElement('canvas'), ctx=cv.getContext('2d');
+  cv.width=cols*fw; cv.height=rows*fh; ctx.fillStyle='#000'; ctx.fillRect(0,0,cv.width,cv.height);
+  const start=Math.max(0,t0-0.15);
+  for(let i=0;i<cols*rows;i++){ const t=Math.min(d-0.05, start+i/15); await seek(v,t); coverDraw(ctx,v,v.videoWidth,v.videoHeight,(i%cols)*fw,Math.floor(i/cols)*fh,fw,fh);
+    ctx.fillStyle='rgba(0,0,0,.6)'; ctx.fillRect((i%cols)*fw,Math.floor(i/cols)*fh,34,18); ctx.fillStyle='#fff'; ctx.font='12px monospace'; ctx.fillText(String(i+1),(i%cols)*fw+6,Math.floor(i/cols)*fh+13); }
+  const sheet=await new Promise(res=>cv.toBlob(res,'image/jpeg',0.85));
+  const c2=document.createElement('canvas'); c2.width=540; c2.height=960; const x2=c2.getContext('2d');
+  await seek(v, Math.min(d-0.05, start+0.9)); coverDraw(x2,v,v.videoWidth,v.videoHeight,0,0,540,960);
+  const full=await new Promise(res=>c2.toBlob(res,'image/jpeg',0.9));
+  return {sheet, full};
+}
+const TEXTANIM_PROMPT = `Ты — моушн-дизайнер. На первой картинке 12 кадров подряд из вертикального ролика (шаг 1/15 секунды, номера в углу, слева направо, сверху вниз): в этот момент появляется {ROLE}. На второй — кадр крупно, когда текст уже появился.
+Опиши, как анимирован текст, чтобы её можно было повторить кодом. Смотри на разницу между кадрами: откуда и как появляется текст, по словам или по буквам, масштаб, прозрачность, размытие, маска, плашка, цвет выделенного слова.
+Ответь только JSON-объектом:
+{"name":"короткое название по-русски, 2–4 слова",
+ "summary":"1–2 предложения по-русски: как появляется и выглядит текст",
+ "font":"какой шрифт похож (гротеск/антиква/рукописный, жирность, регистр) и 1–2 близких шрифта с кириллицей из Google Fonts",
+ "params":{"unit":"word|char|line|block","enter":"fade|slideUp|slideDown|slideLeft|slideRight|scale|pop|typewriter|mask|blur","duration_ms":0,"stagger_ms":0,"easing":"spring|easeOut|easeInOut|linear","overshoot":0,"distance_px":0,"start_scale":1,"blur_px":0,
+   "emphasis":{"type":"none|color|box|underline|scale","color":"#hex или пусто","box_color":"#hex или пусто"},
+   "box":{"use":false,"color":"#hex","radius_px":0,"padding_px":0},
+   "position":"top|center|bottom","case":"lower|upper|as_is","words_per_screen":0,"color":"#hex","stroke_or_shadow":"нет / описание",
+   "exit":"none|fade|cut|slideUp|scale","exit_ms":0}}
+Если на кадрах текст не появляется — всё равно опиши, как он выглядит, а enter поставь "cut".`;
 function coverDraw(ctx, src, sw, sh, dx, dy, dw, dh){
   const r=Math.max(dw/sw, dh/sh), w=dw/r, h=dh/r; ctx.drawImage(src,(sw-w)/2,(sh-h)/2,w,h,dx,dy,dw,dh);
 }
@@ -898,14 +928,53 @@ function wireStyle(p){
       <div class="media" style="max-height:none">${r.kind==='video'?`<video src="${blob(r.id)}" muted loop playsinline preload="metadata" data-hover></video>`:`<img src="${blob(r.id)}" alt="">`}</div>
       <figcaption><span class="code" style="font-size:11.5px;word-break:break-all">${r.kind==='video'?'Видео':'Картинка'} · ${esc(r.name)}</span>
       ${r.stats?`<span class="hint">${r.stats.duration} с · ${r.stats.cutsPerMin} склеек/мин · кадр ≈ ${r.stats.avgShot} с</span>`:''}
-      ${canWrite?`<button class="btn ghost danger" type="button" data-rm="${i}" style="padding:4px 0">Убрать</button>`:''}</figcaption></figure>`).join('');
+      ${r.kind==='video'&&canWrite?`<button class="btn ghost" type="button" data-anim="${i}" style="padding:4px 0;justify-content:flex-start">Анимация текста</button>`:''}
+      ${canWrite?`<button class="btn ghost danger" type="button" data-rm="${i}" style="padding:4px 0;justify-content:flex-start">Убрать</button>`:''}</figcaption></figure>`).join('');
     wireVideos(box);
+    box.querySelectorAll('[data-anim]').forEach(b=>b.onclick=()=>openAnimPanel(refs[+b.dataset.anim]));
     box.querySelectorAll('[data-rm]').forEach(b=>b.onclick=async()=>{ const r=refs[+b.dataset.rm]; refs.splice(+b.dataset.rm,1); renderRefs(); await saveRefs(); if(assets&&r) assets.delete(r.id).catch(()=>{}); });
     const nv=refs.filter(r=>r.kind==='video').length, ni=refs.length-nv;
     $('#r-vidAdd').hidden = nv>=MAX_REFS || !assets; $('#r-imgAdd').hidden = ni>=MAX_REFS || !assets;
     $('#r-refCount').textContent = `Видео ${nv} из ${MAX_REFS}, картинок ${ni} из ${MAX_REFS}. Каждый файл до 20 МБ.`;
   }
   renderRefs();
+  function openAnimPanel(r){
+    const P=$('#r-animPanel'); P.hidden=false;
+    const mine=S.textanims.filter(a=>a.projectId===p.id && a.refId===r.id);
+    P.innerHTML=`<label>Анимация текста · ${esc(r.name)}</label>
+      <span class="hint">Перемотай на момент, когда надпись только начинает появляться, выбери, что это, и нажми «Здесь». Пульт снимет 12 кадров подряд и Claude опишет анимацию.</span>
+      <video id="r-animVid" src="${blob(r.id)}" controls muted playsinline preload="auto" style="width:100%;max-width:300px;border-radius:8px;margin-top:8px;background:#000"></video>
+      <div class="row" style="margin-top:8px">
+        <select id="r-animRole" style="width:auto"><option value="subtitle">Субтитры</option><option value="title">Заголовок / крупный текст</option></select>
+        <button class="btn primary" type="button" id="r-animHere">Здесь</button>
+        <button class="btn ghost" type="button" id="r-animClose">Закрыть</button>
+        <span class="hint" id="r-animNote">${mine.length?`Уже снято из этого видео: ${mine.map(a=>esc(a.name)).join(', ')}.`:''}</span>
+      </div>`;
+    $('#r-animClose').onclick=()=>{ P.hidden=true; P.innerHTML=''; };
+    $('#r-animHere').onclick=async ()=>{
+      const n=$('#r-animNote'), btn=$('#r-animHere'), t=$('#r-animVid').currentTime||0, role=$('#r-animRole').value;
+      if(!sample){ toast('Claude недоступен в этом просмотре'); return; }
+      btn.disabled=true;
+      try{
+        n.textContent='Снимаю кадры…';
+        const {sheet, full} = await captureAnim(blob(r.id), t);
+        n.textContent='Claude разбирает анимацию… до минуты.';
+        const res = await sample.json(TEXTANIM_PROMPT.replace('{ROLE}', role==='title'?'заголовок или крупный текст':'субтитры'), {images:[sheet, full], cache:false});
+        if(!res || !res.summary) throw {code:'invalid_json'};
+        let previewId=null; if(assets){ try{ previewId=(await assets.upload(sheet,{type:'image/jpeg'})).id; }catch(e){} }
+        const doc={name:String(res.name||'Анимация из референса').slice(0,60), role, summary:String(res.summary), params:res.params||{}, font:String(res.font||''), source:r.name, refId:r.id, projectId:p.id, at:+t.toFixed(2), previewId, createdAt:new Date().toISOString()};
+        const ref=db.collection('textanims').doc();
+        if(await write(()=>ref.set(doc),'Анимация сохранена в библиотеку')){
+          S.textanims=[...S.textanims.filter(a=>a.id!==ref.id), {...doc, id:ref.id}]; renderAnims();
+          const sel=$(role==='title'?'#r-titleAnim':'#r-subAnim'); if(sel){ sel.dataset.v=ref.id; sel.innerHTML=opts(animOptions(role,p.id), ref.id); sel.value=ref.id; }
+          n.textContent=`Готово: «${doc.name}». ${doc.summary} Она выбрана в «Настройках».`;
+          await write(()=>docRef.update({[role==='title'?'titleAnim':'subAnim']:ref.id, updatedAt:new Date().toISOString()}));
+        }
+      }catch(e){ n.textContent = e&&e.code ? sampleErr(e) : 'Не получилось снять кадры с этого видео. Лучше mp4 (H.264).'; }
+      finally{ btn.disabled=false; }
+    };
+    P.scrollIntoView({behavior:'smooth',block:'nearest'});
+  }
   async function addFiles(input, kind){
     const have=refs.filter(r=>r.kind===kind).length;
     const all=[...input.files]; input.value='';
@@ -979,12 +1048,14 @@ function wireStyle(p){
       if(lim?.images) for(const r of refs.slice(0,6)){ try{ const sh=await contactSheet(r); if(sh) imgs.push(sh); }catch(e){} }
       if(lim?.images?.maxCount && imgs.length>lim.images.maxCount) imgs.length=lim.images.maxCount;
       note.textContent='Шаг 1 из 2: Claude разбирает текст на смысловые блоки… до минуты.';
-      const rows2d = curRows.filter(r=>r.kind==='l2d');
-      if(curRows.length && curRows.every(r=>r.mode) && !rows2d.length){ note.textContent='В раскадровке нет 2D-сцен — картинки из ChatGPT не нужны. Поставь тип «2D-сцена» сегментам, где нужны картинки.'; return; }
-      const story = rows2d.length ? 'Картинки нужны ТОЛЬКО для этих сегментов (2D-сцены), остальные делаются кодом или из файлов пользователя:\n'+rowsText(rows2d) : (curRows.length ? rowsText(curRows) : '(раскадровки нет)');
+      const rows2d = curRows.filter(r=>r.kind==='l2d'), rowsGen = curRows.filter(r=>r.kind==='gen');
+      if(curRows.length && curRows.every(r=>r.mode) && !rows2d.length && !rowsGen.length){ note.textContent='В раскадровке нет 2D-сцен и картинок по смыслу — картинки из ChatGPT не нужны.'; return; }
+      const story = (rows2d.length||rowsGen.length)
+        ? (rows2d.length?'2D-СЦЕНЫ (для них — позы, предметы, фоны):\n'+rowsText(rows2d):'2D-сцен нет — позы, предметы и фоны не нужны.')+'\n\n'+(rowsGen.length?'КАРТИНКИ ПО СМЫСЛУ (для каждого сегмента — одно цельное изображение; режим B — зона сцены, C — весь экран):\n'+rowsText(rowsGen):'Картинок по смыслу нет.')
+        : (curRows.length ? rowsText(curRows) : '(раскадровки нет)');
       const planPrompt = PLAN_PROMPT.replace('{SCRIPT}', d.script.slice(0,8000)).replace('{STORY}', story.slice(0,8000)).replace('{STYLE}', d.styleAnalysis.slice(0,8000));
       const plan = await sample.json(planPrompt, {images: imgs.length?imgs:undefined, signal:ctlG.signal, cache:false, modelTier:'complex'});
-      if(!plan || !Array.isArray(plan.blocks) || !plan.blocks.length) throw {code:'invalid_json'};
+      if(!plan || ((!Array.isArray(plan.blocks)||!plan.blocks.length) && !(plan.pictures||[]).length)) throw {code:'invalid_json'};
       const pt = planText(plan); planBox.value = pt; $('#r-planWrap').hidden=false; $('#r-planWrap').open=true;
       await write(()=>docRef.update({assetPlan:plan, updatedAt:new Date().toISOString()}));
       /* шаг 2: промпт строго по плану */
@@ -1020,7 +1091,7 @@ const STYLE_PROMPT = `Ты — арт-директор и монтажёр ве�
 2. Эстетика и визуальный язык: материалы, фактура, свет, степень детализации, на что похоже.
 3. Палитра: 5–6 цветов в hex с ролью каждого (фон, текст, акцент…).
 4. Подложка: светлая или тёмная.
-5. Типографика: заголовки и субтитры — тип шрифта (гротеск, антиква, курсив, рукописный), вес, регистр, сколько слов в субтитре, где стоит, есть ли анимация и цветовой акцент. Предложи 2 близких шрифта с кириллицей из Google Fonts.
+5. Типографика: заголовки и субтитры — тип шрифта (анимацию появления по 12 кадрам не угадывай: она снимается отдельно кнопкой «Анимация текста») (гротеск, антиква, курсив, рукописный), вес, регистр, сколько слов в субтитре, где стоит, есть ли анимация и цветовой акцент. Предложи 2 близких шрифта с кириллицей из Google Fonts.
 6. Кадр: как подан спикер, примерные доли режимов A/B/C в процентах.
 7. Ритм: склейки в минуту и средняя длина кадра по замерам, как это ощущается.
 8. Переходы и движение камеры и элементов.
@@ -1049,7 +1120,10 @@ const PLAN_PROMPT = `Ты — арт-директор рилса. Задача: 
    - предметы (сколько нужно, листами по 9): каждый предмет — из смысла конкретного блока, с деталями внешнего вида в стиле референсов;
    - руки от первого лица — ТОЛЬКО если блоку нужно действие руками, и только с теми предметами, которые есть в тексте;
    - люди/аватарки — только если в тексте есть аудитория, клиенты, команда, толпа;
-   - фоны (3–5): места, которые следуют из текста.
+   - фоны (3–5): места, которые следуют из текста;
+   - картинки по смыслу (pictures) — по одной на каждый сегмент из списка «КАРТИНКИ ПО СМЫСЛУ»: что ровно изображено (картина, скриншот, документ, обложка, фото предмета или места), точный короткий текст на картинке, если он нужен, и формат: B — квадрат 1024×1024, C — вертикаль 1024×1536.
+   Если 2D-сцен нет — poses, props, hands, backgrounds оставь пустыми.
+   Известные картины: если работа старая и её права истекли — опиши её узнаваемо; если художник современный — «в духе», без копии. Скриншоты и документы — с нейтральным интерфейсом, без логотипов и названий реальных сервисов, СМИ и компаний.
 3. Запрещено: общие стоковые предметы, которых нет в тексте и которые не следуют из его смысла (телефон, ноутбук, лупа, лампочка, ракета, шестерёнки, графики, мишень, пазл и т.п. — только если текст про это). Две разные мысли не должны получить одинаковую метафору. Каждый элемент должен быть узнаваемо «про этот текст».
 
 Ответь только JSON-объектом:
@@ -1058,7 +1132,8 @@ const PLAN_PROMPT = `Ты — арт-директор рилса. Задача: 
  "props":[{"block":2,"desc":"..."}],
  "hands":[{"block":3,"desc":"..."}],
  "people":{"need":false,"desc":""},
- "backgrounds":[{"block":1,"desc":"..."}]}
+ "backgrounds":[{"block":1,"desc":"..."}],
+ "pictures":[{"quote":"...","desc":"...","text":"","format":"C"}]}
 Поля desc — по-русски, конкретно и визуально (форма, материал, цвет, деталь), 1–2 предложения.`;
 
 const GPT_PROMPT = `Составь ОДИН большой запрос для ChatGPT (режим work, модель GPT Image 2.5). Пользователь вставит его целиком и приложит своё фото и референсы, а ChatGPT за один заход сгенерирует ВСЕ картинки для рилса.
@@ -1074,11 +1149,12 @@ const GPT_PROMPT = `Составь ОДИН большой запрос для C
 
 Правила:
 - Содержимое картинок берётся ТОЛЬКО из плана: каждая поза, предмет, жест рук и фон — из своего пункта плана, с его деталями. Не добавляй стандартных предметов, которых нет в плане. В каждой ячейке опиши предмет конкретно (форма, материал, цвет, деталь), как в плане.
-- Набор файлов: 01_turnaround.png — разворот персонажа 4 ракурса (всегда); 02_poses.png — позы из плана (сетка по количеству: 2×2 до 4, 3×3 до 9); руки — отдельный лист, только если они есть в плане; предметы — листы по 9 (3×3), последний лист может быть 2×2; люди — лист 4×4, только если people.need; фоны — по одному файлу на каждый фон из плана, вертикальные 1024×1536, без людей, с пустым центром.
+- Набор файлов: 01_turnaround.png — разворот персонажа 4 ракурса (только если в плане есть позы или руки); 02_poses.png — позы из плана (сетка по количеству: 2×2 до 4, 3×3 до 9); руки — отдельный лист, только если они есть в плане; предметы — листы по 9 (3×3), последний лист может быть 2×2; люди — лист 4×4, только если people.need; фоны — по одному файлу на каждый фон из плана, вертикальные 1024×1536, без людей, с пустым центром.
+- Картинки по смыслу (pictures) — отдельная группа «СМЫСЛОВЫЕ ИЗОБРАЖЕНИЯ»: по файлу pic_N.png на каждый пункт; НЕпрозрачные, цельная композиция, размер по format (B — 1024×1024, C — 1024×1536); стиль — из ОБЩЕГО СТИЛЯ; если в пункте есть text — вписать его точно, в кавычках, указать сколько раз и где он стоит, для таких картинок правило «no text» не действует; без логотипов и названий реальных брендов, сервисов и СМИ; картины современных художников — только «в духе», без копии. Персонаж пользователя на них не нужен, если план прямо этого не требует.
 - Перед каждым промптом одной строкой по-русски укажи, для какого куска текста эта картинка (цитата из плана), чтобы ChatGPT понимал смысл.
 - Персонаж — тот же человек, что на Фото 1: «same person as Photo 1 — keep face, proportions, hairstyle, glasses, outfit identical in every cell». Попроси ChatGPT сначала самому коротко описать внешность по Фото 1 и повторять это описание в каждом листе с персонажем.
 - Каждый пункт — полный самостоятельный промпт на английском: что за изображение → объект → сетка и содержимое КАЖДОЙ ячейки по номеру → стиль/свет/материал из ОБЩЕГО СТИЛЯ → ограничения. Конкретные визуальные слова, без «epic, masterpiece, 8K».
-- В каждом пункте: no text, no letters, no numbers, no logos, no watermark.
+- В каждом пункте, кроме картинок по смыслу с текстом: no text, no letters, no numbers, no logos, no watermark.
 - Прозрачный фон (всё, кроме фонов): isolated on a fully transparent background, PNG with alpha, no backdrop, no floor, no cast shadow, no checkerboard pattern, clean edges, no halo.
 - Сетки: «N equal cells, each item fully inside its cell with generous empty margin, nothing crosses cell borders, same scale and same light direction in every cell».
 - Размеры: листы 2048×2048, фоны 1024×1536. Указывать в каждом пункте.
@@ -1089,16 +1165,18 @@ const GPT_PROMPT = `Составь ОДИН большой запрос для C
 РЕФЕРЕНСЫ — Фото 1 — лицо и внешность пользователя; дальше каждый референс с ролью «только стиль, палитра, свет, материалы — не копировать кадры и персонажей».
 ОБЩИЙ СТИЛЬ — стилевой паспорт.
 ПЕРСОНАЖ — как держать сходство.
-ИЗОБРАЖЕНИЯ — пронумерованный список файлов; для каждого — строка «Для: «цитата»», размер, прозрачность и полный промпт.
-ПРОВЕРКА — прозрачность без шахматки, ровно N ячеек без заходов, лицо совпадает с Фото 1, нет текста, стиль совпадает с ОБЩИМ СТИЛЕМ, каждая картинка соответствует своему куску текста.`;
+ИЗОБРАЖЕНИЯ — пронумерованный список файлов (сначала персонаж, позы, руки, предметы, люди, фоны, затем СМЫСЛОВЫЕ ИЗОБРАЖЕНИЯ pic_N); для каждого — строка «Для: «цитата»», размер, прозрачность и полный промпт.
+ПРОВЕРКА — прозрачность без шахматки (кроме фонов и pic_N), ровно N ячеек без заходов, лицо совпадает с Фото 1, нет текста, стиль совпадает с ОБЩИМ СТИЛЕМ, каждая картинка соответствует своему куску текста.`;
 
 function planText(pl){
-  if(!pl||!Array.isArray(pl.blocks)) return '';
+  if(!pl||(!Array.isArray(pl.blocks)&&!Array.isArray(pl.pictures))) return '';
+  pl.blocks=pl.blocks||[];
   const L=[]; const by=(arr,id)=>(arr||[]).filter(x=>Number(x.block)===Number(id)).map(x=>x.desc);
   pl.blocks.forEach(b=>{ L.push(`${b.id}. «${b.quote}»\n   Мысль: ${b.idea}\n   Визуал: ${b.visual}`);
     const ps=by(pl.poses,b.id), pr=by(pl.props,b.id), hs=by(pl.hands,b.id), bg=by(pl.backgrounds,b.id);
     if(ps.length) L.push('   Позы: '+ps.join('; ')); if(pr.length) L.push('   Предметы: '+pr.join('; ')); if(hs.length) L.push('   Руки: '+hs.join('; ')); if(bg.length) L.push('   Фон: '+bg.join('; ')); });
   if(pl.people?.need) L.push('Люди: '+(pl.people.desc||'нужны'));
+  (pl.pictures||[]).forEach((x,i)=>L.push(`Картинка ${i+1} (${x.format==='B'?'B, квадрат':'C, вертикаль'}): «${x.quote||''}» — ${x.desc||''}${x.text?` · текст: «${x.text}»`:''}`));
   return L.join('\n');
 }
 
@@ -1111,7 +1189,7 @@ function collect(){
   const v = id=>$(id)?.value ?? '';
   return {title:titleFrom(v('#r-script')), script:v('#r-script'), bg:v('#r-bg'), sound:v('#r-sound'),
     speed:+v('#r-speed')||1.2, subWords:+v('#r-words')||2, subColor:v('#r-subc'), drive:v('#r-drive').trim(), mediaList:v('#r-media'),
-    win:readWin(), ctaOn:!!$('#r-ctaOn')?.checked, ctaText:v('#r-ctaText').trim(), status:v('#r-status'),
+    win:readWin(), subAnim:v('#r-subAnim')||'static', titleAnim:v('#r-titleAnim')||'static', ctaOn:!!$('#r-ctaOn')?.checked, ctaText:v('#r-ctaText').trim(), status:v('#r-status'),
     gptPrompt:v('#r-gpt'), styleAnalysis:v('#r-style'), sbRows:curRows, storyboard:rowsText(curRows), target:readTarget(), sub:readSub()};
 }
 $('#newReel').addEventListener('click', ()=>createReel());
@@ -1259,7 +1337,26 @@ function renderPresets(){
   });
 }
 
-function renderAll(){ renderReels(); renderTemplates(); renderLibrary(); renderPresets(); }
+function renderAnims(){
+  const L=$('#animList'); if(!L) return;
+  if(!S.textanims.length){ L.innerHTML=`<div class="empty"><strong>Анимаций пока нет</strong>Открой ролик, загрузи видео-референс и под ним нажми «Анимация текста»: отметь момент, где появляется надпись.</div>`; return; }
+  L.innerHTML=`<div class="grid">${[...S.textanims].sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||'')).map(a=>`<article class="card">
+    ${a.previewId?`<div class="media short"><img src="${blob(a.previewId)}" alt="Кадры анимации ${esc(a.name)}" loading="lazy" style="object-fit:contain;background:var(--sunken)"></div>`:''}
+    <div class="body"><div class="row" style="justify-content:space-between"><span class="chip">${a.role==='title'?'Заголовки':'Субтитры'}</span><span class="hint">${esc(a.source||'')}</span></div>
+    <h3>${esc(a.name)}</h3><p class="desc">${esc(a.summary||'')}</p>
+    ${canWrite?`<div class="actions"><button class="btn ghost danger" data-adel="${esc(a.id)}">Удалить</button></div>`:''}</div></article>`).join('')}</div>`;
+  L.querySelectorAll('[data-adel]').forEach(b=>b.onclick=()=>{ b.outerHTML=`<button class="btn danger" data-ayes="${esc(b.dataset.adel)}">Точно удалить</button>`; L.querySelector(`[data-ayes="${CSS.escape(b.dataset.adel)}"]`).onclick=e=>write(()=>db.collection('textanims').doc(e.target.dataset.ayes).delete(),'Анимация удалена'); });
+}
+function renderAll(){ renderReels(); renderTemplates(); renderLibrary(); renderPresets(); renderAnims(); refreshAnimSelects(); }
+function animOptions(role, projectId){
+  const list=[...S.textanims].sort((a,b)=>((b.projectId===projectId)-(a.projectId===projectId))||(b.createdAt||'').localeCompare(a.createdAt||''));
+  const mine=list.filter(a=>a.role===role), other=list.filter(a=>a.role!==role);
+  return [['static', role==='title'?'Наша: заголовок с подчёркиванием':'Наша: статичные'], ...[...mine,...other].map(a=>[a.id, `${a.projectId===projectId?'Из референса: ':'Библиотека: '}${a.name}${a.role!==role?(a.role==='title'?' (заголовок)':' (субтитры)'):''}`])];
+}
+function refreshAnimSelects(){
+  ['#r-subAnim','#r-titleAnim'].forEach(id=>{ const el=$(id); if(!el) return; const v=el.value||el.dataset.v||'static'; el.innerHTML=opts(animOptions(id==='#r-titleAnim'?'title':'subtitle', el.dataset.pid), v); });
+}
+const animName = id => id && id!=='static' ? (S.textanims.find(a=>a.id===id)?.name || 'анимация из библиотеки') : 'наша (статичная)';
 renderAll();
 
 /* ---------- data ---------- */
@@ -1276,7 +1373,7 @@ renderAll();
   sample = await window.claude.use('sample');
   status('');
   let loaded = 0;
-  for(const col of ['projects','templates','blocks','presets']){
+  for(const col of ['projects','templates','blocks','presets','textanims']){
     db.collection(col).onSnapshot(snap=>{
       S[col] = snap.docs.filter(d=>d.exists).map(d=>({id:d.id, ...d.data()}));
       if(++loaded>=0) renderAll();
