@@ -1,0 +1,583 @@
+<title>Пульт монтажа</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Golos+Text:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: editing-desk console — sticky header with tabs, one working area per tab; A/B/C mode colours run through every timeline strip */
+:root{
+  --bg:#ECEEF2; --surface:#FFFFFF; --sunken:#E3E6EC; --line:#D3D7DF; --ink:#14161B; --muted:#5A6072;
+  --accent:#2340E0; --accent-ink:#FFFFFF;
+  --mode-a:#C98A00; --mode-b:#2340E0; --mode-c:#D9482B;
+  --ok:#1E8A55; --warn:#B7791F; --danger:#C2362B;
+  --display:'Unbounded', 'Arial Black', system-ui, sans-serif;
+  --body:'Golos Text', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono:'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#101217; --surface:#181B22; --sunken:#0C0E12; --line:#2A2F3A; --ink:#ECEEF3; --muted:#9AA1B3;
+  --accent:#7D8CFF; --accent-ink:#0C0E12;
+  --mode-a:#F0B429; --mode-b:#7D8CFF; --mode-c:#FF7A5C;
+  --ok:#4CC38A; --warn:#E7B04B; --danger:#FF6B5E; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#101217; --surface:#181B22; --sunken:#0C0E12; --line:#2A2F3A; --ink:#ECEEF3; --muted:#9AA1B3;
+  --accent:#7D8CFF; --accent-ink:#0C0E12;
+  --mode-a:#F0B429; --mode-b:#7D8CFF; --mode-c:#FF7A5C;
+  --ok:#4CC38A; --warn:#E7B04B; --danger:#FF6B5E; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+h1,h2,h3{text-wrap:balance;margin:0}
+
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--surface);border-bottom:1px solid var(--line)}
+.bar{display:flex;align-items:center;gap:20px;flex-wrap:wrap;padding-block:12px}
+.brand{display:flex;align-items:baseline;gap:10px;margin-right:auto}
+.brand h1{font-family:var(--display);font-weight:700;font-size:18px;letter-spacing:-.2px}
+.brand .tc{font-family:var(--mono);font-size:12px;color:var(--muted)}
+nav{display:flex;gap:4px;flex-wrap:wrap}
+.tab{border:0;background:none;padding:7px 12px;border-radius:8px;cursor:pointer;color:var(--muted);font-weight:500}
+.tab:hover{background:var(--sunken);color:var(--ink)}
+.tab[aria-selected="true"]{background:var(--ink);color:var(--surface)}
+.tab.soon{cursor:default;opacity:.6}
+.tab.soon:hover{background:none;color:var(--muted)}
+.tab small{font-family:var(--mono);font-size:10.5px;letter-spacing:.4px;margin-left:6px;text-transform:uppercase}
+
+main{padding-block:24px 64px}
+.status{font-size:13.5px;color:var(--muted);margin-bottom:16px}
+.status.err{color:var(--danger)}
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+.head h2{font-family:var(--display);font-weight:500;font-size:22px;letter-spacing:-.3px}
+.head p{margin:4px 0 0;color:var(--muted);max-width:62ch}
+
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);padding:8px 14px;border-radius:8px;cursor:pointer;font-weight:500;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.ghost{border-color:transparent;background:none;color:var(--muted)}
+.btn.danger{color:var(--danger)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+.grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column;min-width:0}
+.card .body{padding:14px 16px 16px;display:flex;flex-direction:column;gap:8px;flex:1;min-width:0}
+.card h3{font-size:16px;font-weight:600}
+.card .desc{color:var(--muted);font-size:14px;margin:0}
+.code{font-family:var(--mono);font-size:13px;font-weight:600}
+.meta{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:12px;padding:2px 8px;border-radius:999px;background:var(--sunken);color:var(--muted);white-space:nowrap}
+.pill{font-family:var(--mono);font-size:11px;letter-spacing:.4px;text-transform:uppercase;padding:2px 8px;border-radius:5px;border:1px solid currentColor;white-space:nowrap}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font-size:13.5px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;min-width:0}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:auto;padding-top:6px}
+
+.media{position:relative;background:var(--sunken);aspect-ratio:9/16;max-height:420px;width:100%;display:grid;place-items:center;overflow:hidden}
+.media.short{aspect-ratio:9/12}
+.media video,.media img{width:100%;height:100%;object-fit:cover;display:block}
+.media .ph{font-family:var(--mono);font-size:12px;color:var(--muted);text-align:center;padding:16px}
+
+/* timeline strip: modes A/B/C as proportional segments */
+.strip{display:flex;height:10px;border-radius:3px;overflow:hidden;background:var(--sunken)}
+.strip.big{height:28px;border-radius:5px}
+.strip span{display:block;height:100%}
+.strip .a{background:var(--mode-a)} .strip .b{background:var(--mode-b)} .strip .c{background:var(--mode-c)}
+.strip.big span{font-family:var(--mono);font-size:12px;font-weight:600;color:#fff;display:flex;align-items:center;padding-left:8px;white-space:nowrap;overflow:hidden}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+
+.filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.filters button{border:1px solid var(--line);background:var(--surface);padding:5px 12px;border-radius:999px;cursor:pointer;font-size:13.5px}
+.filters button[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+
+/* forms */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:20px;margin-bottom:24px}
+.panel h3{font-family:var(--display);font-weight:500;font-size:17px;margin-bottom:4px}
+.panel > p{margin:0 0 16px;color:var(--muted);font-size:14px}
+fieldset{border:0;padding:0;margin:0 0 18px;min-width:0}
+legend{font-family:var(--mono);font-size:11.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin-bottom:10px;padding:0}
+.fields{display:grid;gap:12px 16px;grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+.f{display:flex;flex-direction:column;gap:4px;min-width:0}
+.f.wide{grid-column:1/-1}
+.f label{font-size:13px;font-weight:500}
+.f .hint{font-size:12px;color:var(--muted)}
+input[type=text],input[type=number],input[type=url],select,textarea{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:8px 10px}
+textarea{min-height:120px;resize:vertical;line-height:1.5}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.trio{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.sum{font-family:var(--mono);font-size:12.5px}
+.sum.bad{color:var(--danger)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));translate:-50% 0;background:var(--ink);color:var(--surface);padding:10px 16px;border-radius:8px;font-size:14px;z-index:20;max-width:calc(100% - 32px)}
+.confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:14px;color:var(--danger)}
+
+.empty{border:1px dashed var(--line);border-radius:var(--r);padding:28px;text-align:center;color:var(--muted)}
+.empty strong{display:block;color:var(--ink);margin-bottom:4px;font-weight:600}
+
+.projrow{display:grid;grid-template-columns:minmax(0,1fr) 180px auto;gap:16px;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line);cursor:pointer;background:var(--surface)}
+.projrow:hover{background:var(--sunken)}
+.projlist{border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.projlist .projrow:last-child{border-bottom:0}
+.projrow h3{font-size:15.5px;font-weight:600}
+.projrow .sub{font-size:13px;color:var(--muted)}
+@media (max-width:640px){.projrow{grid-template-columns:minmax(0,1fr) auto}.projrow .strip{display:none}}
+
+.s-draft{color:var(--muted)} .s-story{color:var(--mode-b)} .s-images{color:var(--warn)} .s-edit{color:var(--mode-c)} .s-done{color:var(--ok)}
+.swatches{display:flex;gap:4px}
+.swatches i{width:18px;height:18px;border-radius:4px;border:1px solid var(--line)}
+[hidden]{display:none!important}
+@media (max-width:640px){.brand .tc{display:none}.bar{gap:10px}nav{flex-wrap:nowrap;overflow-x:auto;width:100%;scrollbar-width:none}.tab{flex:none}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<header>
+  <div class="wrap bar">
+    <div class="brand"><h1>Пульт монтажа</h1><span class="tc">auto-editing · 00:00:46:00</span></div>
+    <nav role="tablist" aria-label="Разделы">
+      <button class="tab" role="tab" id="tab-reels" data-view="reels">Ролики</button>
+      <button class="tab" role="tab" id="tab-templates" data-view="templates">Шаблоны</button>
+      <button class="tab" role="tab" id="tab-library" data-view="library">Библиотека</button>
+      <button class="tab" role="tab" id="tab-presets" data-view="presets">Пресеты</button>
+      <span class="tab soon" title="Этап 2">Раскадровка<small>скоро</small></span>
+      <span class="tab soon" title="Этап 4">Референсы<small>скоро</small></span>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="status" id="status">Подключаю данные пульта…</div>
+
+  <!-- РОЛИКИ -->
+  <section id="view-reels" hidden>
+    <div class="head">
+      <div><h2>Ролики</h2><p>Каждый ролик — бриф и текст. Заполни, нажми «Скопировать задание» и вставь в чат с Claude: монтаж идёт там.</p></div>
+      <button class="btn primary" id="newReel">Новый ролик</button>
+    </div>
+    <div id="reelEditor" hidden></div>
+    <div id="reelList"></div>
+  </section>
+
+  <!-- ШАБЛОНЫ -->
+  <section id="view-templates" hidden>
+    <div class="head">
+      <div><h2>Шаблоны монтажа</h2><p>Готовые наборы: стиль, доли кадра, субтитры, звук и блоки. Выбери шаблон, и новый ролик начнётся с его настроек.</p></div>
+      <button class="btn" id="newTpl" hidden>Добавить шаблон</button>
+    </div>
+    <div id="tplEditor" hidden></div>
+    <div id="tplList"></div>
+  </section>
+
+  <!-- БИБЛИОТЕКА -->
+  <section id="view-library" hidden>
+    <div class="head">
+      <div><h2>Библиотека блоков</h2><p>Анимации, 3D-сцены, фоны, вставки и звуки. В раскадровке блок называют по коду, например <span class="code">MCycle</span>.</p></div>
+      <button class="btn" id="newBlock" hidden>Добавить блок</button>
+    </div>
+    <div class="filters" id="kindFilters" role="group" aria-label="Тип блока"></div>
+    <div id="blockEditor" hidden></div>
+    <div id="blockList"></div>
+  </section>
+
+  <!-- ПРЕСЕТЫ -->
+  <section id="view-presets" hidden>
+    <div class="head">
+      <div><h2>Пресеты долей кадра</h2><p>Сколько времени ролика идёт в каждом режиме.</p></div>
+    </div>
+    <div class="legend" style="margin-bottom:16px">
+      <span><i style="background:var(--mode-a)"></i>A — спикер на весь экран</span>
+      <span><i style="background:var(--mode-b)"></i>B — сцена сверху, спикер в окне</span>
+      <span><i style="background:var(--mode-c)"></i>C — вставка на весь экран</span>
+    </div>
+    <div class="panel" id="presetForm"></div>
+    <div id="presetList"></div>
+  </section>
+</main>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(() => {
+const $ = (s, r=document) => r.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const blob = id => id ? '/_blob/' + id : '';
+let db = null, assets = null, user = null, canWrite = true, canEdit = false;
+const S = {projects:[], templates:[], blocks:[], presets:[]};
+let kindFilter = 'all';
+
+const GOALS = ['слово в директ','охват','подписка','продажа'];
+const TONES = ['разбор','эксперт','история','провокация'];
+const WHO = ['аватар','живая запись','только голос'];
+const AMOUNT = ['нет','1–2','2–3','много'];
+const SOUND = ['тихие эффекты','музыка','без звуков'];
+const STATUSES = [['draft','Черновик'],['story','Раскадровка'],['images','Картинки'],['edit','Монтаж'],['done','Готово']];
+const KINDS = [['all','Все'],['motion','Моушн'],['3d','3D'],['2d','2D-сцена'],['transition','Переход'],['bg','Фон'],['insert','Вставка'],['sound','Звук']];
+const kindName = k => (KINDS.find(x=>x[0]===k)||[k,k])[1];
+
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.hidden=false; clearTimeout(toast.t); toast.t=setTimeout(()=>t.hidden=true,2600); }
+function status(msg, err){ const s=$('#status'); s.textContent=msg||''; s.hidden=!msg; s.classList.toggle('err',!!err); }
+
+/* ---------- routing ---------- */
+const VIEWS = ['reels','templates','library','presets'];
+function show(v){
+  if(!VIEWS.includes(v)) v='reels';
+  VIEWS.forEach(x=>{ $('#view-'+x).hidden = x!==v; $('#tab-'+x).setAttribute('aria-selected', String(x===v)); });
+  try{ history.replaceState(null,'','#'+v); }catch(e){}
+}
+document.querySelectorAll('.tab[data-view]').forEach(b=>b.addEventListener('click',()=>show(b.dataset.view)));
+show((location.hash||'').slice(1));
+
+/* ---------- helpers ---------- */
+const presetOf = id => S.presets.find(p=>p.id===id);
+const tplOf = id => S.templates.find(t=>t.id===id);
+function strip(a,b,c,big){
+  const lab = (k,v)=> big && v>=8 ? `${k} ${v}%` : '';
+  return `<div class="strip${big?' big':''}" role="img" aria-label="A ${a}%, B ${b}%, C ${c}%">`+
+    `<span class="a" style="width:${a}%">${lab('A',a)}</span><span class="b" style="width:${b}%">${lab('B',b)}</span><span class="c" style="width:${c}%">${lab('C',c)}</span></div>`;
+}
+function sharesOf(p){
+  if(p.presetId==='custom' && p.custom) return p.custom;
+  const pr = presetOf(p.presetId); return pr ? {a:pr.a,b:pr.b,c:pr.c} : null;
+}
+function opts(list, val){ return list.map(o=>{ const [v,l] = Array.isArray(o)?o:[o,o]; return `<option value="${esc(v)}"${String(v)===String(val)?' selected':''}>${esc(l)}</option>`; }).join(''); }
+function media(id, kind, poster){
+  if(!id) return `<div class="media"><div class="ph">Превью пока нет</div></div>`;
+  const isVid = kind==='video';
+  return `<div class="media">${isVid
+    ? `<video src="${blob(id)}" ${poster?`poster="${blob(poster)}"`:''} muted loop playsinline preload="metadata" data-hover></video>`
+    : `<img src="${blob(id)}" alt="" loading="lazy">`}</div>`;
+}
+function wireVideos(root){
+  root.querySelectorAll('video[data-hover]').forEach(v=>{
+    const play=()=>v.play().catch(()=>{}), stop=()=>{v.pause();};
+    v.addEventListener('mouseenter',play); v.addEventListener('mouseleave',stop);
+    v.addEventListener('click',()=> v.paused?play():stop());
+  });
+}
+async function write(fn, okMsg){
+  try{ await fn(); if(okMsg) toast(okMsg); return true; }
+  catch(e){
+    if(e && e.code==='invalid_argument'){ canWrite=false; renderAll(); toast('У тебя доступ только на просмотр'); }
+    else if(e && e.code==='quota_exceeded') toast('Место на пульте закончилось: удали старые записи');
+    else toast('Не сохранилось: '+(e&&e.message||'ошибка'));
+    return false;
+  }
+}
+async function upload(file){
+  if(!assets){ toast('Загрузка файлов доступна только редактору'); return null; }
+  const type = file.type || (/\.mp4$/i.test(file.name)?'video/mp4':/\.webm$/i.test(file.name)?'video/webm':'');
+  try{ const r = await assets.upload(file, type?{type}:undefined); return {id:r.id, kind: r.contentType.startsWith('video')?'video':'image'}; }
+  catch(e){
+    const m={too_large:'Файл больше 20 МБ',unsupported_type:'Такой тип файла не поддерживается',quota_or_state:'Хранилище пульта заполнено',rate_limited:'Слишком часто, попробуй через минуту'};
+    toast(m[e&&e.code]||'Не загрузилось'); return null;
+  }
+}
+
+/* ---------- РОЛИКИ ---------- */
+function renderReels(){
+  $('#newReel').disabled = !canWrite || !db;
+  const L = $('#reelList');
+  if(!S.projects.length){
+    L.innerHTML = `<div class="empty"><strong>Роликов пока нет</strong>Нажми «Новый ролик» или выбери шаблон во вкладке «Шаблоны». Здесь появится список с этапами: черновик, раскадровка, картинки, монтаж, готово.</div>`;
+    return;
+  }
+  const rows = [...S.projects].sort((x,y)=>(y.updatedAt||'').localeCompare(x.updatedAt||'')).map(p=>{
+    const st = STATUSES.find(s=>s[0]===p.status)||STATUSES[0];
+    const sh = sharesOf(p); const t = tplOf(p.templateId);
+    return `<div class="projrow" tabindex="0" data-open="${esc(p.id)}">
+      <div style="min-width:0"><h3>${esc(p.title||'Без названия')}</h3>
+      <div class="sub">${esc(t?t.name:'без шаблона')} · ${esc(p.goal||'')} · обновлён ${esc((p.updatedAt||'').slice(0,10))}</div></div>
+      ${sh?strip(sh.a,sh.b,sh.c):'<span></span>'}
+      <span class="pill s-${esc(st[0])}">${esc(st[1])}</span></div>`;
+  }).join('');
+  L.innerHTML = `<div class="projlist">${rows}</div>`;
+  L.querySelectorAll('[data-open]').forEach(r=>{
+    const go=()=>openReel(S.projects.find(p=>p.id===r.dataset.open));
+    r.addEventListener('click',go); r.addEventListener('keydown',e=>{ if(e.key==='Enter') go(); });
+  });
+}
+function blankReel(tplId){
+  const t = tplOf(tplId);
+  return {title:'', angle:'', goal:GOALS[0], cta:'Пиши «МОНТАЖ»', tone:TONES[0], who:WHO[0],
+    templateId: t?t.id:'', presetId: t&&t.presetId ? t.presetId : (S.presets[0]?.id||''), custom:{a:10,b:60,c:30},
+    bg: t?.bg || 'светлая', n3d:'2–3', nMotion:'2–3', ownMedia:'', speed:1.2, subWords:2, subColor:'по подложке',
+    sound: t?.sound || SOUND[0], drive:'', script:'', status:'draft'};
+}
+function openReel(p, tplId){
+  const isNew = !p; p = p || blankReel(tplId);
+  const E = $('#reelEditor'); E.hidden = false;
+  const ro = !canWrite ? ' disabled' : '';
+  E.innerHTML = `<form class="panel" id="reelForm" novalidate>
+    <h3>${isNew?'Новый ролик':esc(p.title||'Ролик')}</h3>
+    <p>Пустые поля берутся по умолчанию. Обязательны только тема и текст.</p>
+    <fieldset><legend>Идея и текст</legend><div class="fields">
+      <div class="f"><label for="r-title">Тема</label><input type="text" id="r-title" value="${esc(p.title)}" placeholder="Профессии, которые заменит ИИ"${ro}></div>
+      <div class="f"><label for="r-angle">Угол подачи</label><input type="text" id="r-angle" value="${esc(p.angle)}" placeholder="Учиться один раз больше не работает"${ro}></div>
+      <div class="f"><label for="r-goal">Цель</label><select id="r-goal"${ro}>${opts(GOALS,p.goal)}</select></div>
+      <div class="f"><label for="r-cta">Призыв в конце</label><input type="text" id="r-cta" value="${esc(p.cta)}"${ro}></div>
+      <div class="f"><label for="r-tone">Тон</label><select id="r-tone"${ro}>${opts(TONES,p.tone)}</select></div>
+      <div class="f"><label for="r-who">Кто в кадре</label><select id="r-who"${ro}>${opts(WHO,p.who)}</select></div>
+      <div class="f wide"><label for="r-script">Текст сценария</label><textarea id="r-script" placeholder="Вставь сюда текст ролика целиком"${ro}>${esc(p.script)}</textarea><span class="hint" id="r-count"></span></div>
+    </div></fieldset>
+    <fieldset><legend>Стиль и кадр</legend><div class="fields">
+      <div class="f"><label for="r-tpl">Шаблон</label><select id="r-tpl"${ro}><option value="">Без шаблона: предложить 3–5 стилей</option>${opts(S.templates.map(t=>[t.id,t.name]),p.templateId)}</select></div>
+      <div class="f"><label for="r-preset">Пресет долей</label><select id="r-preset"${ro}>${opts([...S.presets.map(x=>[x.id,`${x.name} · A${x.a}/B${x.b}/C${x.c}`]),['custom','Свои доли']],p.presetId)}</select></div>
+      <div class="f wide" id="r-customBox"><label>Свои доли, %</label><div class="trio">
+        <input type="number" id="r-a" min="0" max="100" value="${p.custom?.a??10}" aria-label="Доля A"${ro}><input type="number" id="r-b" min="0" max="100" value="${p.custom?.b??60}" aria-label="Доля B"${ro}><input type="number" id="r-c" min="0" max="100" value="${p.custom?.c??30}" aria-label="Доля C"${ro}></div>
+        <span class="sum" id="r-sum"></span></div>
+      <div class="f wide" id="r-stripBox"></div>
+      <div class="f"><label for="r-bg">Подложка</label><select id="r-bg"${ro}>${opts(['светлая','тёмная'],p.bg)}</select></div>
+      <div class="f"><label for="r-3d">3D-вставки</label><select id="r-3d"${ro}>${opts(AMOUNT,p.n3d)}</select></div>
+      <div class="f"><label for="r-motion">Моушн-блоки</label><select id="r-motion"${ro}>${opts(AMOUNT,p.nMotion)}</select></div>
+      <div class="f"><label for="r-sound">Звук</label><select id="r-sound"${ro}>${opts(SOUND,p.sound)}</select></div>
+      <div class="f wide"><label for="r-own">Свои видео, скриншоты, фото</label><input type="text" id="r-own" value="${esc(p.ownMedia)}" placeholder="Например: запись экрана CapCut, скрин новости"${ro}></div>
+    </div></fieldset>
+    <fieldset><legend>Монтаж</legend><div class="fields">
+      <div class="f"><label for="r-speed">Ускорение: <span class="code" id="r-speedV"></span></label><input type="range" id="r-speed" min="1" max="1.3" step="0.05" value="${p.speed}"${ro}></div>
+      <div class="f"><label for="r-words">Слов в субтитре</label><select id="r-words"${ro}>${opts([1,2,3],p.subWords)}</select></div>
+      <div class="f"><label for="r-subc">Цвет субтитров</label><select id="r-subc"${ro}>${opts(['по подложке','чёрный','белый'],p.subColor)}</select></div>
+      <div class="f"><label for="r-drive">Папка на Диске</label><input type="url" id="r-drive" value="${esc(p.drive)}" placeholder="https://drive.google.com/…"${ro}></div>
+      <div class="f"><label for="r-status">Этап</label><select id="r-status"${ro}>${opts(STATUSES,p.status)}</select></div>
+    </div></fieldset>
+    <div class="row">
+      <button class="btn primary" type="submit"${ro}>${isNew?'Создать ролик':'Сохранить'}</button>
+      ${isNew?'':'<button class="btn" type="button" id="r-copy">Скопировать задание для чата</button>'}
+      <button class="btn ghost" type="button" id="r-close">Закрыть</button>
+      ${!isNew&&canWrite?'<span style="margin-left:auto" id="r-delBox"><button class="btn ghost danger" type="button" id="r-del">Удалить</button></span>':''}
+    </div>
+  </form>`;
+  const F = $('#reelForm');
+  const sync = () => {
+    $('#r-speedV').textContent = '×'+Number($('#r-speed').value).toFixed(2);
+    const cust = $('#r-preset').value==='custom'; $('#r-customBox').hidden = !cust;
+    let a,b,c; if(cust){ a=+$('#r-a').value||0; b=+$('#r-b').value||0; c=+$('#r-c').value||0;
+      const s=a+b+c, el=$('#r-sum'); el.textContent = s===100 ? 'Сумма 100%' : `Сумма ${s}%, нужно 100%`; el.classList.toggle('bad', s!==100); }
+    else { const pr=presetOf($('#r-preset').value); if(pr){a=pr.a;b=pr.b;c=pr.c;} }
+    $('#r-stripBox').innerHTML = a!=null ? strip(a,b,c,true) : '';
+    const w = $('#r-script').value.trim().split(/\s+/).filter(Boolean).length;
+    $('#r-count').textContent = w ? `${w} слов · около ${Math.round(w/2.6)} с до ускорения` : '';
+  };
+  F.addEventListener('input', sync); sync();
+  $('#r-tpl').addEventListener('change', e=>{ const t=tplOf(e.target.value); if(t){ if(t.presetId) $('#r-preset').value=t.presetId; if(t.bg) $('#r-bg').value=t.bg; if(t.sound) $('#r-sound').value=t.sound; sync(); } });
+  $('#r-close').addEventListener('click', ()=>{ E.hidden=true; E.innerHTML=''; });
+  F.addEventListener('submit', async e=>{
+    e.preventDefault(); if(!db||!canWrite) return;
+    const d = collect();
+    if(!d.title){ toast('Заполни тему'); $('#r-title').focus(); return; }
+    if(d.presetId==='custom' && d.custom.a+d.custom.b+d.custom.c!==100){ toast('Доли должны давать 100%'); return; }
+    const now = new Date().toISOString();
+    const ref = isNew ? db.collection('projects').doc() : db.collection('projects').doc(p.id);
+    const body = {...d, createdAt: p.createdAt||now, updatedAt: now};
+    if(await write(()=>ref.set(body), isNew?'Ролик создан':'Сохранено')){ openReel({...body, id:ref.id}); }
+  });
+  const del = $('#r-del');
+  if(del) del.addEventListener('click', ()=>{
+    $('#r-delBox').innerHTML = `<span class="confirm">Удалить ролик? <button class="btn danger" type="button" id="r-delYes">Удалить</button><button class="btn ghost" type="button" id="r-delNo">Отмена</button></span>`;
+    $('#r-delNo').onclick = ()=>openReel(p);
+    $('#r-delYes').onclick = async ()=>{ if(await write(()=>db.collection('projects').doc(p.id).delete(),'Ролик удалён')){ E.hidden=true; E.innerHTML=''; } };
+  });
+  const cp = $('#r-copy');
+  if(cp) cp.addEventListener('click', ()=>{
+    const d = collect(), t = tplOf(d.templateId), sh = d.presetId==='custom'?d.custom:presetOf(d.presetId);
+    const text = [
+      `Новый ролик, подключи auto-editing.`,
+      `Проект на пульте: «${d.title}» (id: ${p.id}). Бриф и текст бери оттуда.`,
+      ``,
+      `Тема: ${d.title}${d.angle?` — ${d.angle}`:''}`,
+      `Цель: ${d.goal}. Призыв: ${d.cta}. Тон: ${d.tone}. В кадре: ${d.who}.`,
+      `Шаблон: ${t?t.name:'нет, предложи 3–5 стилей'}. Доли: ${sh?`A ${sh.a}% / B ${sh.b}% / C ${sh.c}%`:'по умолчанию'}.`,
+      `Подложка: ${d.bg}. 3D: ${d.n3d}. Моушн: ${d.nMotion}. Звук: ${d.sound}.`,
+      `Ускорение ×${d.speed}. Субтитры: ${d.subWords} сл., цвет ${d.subColor}.`,
+      d.ownMedia?`Свои материалы: ${d.ownMedia}`:'',
+      d.drive?`Папка на Диске: ${d.drive}`:'',
+      `Видео аватара пришлю файлом в чат.`
+    ].filter(x=>x!=='').join('\n');
+    const done=()=>toast('Задание скопировано: вставь его в чат');
+    if(navigator.clipboard?.writeText){ navigator.clipboard.writeText(text).then(done, ()=>fallbackCopy(text)); } else fallbackCopy(text);
+  });
+  E.scrollIntoView({behavior:'smooth', block:'start'});
+}
+function fallbackCopy(text){
+  const E=$('#reelEditor'); let ta=$('#r-copyText');
+  if(!ta){ ta=document.createElement('textarea'); ta.id='r-copyText'; ta.readOnly=true; ta.style.marginTop='12px'; $('#reelForm').append(ta); }
+  ta.value=text; ta.focus(); ta.select(); toast('Скопируй выделенный текст вручную');
+}
+function collect(){
+  const v = id=>$(id).value;
+  return {title:v('#r-title').trim(), angle:v('#r-angle').trim(), goal:v('#r-goal'), cta:v('#r-cta').trim(), tone:v('#r-tone'), who:v('#r-who'),
+    script:v('#r-script'), templateId:v('#r-tpl'), presetId:v('#r-preset'),
+    custom:{a:+v('#r-a')||0,b:+v('#r-b')||0,c:+v('#r-c')||0}, bg:v('#r-bg'), n3d:v('#r-3d'), nMotion:v('#r-motion'), sound:v('#r-sound'),
+    ownMedia:v('#r-own').trim(), speed:+v('#r-speed'), subWords:+v('#r-words'), subColor:v('#r-subc'), drive:v('#r-drive').trim(), status:v('#r-status')};
+}
+$('#newReel').addEventListener('click', ()=>openReel(null));
+
+/* ---------- ШАБЛОНЫ ---------- */
+function renderTemplates(){
+  $('#newTpl').hidden = !canEdit;
+  const L = $('#tplList');
+  if(!S.templates.length){ L.innerHTML = `<div class="empty"><strong>Шаблонов пока нет</strong>Сюда попадут готовые варианты монтажа: стиль, доли кадра, субтитры и набор блоков.</div>`; return; }
+  L.innerHTML = `<div class="grid">${S.templates.map(t=>{
+    const pr = presetOf(t.presetId);
+    return `<article class="card">
+      ${media(t.previewId, t.previewKind, t.posterId)}
+      <div class="body">
+        <h3>${esc(t.name)}</h3>
+        <p class="desc">${esc(t.aesthetic)}</p>
+        ${t.palette?.length?`<div class="swatches" aria-label="Палитра">${t.palette.map(c=>`<i style="background:${esc(c)}" title="${esc(c)}"></i>`).join('')}</div>`:''}
+        ${pr?strip(pr.a,pr.b,pr.c):''}
+        <dl class="kv">
+          <dt>Подложка</dt><dd>${esc(t.bg||'—')}</dd>
+          <dt>Шрифты</dt><dd>${esc(t.fonts||'—')}</dd>
+          <dt>Движение</dt><dd>${esc(t.motion||'—')}</dd>
+          <dt>Звук</dt><dd>${esc(t.sound||'—')}</dd>
+        </dl>
+        ${t.blocks?.length?`<div class="meta">${t.blocks.map(b=>`<span class="chip code">${esc(b)}</span>`).join('')}</div>`:''}
+        <div class="actions">
+          <button class="btn primary" data-use="${esc(t.id)}"${canWrite&&db?'':' disabled'}>Ролик по шаблону</button>
+          ${canEdit?`<label class="btn ghost" style="cursor:pointer">Превью<input type="file" accept="image/*,video/mp4,video/webm" data-tplprev="${esc(t.id)}" hidden></label>`:''}
+        </div>
+      </div></article>`; }).join('')}</div>`;
+  wireVideos(L);
+  L.querySelectorAll('[data-use]').forEach(b=>b.addEventListener('click',()=>{ show('reels'); openReel(null, b.dataset.use); }));
+  L.querySelectorAll('[data-tplprev]').forEach(inp=>inp.addEventListener('change', async ()=>{
+    const f=inp.files[0]; if(!f) return; toast('Загружаю…'); const r=await upload(f); if(!r) return;
+    await write(()=>db.collection('templates').doc(inp.dataset.tplprev).update({previewId:r.id, previewKind:r.kind, posterId:null}),'Превью обновлено');
+  }));
+}
+$('#newTpl').addEventListener('click', ()=>{
+  const E=$('#tplEditor'); E.hidden=false;
+  E.innerHTML = `<form class="panel" id="tplForm" novalidate><h3>Новый шаблон</h3><p>Превью можно добавить после создания, кнопкой на карточке.</p>
+    <div class="fields">
+      <div class="f"><label for="t-name">Название</label><input type="text" id="t-name" placeholder="Светлый моушн с глиняным 3D"></div>
+      <div class="f"><label for="t-preset">Пресет долей</label><select id="t-preset">${opts(S.presets.map(x=>[x.id,x.name]),'')}</select></div>
+      <div class="f wide"><label for="t-aest">Эстетика</label><input type="text" id="t-aest" placeholder="Что видно и почему это метафора темы"></div>
+      <div class="f"><label for="t-bg">Подложка</label><select id="t-bg">${opts(['светлая','тёмная'],'светлая')}</select></div>
+      <div class="f"><label for="t-pal">Палитра</label><input type="text" id="t-pal" placeholder="#F4F1EA, #1C1B22, #7B61FF"><span class="hint">Цвета через запятую</span></div>
+      <div class="f"><label for="t-fonts">Шрифты</label><input type="text" id="t-fonts" placeholder="Inter Tight + Noto Serif Display Italic"></div>
+      <div class="f"><label for="t-motion">Движение и переходы</label><input type="text" id="t-motion" placeholder="Пружинистое, шторка-круг"></div>
+      <div class="f"><label for="t-sound">Звук</label><select id="t-sound">${opts(SOUND,SOUND[0])}</select></div>
+      <div class="f wide"><label for="t-blocks">Блоки</label><input type="text" id="t-blocks" placeholder="MPath, MCycle, S3Jobs"><span class="hint">Коды из библиотеки через запятую</span></div>
+    </div>
+    <div class="row" style="margin-top:14px"><button class="btn primary" type="submit">Создать шаблон</button><button class="btn ghost" type="button" id="t-close">Закрыть</button></div></form>`;
+  $('#t-close').onclick=()=>{E.hidden=true;E.innerHTML='';};
+  $('#tplForm').addEventListener('submit', async e=>{
+    e.preventDefault(); const name=$('#t-name').value.trim(); if(!name){ toast('Заполни название'); return; }
+    const split = s=>s.split(',').map(x=>x.trim()).filter(Boolean);
+    const body={name, aesthetic:$('#t-aest').value.trim(), presetId:$('#t-preset').value, bg:$('#t-bg').value, palette:split($('#t-pal').value),
+      fonts:$('#t-fonts').value.trim(), motion:$('#t-motion').value.trim(), sound:$('#t-sound').value, blocks:split($('#t-blocks').value), createdAt:new Date().toISOString()};
+    if(await write(()=>db.collection('templates').add(body),'Шаблон создан')){ E.hidden=true; E.innerHTML=''; }
+  });
+});
+
+/* ---------- БИБЛИОТЕКА ---------- */
+function renderFilters(){
+  const counts = k => k==='all'?S.blocks.length:S.blocks.filter(b=>b.kind===k).length;
+  $('#kindFilters').innerHTML = KINDS.filter(([k])=>k==='all'||counts(k)>0||canEdit).map(([k,l])=>`<button type="button" data-kind="${k}" aria-pressed="${k===kindFilter}">${esc(l)} <span class="code" style="font-weight:400">${counts(k)}</span></button>`).join('');
+  $('#kindFilters').querySelectorAll('button').forEach(b=>b.onclick=()=>{ kindFilter=b.dataset.kind; renderLibrary(); });
+}
+function renderLibrary(){
+  $('#newBlock').hidden = !canEdit; renderFilters();
+  const L=$('#blockList'); const list = S.blocks.filter(b=>kindFilter==='all'||b.kind===kindFilter).sort((a,b)=>(a.order??99)-(b.order??99));
+  if(!S.blocks.length){ L.innerHTML=`<div class="empty"><strong>Библиотека пуста</strong>Здесь будут блоки анимаций с превью: моушн-схемы, 3D-сцены, фоны, вставки и звуки.</div>`; return; }
+  if(!list.length){ L.innerHTML=`<div class="empty"><strong>В этом типе блоков пока нет</strong>Добавь первый кнопкой «Добавить блок».</div>`; return; }
+  L.innerHTML = `<div class="grid">${list.map(b=>`<article class="card">
+    ${media(b.previewId, b.previewKind)}
+    <div class="body">
+      <div class="row" style="justify-content:space-between"><span class="code">${esc(b.code||b.id)}</span><span class="chip">${esc(kindName(b.kind))}</span></div>
+      <h3>${esc(b.name)}</h3>
+      <p class="desc">${esc(b.description)}</p>
+      ${b.fits?`<dl class="kv"><dt>Для</dt><dd>${esc(b.fits)}</dd>${b.params?`<dt>Параметры</dt><dd>${esc(b.params)}</dd>`:''}${b.source?`<dt>Ролик</dt><dd>${esc(b.source)}</dd>`:''}</dl>`:''}
+      ${canEdit?`<div class="actions"><label class="btn ghost" style="cursor:pointer">${b.previewId?'Заменить превью':'Добавить превью'}<input type="file" accept="image/*,video/mp4,video/webm" data-bprev="${esc(b.id)}" hidden></label></div>`:''}
+    </div></article>`).join('')}</div>`;
+  wireVideos(L);
+  L.querySelectorAll('[data-bprev]').forEach(inp=>inp.addEventListener('change', async ()=>{
+    const f=inp.files[0]; if(!f) return; toast('Загружаю…'); const r=await upload(f); if(!r) return;
+    await write(()=>db.collection('blocks').doc(inp.dataset.bprev).update({previewId:r.id, previewKind:r.kind}),'Превью обновлено');
+  }));
+}
+$('#newBlock').addEventListener('click', ()=>{
+  const E=$('#blockEditor'); E.hidden=false;
+  E.innerHTML = `<form class="panel" id="blockForm" novalidate><h3>Новый блок</h3><p>Код блока — короткое имя для раскадровки, латиницей.</p>
+    <div class="fields">
+      <div class="f"><label for="b-code">Код</label><input type="text" id="b-code" placeholder="MCounter"></div>
+      <div class="f"><label for="b-kind">Тип</label><select id="b-kind">${opts(KINDS.filter(k=>k[0]!=='all'),kindFilter==='all'?'motion':kindFilter)}</select></div>
+      <div class="f"><label for="b-name">Название</label><input type="text" id="b-name" placeholder="Счётчик до большого числа"></div>
+      <div class="f wide"><label for="b-desc">Что на экране</label><input type="text" id="b-desc"></div>
+      <div class="f wide"><label for="b-fits">Подходит для</label><input type="text" id="b-fits" placeholder="Цифры, масштаб, рост"></div>
+      <div class="f wide"><label for="b-params">Параметры</label><input type="text" id="b-params" placeholder="Число, подпись, слово-триггер"></div>
+      <div class="f wide"><label for="b-file">Превью</label><input type="file" id="b-file" accept="image/*,video/mp4,video/webm"></div>
+    </div>
+    <div class="row" style="margin-top:14px"><button class="btn primary" type="submit">Добавить блок</button><button class="btn ghost" type="button" id="b-close">Закрыть</button></div></form>`;
+  $('#b-close').onclick=()=>{E.hidden=true;E.innerHTML='';};
+  $('#blockForm').addEventListener('submit', async e=>{
+    e.preventDefault(); const code=$('#b-code').value.trim(), name=$('#b-name').value.trim();
+    if(!code||!name){ toast('Заполни код и название'); return; }
+    if(!/^[A-Za-z0-9_-]+$/.test(code)){ toast('Код — латиница, цифры, _ и -'); return; }
+    let prev=null; const f=$('#b-file').files[0]; if(f){ toast('Загружаю превью…'); prev=await upload(f); }
+    const body={code, kind:$('#b-kind').value, name, description:$('#b-desc').value.trim(), fits:$('#b-fits').value.trim(), params:$('#b-params').value.trim(),
+      previewId:prev?.id||null, previewKind:prev?.kind||null, order:50, createdAt:new Date().toISOString()};
+    if(await write(()=>db.collection('blocks').doc(code).set(body),'Блок добавлен')){ E.hidden=true; E.innerHTML=''; }
+  });
+});
+
+/* ---------- ПРЕСЕТЫ ---------- */
+function renderPresets(){
+  const F=$('#presetForm');
+  F.hidden = !canWrite || !db;
+  if(!F.dataset.ready){
+    F.dataset.ready='1';
+    F.innerHTML = `<h3>Свой пресет</h3><p>Задай доли в процентах. Пресет появится в брифе ролика.</p>
+      <form id="pForm" class="fields" novalidate>
+        <div class="f"><label for="p-name">Название</label><input type="text" id="p-name" placeholder="Динамичный"></div>
+        <div class="f"><label>A / B / C, %</label><div class="trio"><input type="number" id="p-a" value="10" min="0" max="100" aria-label="Доля A"><input type="number" id="p-b" value="50" min="0" max="100" aria-label="Доля B"><input type="number" id="p-c" value="40" min="0" max="100" aria-label="Доля C"></div></div>
+        <div class="f wide" id="p-strip"></div>
+        <div class="f wide"><div class="row"><button class="btn primary" type="submit">Сохранить пресет</button><span class="sum" id="p-sum"></span></div></div>
+      </form>`;
+    const sync=()=>{ const a=+$('#p-a').value||0,b=+$('#p-b').value||0,c=+$('#p-c').value||0,s=a+b+c;
+      $('#p-strip').innerHTML=strip(a,b,c,true); const el=$('#p-sum'); el.textContent=s===100?'Сумма 100%':`Сумма ${s}%, нужно 100%`; el.classList.toggle('bad',s!==100); };
+    $('#pForm').addEventListener('input',sync); sync();
+    $('#pForm').addEventListener('submit', async e=>{
+      e.preventDefault(); const name=$('#p-name').value.trim(), a=+$('#p-a').value||0,b=+$('#p-b').value||0,c=+$('#p-c').value||0;
+      if(!name){ toast('Заполни название'); return; } if(a+b+c!==100){ toast('Доли должны давать 100%'); return; }
+      if(await write(()=>db.collection('presets').add({name,a,b,c,note:'',builtin:false,order:50}),'Пресет сохранён')) $('#p-name').value='';
+    });
+  }
+  const L=$('#presetList');
+  if(!S.presets.length){ L.innerHTML=`<div class="empty"><strong>Пресетов пока нет</strong>Создай первый в форме выше.</div>`; return; }
+  L.innerHTML = `<div class="projlist">${[...S.presets].sort((x,y)=>(x.order??99)-(y.order??99)).map(p=>`<div class="projrow" style="cursor:default;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) auto">
+    <div style="min-width:0"><h3>${esc(p.name)}</h3><div class="sub">${esc(p.note||'')}</div></div>
+    ${strip(p.a,p.b,p.c,true)}
+    ${!p.builtin&&canWrite?`<button class="btn ghost danger" data-pdel="${esc(p.id)}">Удалить</button>`:'<span class="chip">базовый</span>'}</div>`).join('')}</div>`;
+  L.querySelectorAll('[data-pdel]').forEach(b=>b.onclick=()=>{
+    b.outerHTML=`<span class="confirm"><button class="btn danger" data-pyes="${esc(b.dataset.pdel)}">Удалить</button></span>`;
+    L.querySelector(`[data-pyes="${CSS.escape(b.dataset.pdel)}"]`).onclick=async e=>{ await write(()=>db.collection('presets').doc(e.target.dataset.pyes).delete(),'Пресет удалён'); };
+  });
+}
+
+function renderAll(){ renderReels(); renderTemplates(); renderLibrary(); renderPresets(); }
+renderAll();
+
+/* ---------- data ---------- */
+(async () => {
+  if(!window.claude || !window.claude.use){ status('Пульт работает внутри Claude: открой его по ссылке артефакта.', true); return; }
+  db = await window.claude.use('db');
+  if(!db){ status('Данные пульта недоступны в этом просмотре. Открой пульт, войдя в свой аккаунт Claude.', true); return; }
+  user = await window.claude.use('user');
+  if(user){
+    try{ canEdit = !!(await user.canEdit()); }catch(e){}
+    try{ const w = await user.can('data.write'); if(w===false) canWrite=false; }catch(e){}
+  }
+  assets = canEdit ? await window.claude.use('assets') : null;
+  status('');
+  let loaded = 0;
+  for(const col of ['projects','templates','blocks','presets']){
+    db.collection(col).onSnapshot(snap=>{
+      S[col] = snap.docs.filter(d=>d.exists).map(d=>({id:d.id, ...d.data()}));
+      if(++loaded>=0) renderAll();
+    }, err=>{ status('Связь с данными пульта прервалась. Обнови страницу.', true); });
+  }
+})();
+})();
+</script>
