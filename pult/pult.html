@@ -375,7 +375,7 @@ function openReel(p){
         <button class="btn ghost" type="button" id="r-sbStop" hidden>Остановить</button>
         <span class="hint" id="r-sbNote">Claude расставит режимы и сцены по фразам, или выбери доли сам.</span>
       </div>
-      <div class="f wide manual" id="r-manual" hidden><label>Доли кадра по времени</label><span class="hint">Выбери пресет или впиши свои доли — режимы в таблице подгонятся сами.</span>
+      <div class="f wide manual" id="r-manual" hidden><label>Доли кадра по времени</label><span class="hint">Выбери пресет или впиши свои доли и нажми «Отправить».</span>
         <div class="row" id="r-tgtPresets" role="group" aria-label="Пресеты долей"></div>
         <div class="trio" style="margin-top:8px">
           <label class="f"><span class="hint">A · спикер, %</span><input type="number" id="r-ta" min="0" max="100" value="${p.target?.a??10}"${ro}></label>
@@ -383,8 +383,10 @@ function openReel(p){
           <label class="f"><span class="hint">C · вставка, %</span><input type="number" id="r-tc" min="0" max="100" value="${p.target?.c??30}"${ro}></label>
         </div>
         <span class="sum" id="r-tsum"></span>
+        <span class="hint" style="margin-top:8px">Цель</span><div id="r-tgtStrip"></div>
+        <div class="row" style="margin-top:12px"><button class="btn primary" type="button" id="r-sbSend">Отправить</button><span class="hint">Claude по тексту и хронометражу видео подберёт, где что будет, в этих долях.</span></div>
       </div>
-      <div class="f wide" style="margin-bottom:10px"><span class="hint">Цель</span><div id="r-tgtStrip"></div><span class="hint" style="margin-top:6px">Сейчас в таблице</span><div id="r-sbStrip"></div><span class="hint" id="r-dev"></span></div>
+      <div class="f wide" style="margin-bottom:10px"><span class="hint">Сейчас в таблице</span><div id="r-sbStrip"></div><span class="hint" id="r-dev"></span></div>
       <div id="r-sb"></div>
     </fieldset>
     <details><summary style="cursor:pointer;font-weight:600;margin-bottom:14px">Бриф: кадр и монтаж</summary>
@@ -528,8 +530,8 @@ function phrasesFrom(words){
 const SB_PROMPT = `Ты — монтажёр вертикальных рилсов. Расставь раскадровку по фразам ролика.
 
 Режимы кадра: A — спикер на весь экран; B — сцена сверху, спикер в окне снизу; C — вставка на весь экран (голос за кадром).
-ЦЕЛЕВЫЕ ДОЛИ ПО ВРЕМЕНИ: A {TA}%, B {TB}%, C {TC}%. Длительность каждой фразы дана — подбирай режимы так, чтобы сумма секунд по каждому режиму была как можно ближе к целевым долям (допуск ±5 процентных пунктов). Это главное требование.
-Правила: если A больше 0 — первая фраза (хук) и последняя (призыв) идут в A; C ставь на самые сильные фразы; если C-фраза длиннее 6 секунд, а доля C уже набрана — лучше B. Режим с долей 0% не используй. Моушн-блоки ставь туда, где в тексте есть структура (путь, сравнение, процесс, цифры), 3D — где есть яркая метафора. Сцены из слоёв (фон + поза персонажа + предметы) — для остальных фраз B. Каждая сцена со смыслом: в note напиши в 1 строку, что видно и что меняется на каком слове.
+{SHARES}
+Правила: C ставь на самые сильные фразы; если C-фраза длиннее 6 секунд — подумай, не лучше ли B. Моушн-блоки ставь туда, где в тексте есть структура (путь, сравнение, процесс, цифры), 3D — где есть яркая метафора. Сцены из слоёв (фон + поза персонажа + предметы) — для остальных фраз B. Каждая сцена со смыслом: в note напиши в 1 строку, что видно и что меняется на каком слове.
 Пожелания: 3D-вставок {N3D}, моушн-блоков {NMOTION}.
 
 Блоки библиотеки (поле block — код блока; для сцены из слоёв пиши "layer"; если нужен новый блок — "new" и опиши его в note; для режима A — "speaker"):
@@ -559,14 +561,15 @@ function wireTiming(p){
   showAv(); showTiming(p.timing);
   $('#r-avFile').addEventListener('change', e=>{ avFile=e.target.files[0]||null; e.target.value=''; showAv(); });
 
+  let useTarget = !!p.useTarget;
   function showShares(){
     const t=readTarget(), sum=t.a+t.b+t.c, el=$('#r-tsum');
     el.textContent = sum===100 ? '' : `Сумма ${sum}%, нужно 100%`; el.classList.toggle('bad', sum!==100);
     $('#r-tgtStrip').innerHTML = sum===100 ? strip(t.a,t.b,t.c,true) : '';
-    const sh=rowShares(curRows); $('#r-sbStrip').innerHTML = sh ? strip(sh.a,sh.b,sh.c,true) : '<span class="hint">Пока пусто: выбери режимы или нажми «Предложить раскадровку».</span>';
+    const sh=rowShares(curRows); $('#r-sbStrip').innerHTML = sh ? strip(sh.a,sh.b,sh.c,true) : '<span class="hint">Пока пусто: нажми «Предложить раскадровку» или «Выбрать самому».</span>';
     const dev=$('#r-dev');
-    if(sh && sum===100){ const d=Math.max(Math.abs(sh.a-t.a),Math.abs(sh.b-t.b),Math.abs(sh.c-t.c));
-      dev.textContent = d<=5 ? 'Совпадает с целью.' : `Отклонение до ${d}%: A ${sh.a-t.a>=0?'+':''}${sh.a-t.a}, B ${sh.b-t.b>=0?'+':''}${sh.b-t.b}, C ${sh.c-t.c>=0?'+':''}${sh.c-t.c}. Нажми «Выбрать самому», чтобы подогнать, или поменяй режимы в таблице.`;
+    if(sh && sum===100 && useTarget){ const d=Math.max(Math.abs(sh.a-t.a),Math.abs(sh.b-t.b),Math.abs(sh.c-t.c));
+      dev.textContent = d<=5 ? 'Совпадает с целью.' : `Отклонение до ${d}%: A ${sh.a-t.a>=0?'+':''}${sh.a-t.a}, B ${sh.b-t.b>=0?'+':''}${sh.b-t.b}, C ${sh.c-t.c>=0?'+':''}${sh.c-t.c}. Поменяй режимы у пары фраз в таблице или нажми «Отправить» ещё раз.`;
       dev.style.color = d<=5 ? 'var(--ok)' : 'var(--warn)'; }
     else dev.textContent='';
   }
@@ -574,9 +577,9 @@ function wireTiming(p){
   function renderPresets(){
     const t=readTarget();
     $('#r-tgtPresets').innerHTML = PRESETS().map(x=>`<button type="button" class="chipbtn" data-pa="${x.a}" data-pb="${x.b}" data-pc="${x.c}" aria-pressed="${x.a===t.a&&x.b===t.b&&x.c===t.c}">${esc(x.name)} <span class="code">${x.a}/${x.b}/${x.c}</span></button>`).join('');
-    $('#r-tgtPresets').querySelectorAll('button').forEach(b=>b.onclick=()=>{ $('#r-ta').value=b.dataset.pa; $('#r-tb').value=b.dataset.pb; $('#r-tc').value=b.dataset.pc; renderPresets(); showShares(); autoFit(); });
+    $('#r-tgtPresets').querySelectorAll('button').forEach(b=>b.onclick=()=>{ $('#r-ta').value=b.dataset.pa; $('#r-tb').value=b.dataset.pb; $('#r-tc').value=b.dataset.pc; renderPresets(); showShares(); });
   }
-  ['#r-ta','#r-tb','#r-tc'].forEach(id=>$(id).addEventListener('input',()=>{ renderPresets(); showShares(); autoFit(); }));
+  ['#r-ta','#r-tb','#r-tc'].forEach(id=>$(id).addEventListener('input',()=>{ renderPresets(); showShares(); }));
   renderPresets();
   function renderSb(){
     showShares();
@@ -648,16 +651,19 @@ function wireTiming(p){
     renderSb(); if(!silent) toast('Режимы подогнаны под доли. Проверь сцены и нажми «Сохранить».');
   }
   $('#r-sbManual').onclick = ()=>{ const m=$('#r-manual'); m.hidden=!m.hidden; $('#r-sbManual').setAttribute('aria-expanded', String(!m.hidden)); if(!m.hidden) m.scrollIntoView({behavior:'smooth',block:'nearest'}); };
-  let fitT=null; const autoFit=()=>{ clearTimeout(fitT); fitT=setTimeout(()=>fitShares(true), 350); };
   let ctl=null;
   $('#r-sbStop').onclick=()=>ctl?.abort();
-  $('#r-sbGo').onclick = async ()=>{
+  async function propose(withTarget){
     if(!sample){ toast('Claude недоступен в этом просмотре'); return; }
     if(!curRows.length){ toast('Сначала нажми «Отправить» в блоке «Материалы»'); return; }
-    const tg=readTarget(); if(tg.a+tg.b+tg.c!==100){ toast('Доли должны давать 100%'); return; }
-    const go=$('#r-sbGo'), stop=$('#r-sbStop'), n=$('#r-sbNote'); go.disabled=true; stop.hidden=false; n.textContent='Claude расставляет сцены… обычно до минуты.';
+    const tg=readTarget(); if(withTarget && tg.a+tg.b+tg.c!==100){ toast('Доли должны давать 100%'); return; }
+    const btns=['#r-sbGo','#r-sbSend'].map(x=>$(x)), stop=$('#r-sbStop'), n=$('#r-sbNote');
+    btns.forEach(b=>b.disabled=true); stop.hidden=false; n.textContent='Claude подбирает сцены по тексту и хронометражу… обычно до минуты.';
     const d=collect();
-    const prompt=SB_PROMPT.replace('{TA}',d.target.a).replace('{TB}',d.target.b).replace('{TC}',d.target.c).replace('{N3D}',d.n3d).replace('{NMOTION}',d.nMotion)
+    const shares = withTarget
+      ? `ЦЕЛЕВЫЕ ДОЛИ ПО ВРЕМЕНИ (выбрал пользователь): A ${tg.a}%, B ${tg.b}%, C ${tg.c}%. Длительность каждой фразы дана — подбирай режимы так, чтобы сумма секунд по каждому режиму была как можно ближе к этим долям (допуск ±5 процентных пунктов). Это главное требование. Если у A больше 0 — хук (первая фраза) и призыв (последняя) идут в A. Режим с долей 0% не используй.`
+      : `ДОЛИ РЕЖИМОВ ВЫБЕРИ САМ по смыслу текста и ритму. Ориентир: A около 10% (хук и призыв), B 50–65%, C 25–35% на самых сильных фразах.`;
+    const prompt=SB_PROMPT.replace('{SHARES}',shares).replace('{N3D}',d.n3d).replace('{NMOTION}',d.nMotion)
       .replace('{BLOCKS}', S.blocks.map(b=>`${b.code||b.id} (${kindName(b.kind)}) — ${b.name}. Для: ${b.fits||''}`).join('\n'))
       .replace('{STYLE}', (d.styleAnalysis||'стиль ещё не создан').slice(0,3000))
       .replace('{ROWS}', curRows.map((r,i)=>`${i+1}. ${fmtT(r.s)} · ${(r.e-r.s).toFixed(1)} с · ${r.text}`).join('\n'));
@@ -667,12 +673,16 @@ function wireTiming(p){
       if(!Array.isArray(res)) throw {code:'invalid_json'};
       res.forEach((x,k)=>{ const i=(Number(x.i)||k+1)-1; const r=curRows[i]; if(!r) return;
         if(['A','B','C'].includes(String(x.mode))) r.mode=String(x.mode); if(x.block) r.block=String(x.block); if(x.note) r.note=String(x.note); });
+      useTarget = withTarget;
+      if(withTarget){ const sh=rowShares(curRows); const dev=sh?Math.max(Math.abs(sh.a-tg.a),Math.abs(sh.b-tg.b),Math.abs(sh.c-tg.c)):0; if(dev>5) fitShares(true); }
       renderSb();
-      const ok=await write(()=>docRef.update({sbRows:curRows, storyboard:rowsText(curRows), updatedAt:new Date().toISOString()}));
+      const ok=await write(()=>docRef.update({sbRows:curRows, storyboard:rowsText(curRows), target:tg, useTarget, updatedAt:new Date().toISOString()}));
       n.textContent = ok ? 'Готово. Меняй режимы и сцены в таблице и нажми «Сохранить».' : 'Раскадровка готова, но не сохранилась.';
     }catch(e){ n.textContent = e&&e.code==='cancelled' ? 'Остановлено.' : e&&e.code==='invalid_json' ? 'Claude ответил не в том формате. Нажми ещё раз.' : sampleErr(e); }
-    finally{ go.disabled=false; stop.hidden=true; }
-  };
+    finally{ btns.forEach(b=>b.disabled=false); stop.hidden=true; }
+  }
+  $('#r-sbGo').onclick = ()=>propose(false);
+  $('#r-sbSend').onclick = ()=>propose(true);
 }
 
 /* ---------- референсы, разбор стиля, промпт ---------- */
