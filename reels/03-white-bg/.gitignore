@@ -1,0 +1,8 @@
+# heavy files live on Google Drive
+public/
+src_img/
+mt/
+work/stills/
+work/render.log
+work/npm.log
+src.mp4
