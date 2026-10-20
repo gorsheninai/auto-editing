@@ -196,7 +196,7 @@ details > summary{list-style-position:inside}
   <!-- РОЛИКИ -->
   <section id="view-reels" hidden>
     <div class="head">
-      <div><h2>Ролики</h2><p>Стиль → текст → материалы → настройки → раскадровка → картинки → монтаж. Монтаж идёт в чате с Claude: нажми «Скопировать задание» и вставь его туда.</p></div>
+      <div><h2>Ролики</h2><p>Стиль → текст → картинки → материалы → настройки → раскадровка → монтаж. Монтаж идёт в чате с Claude: нажми «Скопировать задание» и вставь его туда.</p></div>
       <button class="btn primary" id="newReel">Новый ролик</button>
     </div>
     <div id="reelEditor" hidden></div>
@@ -389,7 +389,16 @@ function openReel(p){
       <textarea id="r-script" style="min-height:220px" aria-label="Текст сценария" placeholder="Вставь сюда текст ролика целиком"${ro}>${esc(p.script)}</textarea><span class="hint" id="r-count"></span>
     </section>
 
-    <section class="step" id="r-sec-3"><h4>3 · Материалы</h4><div class="fields">
+    <section class="step" id="r-sec-3"><h4>3 · Картинки</h4>
+      <span class="hint" id="r-gptScope">Claude разберёт текст на смысловые блоки и решит, где нужна 2D-сцена (позы, предметы, фоны), а где картинка по смыслу (картина, скриншот, документ). Отправь промпт в ChatGPT и, пока он генерирует, переходи к материалам. Готовые картинки — в папку ролика на Диске.</span>
+      <textarea id="r-gpt" style="min-height:200px;font-family:var(--mono);font-size:13px;margin-top:8px" placeholder="Здесь появится один большой запрос на все картинки ролика."${ro}>${esc(p.gptPrompt)}</textarea>
+      <div class="row"><button class="btn primary" type="button" id="r-gptGo">Составить промпт</button><button class="btn" type="button" id="r-gptCopy">Скопировать промпт</button><button class="btn ghost" type="button" id="r-gptStop" hidden>Остановить</button><span class="hint" id="r-gptNote">Отправь его в ChatGPT (режим work) со своим фото и референсами. Готовые картинки — в ту же папку на Диске.</span></div>
+      <details id="r-planWrap"${p.assetPlan?'':' hidden'} style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Смысловой план картинок</summary>
+        <textarea id="r-plan" readonly style="min-height:200px;margin-top:8px" aria-label="Смысловой план картинок">${esc(planText(p.assetPlan))}</textarea>
+      </details>
+    </section>
+
+    <section class="step" id="r-sec-4"><h4>4 · Материалы</h4><div class="fields">
       <div class="f wide"><label for="r-drive">Папка на Диске</label><input type="url" id="r-drive" value="${esc(p.drive)}" placeholder="https://drive.google.com/drive/folders/…"${ro}><span class="hint">Одна папка на ролик: сюда твои вставки (фото, видео, скриншоты) и потом картинки из ChatGPT. Открой доступ по ссылке.</span></div>
       <div class="f wide"><label for="r-media">Мои вставки в этой папке</label><textarea id="r-media" style="min-height:90px" placeholder="По строке на файл: имя файла — о чём он&#10;news.png — скрин новости про сокращения&#10;capcut.mp4 — запись экрана монтажа"${ro}>${esc(p.mediaList||'')}</textarea><span class="hint">Раскадровка поставит их туда, где они подходят по смыслу. Можно оставить пустым.</span></div>
       <div class="f wide"><label>Видео аватара с озвучкой</label>
@@ -398,7 +407,7 @@ function openReel(p){
         <div id="r-timing"></div></div>
     </div></section>
 
-    <section class="step" id="r-sec-4"><h4>4 · Настройки</h4>
+    <section class="step" id="r-sec-5"><h4>5 · Настройки</h4>
       <div class="f wide"><label>Окно спикера в режиме B</label><span class="hint">По умолчанию на весь ролик. В раскадровке можно поменять у любого сегмента.</span>
         <div class="wins" role="radiogroup" aria-label="Окно спикера">${winCards}</div></div>
       <div class="fields" style="margin-top:14px">
@@ -415,7 +424,7 @@ function openReel(p){
       </div>
     </section>
 
-    <section class="step" id="r-sec-5"><h4>5 · Раскадровка</h4>
+    <section class="step" id="r-sec-6"><h4>6 · Раскадровка</h4>
       <div class="row" style="margin-bottom:12px">
         <button class="btn primary" type="button" id="r-sbGo">Предложить раскадровку</button>
         <button class="btn" type="button" id="r-sbManual" aria-expanded="false">Выбрать самому</button>
@@ -442,15 +451,6 @@ function openReel(p){
       <div id="r-sb"></div>
     </section>
 
-    <section class="step" id="r-sec-6"><h4>6 · Картинки для 2D-сцен</h4>
-      <span class="hint" id="r-gptScope">Картинки нужны 2D-сценам (позы, предметы, фоны) и картинкам по смыслу (картина, скриншот, документ). 3D, моушн, кинетический текст и твои вставки их не требуют.</span>
-      <textarea id="r-gpt" style="min-height:200px;font-family:var(--mono);font-size:13px;margin-top:8px" placeholder="Здесь появится один большой запрос: Claude разберёт 2D-сегменты раскадровки по смыслу и придумает визуал под каждый."${ro}>${esc(p.gptPrompt)}</textarea>
-      <div class="row"><button class="btn primary" type="button" id="r-gptGo">Составить промпт</button><button class="btn" type="button" id="r-gptCopy">Скопировать промпт</button><button class="btn ghost" type="button" id="r-gptStop" hidden>Остановить</button><span class="hint" id="r-gptNote">Отправь его в ChatGPT (режим work) со своим фото и референсами. Готовые картинки — в ту же папку на Диске.</span></div>
-      <details id="r-planWrap"${p.assetPlan?'':' hidden'} style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Смысловой план картинок</summary>
-        <textarea id="r-plan" readonly style="min-height:200px;margin-top:8px" aria-label="Смысловой план картинок">${esc(planText(p.assetPlan))}</textarea>
-      </details>
-    </section>
-
     <section class="step" id="r-sec-7"><h4>7 · Монтаж</h4>
       <div id="r-summary"></div>
       <div class="row" style="margin-top:10px">
@@ -464,6 +464,7 @@ function openReel(p){
         ${canWrite?'<span style="margin-left:auto" id="r-delBox"><button class="btn ghost danger" type="button" id="r-del">Удалить</button></span>':''}
       </div>
     </section>
+
   </form>`;
   const F = $('#reelForm');
   const sync = () => {
@@ -517,7 +518,7 @@ function openReel(p){
     const d={style:$('#r-style').value.trim(), script:$('#r-script').value.trim(), gpt:$('#r-gpt').value.trim()};
     const hasModes = curRows.length && curRows.every(r=>r.mode);
     const need2d = curRows.some(r=>r.kind==='l2d'||r.kind==='gen');
-    const st=[['Стиль',!!d.style],['Текст',!!d.script],['Материалы',!!(p.timing||curWordsLen())],['Настройки',true],['Раскадровка',!!hasModes],['Картинки', hasModes ? (!need2d || !!d.gpt) : !!d.gpt],['Монтаж',$('#r-status').value==='done']];
+    const st=[['Стиль',!!d.style],['Текст',!!d.script],['Картинки',!!d.gpt],['Материалы',!!(p.timing||curWordsLen())],['Настройки',true],['Раскадровка',!!hasModes],['Монтаж',$('#r-status').value==='done']];
     $('#r-steps').innerHTML = st.map(([n,ok],i)=>`<a href="#r-sec-${i+1}" class="stepchip${ok?' ok':''}" data-sec="${i+1}"><span class="code">${ok?'✓':i+1}</span>${esc(n)}</a>`).join('');
     $('#r-steps').querySelectorAll('a').forEach(a=>a.onclick=e=>{ e.preventDefault(); $('#r-sec-'+a.dataset.sec).scrollIntoView({behavior:'smooth',block:'start'}); });
   }
@@ -637,6 +638,9 @@ const SB_PROMPT = `Ты — монтажёр вертикальных рилсо
 
 Как резать: текст НЕ обязан резаться по предложениям. Сегмент — любой непрерывный кусок слов: он может начинаться и заканчиваться посреди предложения, если визуал меняется на этом слове. Подбирай визуал под смысл слов: что именно говорится — то и показываем. Сегмент обычно 1.5–6 секунд. Сегменты идут подряд и покрывают ВСЕ слова без пропусков и наложений.
 В "visual" одной-двумя фразами: что видно на экране и что меняется на каком слове, в стиле ролика. Если подходит готовый блок библиотеки — упомяни его код. Для A пиши, что делает спикер. Для gen опиши, что ровно на картинке; если это скриншот или документ — точный короткий текст на нём в кавычках. Ставь gen там, где в тексте названо что-то конкретное, что можно показать картинкой.
+
+Картинки, которые уже заказаны в ChatGPT (план по смысловым блокам). 2D-сцены (l2d) и картинки по смыслу (gen) ставь в первую очередь на слова из этих цитат, чтобы каждая картинка попала в ролик; если картинок под место нет — используй motion, d3, kinetic или media:
+{PLAN}
 
 Файлы пользователя на Диске (для kind=media, поле media — точное имя файла):
 {MEDIA}
@@ -817,6 +821,7 @@ function wireTiming(p){
     const prompt=SB_PROMPT.replace('{SHARES}',shares)
       .replace('{CTA}', d.ctaOn ? `В конце призыв: «${d.ctaText||'призыв'}» — последний сегмент про него, обычно A.` : 'Призыва в конце НЕТ: не придумывай призыв, кодовое слово или «подписывайся»; конец ролика — по смыслу текста.')
       .replace('{WIN}', winName(d.win))
+      .replace('{PLAN}', (planText(p.assetPlan)||'картинки ещё не заказаны — ставь l2d и gen по смыслу, их закажут после').slice(0,6000))
       .replace('{MEDIA}', files.length ? files.map(f=>`${f.name} — ${f.desc||'без описания'}`).join('\n') : 'нет — тип media не используй')
       .replace('{BLOCKS}', S.blocks.map(b=>`${b.code||b.id} (${kindName(b.kind)}) — ${b.name}. Для: ${b.fits||''}`).join('\n'))
       .replace('{STYLE}', (d.styleAnalysis||'стиль ещё не создан').slice(0,3000))
@@ -1114,7 +1119,7 @@ const PLAN_PROMPT = `Ты — арт-директор рилса. Задача: 
 Приложенные картинки — кадры референсов (видео — 12 кадров по всей длине). Смотри на них: как выглядят персонажи, предметы, фоны, материалы, свет, ракурсы. Картинки для ролика должны выглядеть так, будто они из этих референсов.
 
 Сделай так:
-1. Разбей текст (а если дан список 2D-сегментов — только их) на СМЫСЛОВЫЕ блоки по мыслям, 3–10 штук. Для каждого: точная цитата из текста, мысль, которую зритель должен понять, и визуальная метафора ИМЕННО для этой мысли — конкретная, с деталями из текста (имена, цифры, предметы, места, профессии, действия, которые реально упомянуты).
+1. Разбей текст (а если дан список сегментов из раскадровки — только их) на СМЫСЛОВЫЕ блоки по мыслям, 3–10 штук. Если раскадровки нет — сам реши для каждого блока, чем его показать: 2D-сценой (поза + предметы + фон), картинкой по смыслу (pictures — если в тексте названо что-то конкретное: картина, сообщение, документ, место) или ничем (такие места потом закроет моушн, 3D или крупный текст — для них картинки не нужны). Картинками покрывай примерно половину блоков, не все. Для каждого: точная цитата из текста, мысль, которую зритель должен понять, и визуальная метафора ИМЕННО для этой мысли — конкретная, с деталями из текста (имена, цифры, предметы, места, профессии, действия, которые реально упомянуты).
 2. Из блоков выведи, что нужно сгенерировать:
    - позы персонажа (до 9): что он делает и с каким выражением — под конкретный блок;
    - предметы (сколько нужно, листами по 9): каждый предмет — из смысла конкретного блока, с деталями внешнего вида в стиле референсов;
