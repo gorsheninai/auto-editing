@@ -357,8 +357,12 @@ function openReel(p){
     </div></fieldset>
     <fieldset><legend>3 · Промпт для GPT Image 2.5</legend><div class="fields">
       <div class="f wide">
-        <textarea id="r-gpt" style="min-height:200px;font-family:var(--mono);font-size:13px" placeholder="Здесь появится один большой запрос на все картинки: персонаж, предметы, фоны — в созданном стиле."${ro}>${esc(p.gptPrompt)}</textarea>
+        <textarea id="r-gpt" style="min-height:200px;font-family:var(--mono);font-size:13px" placeholder="Здесь появится один большой запрос на все картинки: Claude сначала разберёт текст на смысловые блоки и придумает визуал под каждый, потом напишет промпт."${ro}>${esc(p.gptPrompt)}</textarea>
         <div class="row"><button class="btn primary" type="button" id="r-gptGo">Составить промпт</button><button class="btn" type="button" id="r-gptCopy">Скопировать промпт</button><button class="btn ghost" type="button" id="r-gptStop" hidden>Остановить</button><span class="hint" id="r-gptNote">Отправь его в ChatGPT (режим work) вместе со своим фото и референсами.</span></div>
+        <details id="r-planWrap"${p.assetPlan?'':' hidden'} style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Смысловой план картинок</summary>
+          <textarea id="r-plan" readonly style="min-height:200px;margin-top:8px" aria-label="Смысловой план картинок">${esc(planText(p.assetPlan))}</textarea>
+          <span class="hint">По этому плану пишется промпт: смысловые блоки текста, визуал под каждый и что для него генерировать.</span>
+        </details>
       </div>
     </div></fieldset>
     <fieldset><legend>4 · Материалы</legend><div class="fields">
@@ -830,21 +834,34 @@ function wireStyle(p){
   $('#r-gptStop').onclick=()=>ctlG?.abort();
   $('#r-gptGo').onclick = async ()=>{
     if(!sample){ toast('Claude недоступен в этом просмотре'); return; }
-    const d=collect(), note=$('#r-gptNote'), out=$('#r-gpt'), go=$('#r-gptGo'), stop=$('#r-gptStop');
+    const d=collect(), note=$('#r-gptNote'), out=$('#r-gpt'), go=$('#r-gptGo'), stop=$('#r-gptStop'), planBox=$('#r-plan');
     if(!d.script.trim()){ toast('Вставь текст сценария'); $('#r-script').focus(); return; }
     if(!d.styleAnalysis.trim()){ toast('Сначала создай стиль'); return; }
-    go.disabled=true; stop.hidden=false; note.textContent='Claude пишет промпт… обычно до минуты.'; out.value='';
-    const prompt = GPT_PROMPT.replace('{STYLE}', d.styleAnalysis.slice(0,12000)).replace('{SCRIPT}', d.script.slice(0,6000))
-      .replace('{STORY}', (d.storyboard||'').trim()||'(раскадровки нет — выбери позы и предметы сам по смыслу текста)')
-      .replace('{REFS}', refs.map((r,i)=>`Референс ${i+1}: ${r.name} (${r.kind==='video'?'видео':'картинка'})`).join('\n')||'нет');
+    go.disabled=true; stop.hidden=false; ctlG=new AbortController();
     try{
-      ctlG=new AbortController();
+      /* шаг 1: смысловой план по тексту и кадрам референсов */
+      note.textContent='Шаг 1 из 2: готовлю кадры референсов…';
+      const imgs=[]; const lim=await sample.limits().catch(()=>null);
+      if(lim?.images) for(const r of refs.slice(0,6)){ try{ const sh=await contactSheet(r); if(sh) imgs.push(sh); }catch(e){} }
+      if(lim?.images?.maxCount && imgs.length>lim.images.maxCount) imgs.length=lim.images.maxCount;
+      note.textContent='Шаг 1 из 2: Claude разбирает текст на смысловые блоки… до минуты.';
+      const story = (curRows&&curRows.length) ? rowsText(curRows) : '(раскадровки нет)';
+      const planPrompt = PLAN_PROMPT.replace('{SCRIPT}', d.script.slice(0,8000)).replace('{STORY}', story.slice(0,8000)).replace('{STYLE}', d.styleAnalysis.slice(0,8000));
+      const plan = await sample.json(planPrompt, {images: imgs.length?imgs:undefined, signal:ctlG.signal, cache:false, modelTier:'complex'});
+      if(!plan || !Array.isArray(plan.blocks) || !plan.blocks.length) throw {code:'invalid_json'};
+      const pt = planText(plan); planBox.value = pt; $('#r-planWrap').hidden=false; $('#r-planWrap').open=true;
+      await write(()=>docRef.update({assetPlan:plan, updatedAt:new Date().toISOString()}));
+      /* шаг 2: промпт строго по плану */
+      note.textContent='Шаг 2 из 2: Claude пишет промпт по плану… до минуты.'; out.value='';
+      const prompt = GPT_PROMPT.replace('{PLAN}', JSON.stringify(plan, null, 1).slice(0,30000)).replace('{STYLE}', d.styleAnalysis.slice(0,12000))
+        .replace('{REFS}', refs.map((r,i)=>`Референс ${i+1}: ${r.name} (${r.kind==='video'?'видео':'картинка'})`).join('\n')||'нет');
       const {text, truncated} = await sample(prompt, {signal:ctlG.signal, cache:false, onText:({text})=>{ out.value=text; }});
       out.value=text.replace(/^```[a-z]*\n?|\n?```$/g,'');
-      note.textContent = truncated ? 'Промпт оборвался по длине: попроси короче или убери часть листов.' : 'Готово. Нажми «Скопировать промпт» и отправь в ChatGPT вместе со своим фото и референсами.';
+      note.textContent = truncated ? 'Промпт оборвался по длине: нажми ещё раз или сократи текст.' : 'Готово. Каждая картинка привязана к куску текста. Скопируй промпт и отправь в ChatGPT вместе со своим фото и референсами.';
       await write(()=>docRef.update({gptPrompt:out.value, updatedAt:new Date().toISOString()}));
     }catch(e){
       if(e && e.code==='cancelled'){ note.textContent='Остановлено.'; if(e.text) out.value=e.text; }
+      else if(e && e.code==='invalid_json'){ note.textContent='Claude ответил не в том формате на шаге плана. Нажми ещё раз.'; }
       else { note.textContent=sampleErr(e); if(e&&e.text) out.value=e.text; }
     }finally{ go.disabled=false; stop.hidden=true; }
   };
@@ -876,37 +893,78 @@ const STYLE_PROMPT = `Ты — арт-директор и монтажёр ве�
 11. Как сделать у нас: какие блоки из библиотеки подходят (по кодам) и каких блоков не хватает — опиши 2–4 новых блока одной строкой каждый.
 12. Стилевой паспорт для промптов картинок: 6–8 строк НА АНГЛИЙСКОМ — общий блок стиля (эстетика, материалы, свет, палитра hex, ракурс, детализация, чего избегать), который будет вставляться в каждый промпт генерации.`;
 
-const GPT_PROMPT = `Составь ОДИН большой запрос для ChatGPT (режим work, модель GPT Image 2.5). Пользователь вставит его целиком и приложит своё фото и референсы, а ChatGPT за один заход сгенерирует ВСЕ картинки для рилса.
+const PLAN_PROMPT = `Ты — арт-директор рилса. Задача: придумать картинки, которые будут созданы КОНКРЕТНО под смысл этого текста, в стиле приложенных референсов. Не шаблон, а визуал именно для этих слов.
 
-Стиль ролика (главный источник стиля; блок «Стилевой паспорт» используй как ОБЩИЙ СТИЛЬ):
-{STYLE}
-
-Текст ролика:
+Текст ролика (читай внимательно, каждое предложение):
 {SCRIPT}
 
-Раскадровка:
+Раскадровка (если есть; режим и что на экране по сегментам — опирайся на неё в первую очередь):
 {STORY}
+
+Стиль ролика:
+{STYLE}
+
+Приложенные картинки — кадры референсов (видео — 12 кадров по всей длине). Смотри на них: как выглядят персонажи, предметы, фоны, материалы, свет, ракурсы. Картинки для ролика должны выглядеть так, будто они из этих референсов.
+
+Сделай так:
+1. Разбей текст на 5–10 СМЫСЛОВЫХ блоков (не по предложениям, а по мыслям). Для каждого: точная цитата из текста, мысль, которую зритель должен понять, и визуальная метафора ИМЕННО для этой мысли — конкретная, с деталями из текста (имена, цифры, предметы, места, профессии, действия, которые реально упомянуты).
+2. Из блоков выведи, что нужно сгенерировать:
+   - позы персонажа (до 9): что он делает и с каким выражением — под конкретный блок;
+   - предметы (сколько нужно, листами по 9): каждый предмет — из смысла конкретного блока, с деталями внешнего вида в стиле референсов;
+   - руки от первого лица — ТОЛЬКО если блоку нужно действие руками, и только с теми предметами, которые есть в тексте;
+   - люди/аватарки — только если в тексте есть аудитория, клиенты, команда, толпа;
+   - фоны (3–5): места, которые следуют из текста.
+3. Запрещено: общие стоковые предметы, которых нет в тексте и которые не следуют из его смысла (телефон, ноутбук, лупа, лампочка, ракета, шестерёнки, графики, мишень, пазл и т.п. — только если текст про это). Две разные мысли не должны получить одинаковую метафору. Каждый элемент должен быть узнаваемо «про этот текст».
+
+Ответь только JSON-объектом:
+{"blocks":[{"id":1,"quote":"...","idea":"...","visual":"..."}],
+ "poses":[{"block":1,"desc":"..."}],
+ "props":[{"block":2,"desc":"..."}],
+ "hands":[{"block":3,"desc":"..."}],
+ "people":{"need":false,"desc":""},
+ "backgrounds":[{"block":1,"desc":"..."}]}
+Поля desc — по-русски, конкретно и визуально (форма, материал, цвет, деталь), 1–2 предложения.`;
+
+const GPT_PROMPT = `Составь ОДИН большой запрос для ChatGPT (режим work, модель GPT Image 2.5). Пользователь вставит его целиком и приложит своё фото и референсы, а ChatGPT за один заход сгенерирует ВСЕ картинки для рилса.
+
+Смысловой план (главный источник содержания: картинки ровно отсюда, ничего не добавляй от себя):
+{PLAN}
+
+Стиль ролика (блок «Стилевой паспорт» — ОБЩИЙ СТИЛЬ):
+{STYLE}
 
 Референсы, которые приложит пользователь:
 {REFS}
 
 Правила:
-- Только три группы картинок: (1) персонаж на прозрачном фоне — разворот 4 ракурса, лист поз 3×3 (каждая поза под конкретный момент текста), руки от первого лица 2×2 (телефон, ноутбук, указательный палец, лупа — или то, что нужно по тексту); (2) предметы на прозрачном фоне — 2–3 листа 3×3 по смыслу текста и, если в тексте есть люди или аудитория, лист аватарок людей 4×4; (3) фоны без людей — 3–5 штук, вертикальные 1024×1536, с пустым центром. Готовые сцены с персонажем на фоне НЕ заказывать.
-- Персонаж — тот же человек, что на Фото 1 (фото пользователя): «same person as Photo 1 — keep face, proportions, hairstyle, glasses, outfit identical in every cell». Попроси ChatGPT сначала самому коротко описать внешность по Фото 1 и дальше повторять это описание в каждом листе.
-- Каждый пункт — полный самостоятельный промпт на английском: что за изображение → объект → сетка и содержимое КАЖДОЙ ячейки по номеру → стиль/свет/материал → ограничения. Конкретные визуальные слова, без «epic, masterpiece, 8K».
+- Содержимое картинок берётся ТОЛЬКО из плана: каждая поза, предмет, жест рук и фон — из своего пункта плана, с его деталями. Не добавляй стандартных предметов, которых нет в плане. В каждой ячейке опиши предмет конкретно (форма, материал, цвет, деталь), как в плане.
+- Набор файлов: 01_turnaround.png — разворот персонажа 4 ракурса (всегда); 02_poses.png — позы из плана (сетка по количеству: 2×2 до 4, 3×3 до 9); руки — отдельный лист, только если они есть в плане; предметы — листы по 9 (3×3), последний лист может быть 2×2; люди — лист 4×4, только если people.need; фоны — по одному файлу на каждый фон из плана, вертикальные 1024×1536, без людей, с пустым центром.
+- Перед каждым промптом одной строкой по-русски укажи, для какого куска текста эта картинка (цитата из плана), чтобы ChatGPT понимал смысл.
+- Персонаж — тот же человек, что на Фото 1: «same person as Photo 1 — keep face, proportions, hairstyle, glasses, outfit identical in every cell». Попроси ChatGPT сначала самому коротко описать внешность по Фото 1 и повторять это описание в каждом листе с персонажем.
+- Каждый пункт — полный самостоятельный промпт на английском: что за изображение → объект → сетка и содержимое КАЖДОЙ ячейки по номеру → стиль/свет/материал из ОБЩЕГО СТИЛЯ → ограничения. Конкретные визуальные слова, без «epic, masterpiece, 8K».
 - В каждом пункте: no text, no letters, no numbers, no logos, no watermark.
-- Прозрачный фон: isolated on a fully transparent background, PNG with alpha, no backdrop, no floor, no cast shadow, no checkerboard pattern, clean edges, no halo.
-- Сетки: «3×3 grid, 9 equal cells, each item fully inside its cell with generous empty margin, nothing crosses cell borders, same scale and same light direction in every cell».
+- Прозрачный фон (всё, кроме фонов): isolated on a fully transparent background, PNG with alpha, no backdrop, no floor, no cast shadow, no checkerboard pattern, clean edges, no halo.
+- Сетки: «N equal cells, each item fully inside its cell with generous empty margin, nothing crosses cell borders, same scale and same light direction in every cell».
 - Размеры: листы 2048×2048, фоны 1024×1536. Указывать в каждом пункте.
 - Служебные инструкции агенту — по-русски, сами промпты — по-английски.
 
-Формат ответа: только сам запрос, без вступления и без пояснений после, без Markdown-разметки и без блока кода. Структура запроса строго такая:
+Формат ответа: только сам запрос, без вступления и без пояснений после, без Markdown-разметки и без блока кода. Структура запроса:
 ЗАДАЧА — сгенерируй все изображения по очереди, каждое отдельным файлом, без уточняющих вопросов, не пропускай и не объединяй пункты; после каждого проверь по разделу ПРОВЕРКА и при провале перегенерируй; в конце дай список файлов.
-РЕФЕРЕНСЫ — Фото 1 — лицо и внешность пользователя; дальше каждый референс с ролью «только стиль, палитра, свет — не копировать кадры».
+РЕФЕРЕНСЫ — Фото 1 — лицо и внешность пользователя; дальше каждый референс с ролью «только стиль, палитра, свет, материалы — не копировать кадры и персонажей».
 ОБЩИЙ СТИЛЬ — стилевой паспорт.
 ПЕРСОНАЖ — как держать сходство.
-ИЗОБРАЖЕНИЯ — пронумерованный список: 01_turnaround.png, 02_poses.png, 03_hands.png, 04_items_….png, …, затем bg_1.png … Для каждого — размер, прозрачность и полный промпт.
-ПРОВЕРКА — прозрачность без шахматки, ровно N ячеек без заходов, лицо совпадает с Фото 1, нет текста, стиль совпадает с ОБЩИМ СТИЛЕМ.`;
+ИЗОБРАЖЕНИЯ — пронумерованный список файлов; для каждого — строка «Для: «цитата»», размер, прозрачность и полный промпт.
+ПРОВЕРКА — прозрачность без шахматки, ровно N ячеек без заходов, лицо совпадает с Фото 1, нет текста, стиль совпадает с ОБЩИМ СТИЛЕМ, каждая картинка соответствует своему куску текста.`;
+
+function planText(pl){
+  if(!pl||!Array.isArray(pl.blocks)) return '';
+  const L=[]; const by=(arr,id)=>(arr||[]).filter(x=>Number(x.block)===Number(id)).map(x=>x.desc);
+  pl.blocks.forEach(b=>{ L.push(`${b.id}. «${b.quote}»\n   Мысль: ${b.idea}\n   Визуал: ${b.visual}`);
+    const ps=by(pl.poses,b.id), pr=by(pl.props,b.id), hs=by(pl.hands,b.id), bg=by(pl.backgrounds,b.id);
+    if(ps.length) L.push('   Позы: '+ps.join('; ')); if(pr.length) L.push('   Предметы: '+pr.join('; ')); if(hs.length) L.push('   Руки: '+hs.join('; ')); if(bg.length) L.push('   Фон: '+bg.join('; ')); });
+  if(pl.people?.need) L.push('Люди: '+(pl.people.desc||'нужны'));
+  return L.join('\n');
+}
 
 function fallbackCopy(text){
   const E=$('#reelEditor'); let ta=$('#r-copyText');
