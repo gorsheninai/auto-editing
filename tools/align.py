@@ -1,7 +1,8 @@
-# usage: python3 align.py script.txt segs.json [out=../src/words.json]  (SP: произношение чисел/аббревиатур — дополнять)
+# usage: python3 align.py script.txt segs.json [out=../src/words.json] [speed=1.2]  (SP: произношение чисел/аббревиатур — дополнять)
 import json,re,sys
 words=[w for w in open(sys.argv[1]).read().split() if w!='—']
-SP={'10':2,'2026':8,'120':5,'сша':3,'ии':2}
+SP={'10':2,'2026':8,'120':5,'сша':3,'ии':2,'apple':2}
+SPEED=float(sys.argv[4]) if len(sys.argv)>4 else 1.2
 def syl(w):
     b=re.sub(r'[.,:?!«»]','',w.lower())
     if b in SP: return SP[b]
@@ -10,7 +11,7 @@ P=lambda w: bool(re.search(r'[.,:?!»]$',w))
 weights=[syl(w)+0.35+(0.3 if P(w) else 0) for w in words]
 if len(sys.argv)>2:
     m=json.load(open(sys.argv[2])); segs=[];t=0
-    for a,b in m: d=(b-a)/1.2; segs.append((t,t+d)); t+=d
+    for a,b in m: d=(b-a)/SPEED; segs.append((t,t+d)); t+=d
 else:
     m=None; t=sum(syl(w) for w in words)/7.6; segs=[(0,t)]
 T=t; tot=sum(weights); bounds=[0];c=0
