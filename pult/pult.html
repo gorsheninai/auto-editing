@@ -415,8 +415,8 @@ function openReel(p){
         <div class="f"><label for="r-sound">Звук</label><select id="r-sound"${ro}>${opts(SOUND,p.sound)}</select></div>
         <div class="f"><label for="r-speed">Ускорение: <span class="code" id="r-speedV"></span></label><input type="range" id="r-speed" min="1" max="1.3" step="0.05" value="${p.speed??1.2}"${ro}></div>
         <div class="f"><label for="r-words">Слов в субтитре</label><select id="r-words"${ro}>${opts([1,2,3],p.subWords??2)}</select></div>
-        <div class="f"><label for="r-subAnim">Анимация субтитров</label><select id="r-subAnim" data-pid="${esc(p.id)}" data-v="${esc(p.subAnim||'static')}"${ro}>${opts(animOptions('subtitle',p.id), p.subAnim||'static')}</select></div>
-        <div class="f"><label for="r-titleAnim">Анимация заголовков и кинетического текста</label><select id="r-titleAnim" data-pid="${esc(p.id)}" data-v="${esc(p.titleAnim||'static')}"${ro}>${opts(animOptions('title',p.id), p.titleAnim||'static')}</select></div>
+        <div class="f"><label for="r-subAnim">Анимация субтитров</label><select id="r-subAnim" data-pid="${esc(p.id)}" data-v="${esc(p.subAnim||'static')}"${ro}>${opts(animOptions('subtitle',p.id), p.subAnim||'static')}</select><span class="hint" id="r-subAnimNote"></span></div>
+        <div class="f"><label for="r-titleAnim">Анимация заголовков и кинетического текста</label><select id="r-titleAnim" data-pid="${esc(p.id)}" data-v="${esc(p.titleAnim||'static')}"${ro}>${opts(animOptions('title',p.id), p.titleAnim||'static')}</select><span class="hint" id="r-titleAnimNote"></span></div>
         <div class="f"><label for="r-subc">Цвет субтитров</label><select id="r-subc"${ro}>${opts(['по подложке','чёрный','белый'],p.subColor)}</select></div>
         <div class="f wide"><label class="row" style="gap:8px;cursor:pointer"><input type="checkbox" id="r-ctaOn"${p.ctaOn?' checked':''}${ro}> Призыв в конце</label>
           <input type="text" id="r-ctaText" value="${esc(p.ctaText||'')}" placeholder="Например: подпишись, чтобы не пропустить разбор"${p.ctaOn?'':' hidden'}${ro}>
@@ -877,6 +877,25 @@ async function videoStats(src, onProgress){
   const shots = cuts+1;
   return {duration:+d.toFixed(1), analyzed:+T.toFixed(1), cuts, cutsPerMin:+(cuts/(T/60)).toFixed(1), avgShot:+(T/shots).toFixed(2)};
 }
+/* ищет момент, когда появляется текст: изменение сосредоточено в одной горизонтальной полосе кадра, а остальной кадр почти не меняется (не склейка) */
+async function findTextMoment(src, role){
+  const v=await loadVideo(src), d=v.duration||0, T=Math.min(d-0.3, 30), W=36, H=64, B=8, c=document.createElement('canvas'); c.width=W; c.height=H;
+  const x=c.getContext('2d',{willReadFrequently:true}); let prev=null, best=null;
+  for(let t=0.1; t<T; t+=0.125){
+    await seek(v,t); x.drawImage(v,0,0,W,H); const px=x.getImageData(0,0,W,H).data, g=new Float32Array(W*H);
+    for(let i=0;i<g.length;i++) g[i]=px[i*4]*.3+px[i*4+1]*.59+px[i*4+2]*.11;
+    if(prev){
+      const bands=new Array(B).fill(0); let all=0;
+      for(let y=0;y<H;y++) for(let xx=0;xx<W;xx++){ const dd=Math.abs(g[y*W+xx]-prev[y*W+xx]); bands[Math.floor(y/(H/B))]+=dd; all+=dd; }
+      const per=W*H/B; for(let k=0;k<B;k++) bands[k]/=per; all/=W*H;
+      if(all<25){ const sorted=[...bands].sort((a,b)=>a-b), med=sorted[Math.floor(B/2)]; let k=bands.indexOf(Math.max(...bands));
+        const w = role==='title' ? (k<=4?1.2:1) : (k>=4?1.3:1); const score=(bands[k]-2*med)*w;
+        if(score>6 && (!best||score>best.score)) best={t, score}; }
+    }
+    prev=g;
+  }
+  return best ? Math.max(0, best.t-0.2) : null;
+}
 async function captureAnim(src, t0){
   const v=await loadVideo(src), d=v.duration||0, cols=6, rows=2, fw=180, fh=320, cv=document.createElement('canvas'), ctx=cv.getContext('2d');
   cv.width=cols*fw; cv.height=rows*fh; ctx.fillStyle='#000'; ctx.fillRect(0,0,cv.width,cv.height);
@@ -957,29 +976,52 @@ function wireStyle(p){
       </div>`;
     $('#r-animClose').onclick=()=>{ P.hidden=true; P.innerHTML=''; };
     $('#r-animHere').onclick=async ()=>{
-      const n=$('#r-animNote'), btn=$('#r-animHere'), t=$('#r-animVid').currentTime||0, role=$('#r-animRole').value;
-      if(!sample){ toast('Claude недоступен в этом просмотре'); return; }
+      const n=$('#r-animNote'), btn=$('#r-animHere');
       btn.disabled=true;
-      try{
-        n.textContent='Снимаю кадры…';
-        const {sheet, full} = await captureAnim(blob(r.id), t);
-        n.textContent='Claude разбирает анимацию… до минуты.';
-        const res = await sample.json(TEXTANIM_PROMPT.replace('{ROLE}', role==='title'?'заголовок или крупный текст':'субтитры'), {images:[sheet, full], cache:false});
-        if(!res || !res.summary) throw {code:'invalid_json'};
-        let previewId=null; if(assets){ try{ previewId=(await assets.upload(sheet,{type:'image/jpeg'})).id; }catch(e){} }
-        const doc={name:String(res.name||'Анимация из референса').slice(0,60), role, summary:String(res.summary), params:res.params||{}, font:String(res.font||''), source:r.name, refId:r.id, projectId:p.id, at:+t.toFixed(2), previewId, createdAt:new Date().toISOString()};
-        const ref=db.collection('textanims').doc();
-        if(await write(()=>ref.set(doc),'Анимация сохранена в библиотеку')){
-          S.textanims=[...S.textanims.filter(a=>a.id!==ref.id), {...doc, id:ref.id}]; renderAnims();
-          const sel=$(role==='title'?'#r-titleAnim':'#r-subAnim'); if(sel){ sel.dataset.v=ref.id; sel.innerHTML=opts(animOptions(role,p.id), ref.id); sel.value=ref.id; }
-          n.textContent=`Готово: «${doc.name}». ${doc.summary} Она выбрана в «Настройках».`;
-          await write(()=>docRef.update({[role==='title'?'titleAnim':'subAnim']:ref.id, updatedAt:new Date().toISOString()}));
-        }
-      }catch(e){ n.textContent = e&&e.code ? sampleErr(e) : 'Не получилось снять кадры с этого видео. Лучше mp4 (H.264).'; }
+      try{ const doc=await captureAndSave(r, $('#r-animVid').currentTime||0, $('#r-animRole').value, m=>n.textContent=m); if(doc) n.textContent=`Готово: «${doc.name}». ${doc.summary} Она выбрана в «Настройках».`; }
       finally{ btn.disabled=false; }
     };
     P.scrollIntoView({behavior:'smooth',block:'nearest'});
   }
+  async function captureAndSave(r, t, role, say){
+    if(!sample){ say('Claude недоступен в этом просмотре'); return null; }
+    try{
+      say('Снимаю кадры…');
+      const {sheet, full} = await captureAnim(blob(r.id), t);
+      say('Claude разбирает анимацию… до минуты.');
+      const res = await sample.json(TEXTANIM_PROMPT.replace('{ROLE}', role==='title'?'заголовок или крупный текст':'субтитры'), {images:[sheet, full], cache:false});
+      if(!res || !res.summary) throw {code:'invalid_json'};
+      let previewId=null; if(assets){ try{ previewId=(await assets.upload(sheet,{type:'image/jpeg'})).id; }catch(e){} }
+      const doc={name:String(res.name||'Анимация из референса').slice(0,60), role, summary:String(res.summary), params:res.params||{}, font:String(res.font||''), source:r.name, refId:r.id, projectId:p.id, at:+t.toFixed(2), previewId, createdAt:new Date().toISOString()};
+      const ref=db.collection('textanims').doc();
+      if(!(await write(()=>ref.set(doc),'Анимация сохранена в библиотеку'))) return null;
+      S.textanims=[...S.textanims.filter(a=>a.id!==ref.id), {...doc, id:ref.id}]; renderAnims();
+      const sel=$(role==='title'?'#r-titleAnim':'#r-subAnim'); if(sel){ sel.dataset.v=ref.id; sel.innerHTML=opts(animOptions(role,p.id), ref.id); sel.value=ref.id; }
+      await write(()=>docRef.update({[role==='title'?'titleAnim':'subAnim']:ref.id, updatedAt:new Date().toISOString()}));
+      reelHooks.renderSummary();
+      return {...doc, id:ref.id};
+    }catch(e){ say(e&&e.code ? sampleErr(e) : 'Не получилось снять кадры с этого видео. Лучше mp4 (H.264).'); return null; }
+  }
+  [['#r-subAnim','subtitle','#r-subAnimNote'],['#r-titleAnim','title','#r-titleAnimNote']].forEach(([sid,role,nid])=>{
+    const sel=$(sid); if(!sel) return;
+    sel.addEventListener('change', async ()=>{
+      if(sel.value!=='__auto'){ sel.dataset.v=sel.value; return; }
+      const note=$(nid), say=m=>note.textContent=m, prev=sel.dataset.v||'static';
+      const vids=refs.filter(r=>r.kind==='video');
+      if(!vids.length){ say('Сначала загрузи видео-референс в шаге «Стиль».'); sel.value=prev; return; }
+      sel.disabled=true;
+      try{
+        for(const r of vids){
+          say(`Ищу, где в «${r.name}» появляется текст…`);
+          let t=null; try{ t=await findTextMoment(blob(r.id), role); }catch(e){}
+          if(t==null) continue;
+          const doc=await captureAndSave(r, t, role, say);
+          if(doc){ say(`Взято из «${r.name}» (${t.toFixed(1)} с): ${doc.summary} Если момент не тот — под видео в шаге «Стиль» есть «Анимация текста», там можно отметить вручную.`); return; }
+        }
+        say('Не нашёл момент с появлением текста. Отметь его вручную: шаг «Стиль» → «Анимация текста» под видео.'); sel.value=prev;
+      } finally { sel.disabled=false; }
+    });
+  });
   async function addFiles(input, kind){
     const have=refs.filter(r=>r.kind===kind).length;
     const all=[...input.files]; input.value='';
@@ -1194,7 +1236,7 @@ function collect(){
   const v = id=>$(id)?.value ?? '';
   return {title:titleFrom(v('#r-script')), script:v('#r-script'), bg:v('#r-bg'), sound:v('#r-sound'),
     speed:+v('#r-speed')||1.2, subWords:+v('#r-words')||2, subColor:v('#r-subc'), drive:v('#r-drive').trim(), mediaList:v('#r-media'),
-    win:readWin(), subAnim:v('#r-subAnim')||'static', titleAnim:v('#r-titleAnim')||'static', ctaOn:!!$('#r-ctaOn')?.checked, ctaText:v('#r-ctaText').trim(), status:v('#r-status'),
+    win:readWin(), subAnim:(v('#r-subAnim')==='__auto'?'static':v('#r-subAnim'))||'static', titleAnim:(v('#r-titleAnim')==='__auto'?'static':v('#r-titleAnim'))||'static', ctaOn:!!$('#r-ctaOn')?.checked, ctaText:v('#r-ctaText').trim(), status:v('#r-status'),
     gptPrompt:v('#r-gpt'), styleAnalysis:v('#r-style'), sbRows:curRows, storyboard:rowsText(curRows), target:readTarget(), sub:readSub()};
 }
 $('#newReel').addEventListener('click', ()=>createReel());
@@ -1356,7 +1398,7 @@ function renderAll(){ renderReels(); renderTemplates(); renderLibrary(); renderP
 function animOptions(role, projectId){
   const list=[...S.textanims].sort((a,b)=>((b.projectId===projectId)-(a.projectId===projectId))||(b.createdAt||'').localeCompare(a.createdAt||''));
   const mine=list.filter(a=>a.role===role), other=list.filter(a=>a.role!==role);
-  return [['static', role==='title'?'Наша: заголовок с подчёркиванием':'Наша: статичные'], ...[...mine,...other].map(a=>[a.id, `${a.projectId===projectId?'Из референса: ':'Библиотека: '}${a.name}${a.role!==role?(a.role==='title'?' (заголовок)':' (субтитры)'):''}`])];
+  return [['static', role==='title'?'Наша: заголовок с подчёркиванием':'Наша: статичные'], ['__auto','Как в видео-референсе — снять автоматически'], ...[...mine,...other].map(a=>[a.id, `${a.projectId===projectId?'Из референса: ':'Библиотека: '}${a.name}${a.role!==role?(a.role==='title'?' (заголовок)':' (субтитры)'):''}`])];
 }
 function refreshAnimSelects(){
   ['#r-subAnim','#r-titleAnim'].forEach(id=>{ const el=$(id); if(!el) return; const v=el.value||el.dataset.v||'static'; el.innerHTML=opts(animOptions(id==='#r-titleAnim'?'title':'subtitle', el.dataset.pid), v); });
