@@ -311,15 +311,27 @@ function openReel(p, tplId){
   const ro = !canWrite ? ' disabled' : '';
   E.innerHTML = `<form class="panel" id="reelForm" novalidate>
     <h3>${isNew?'Новый ролик':esc(p.title||'Ролик')}</h3>
-    <p>Пустые поля берутся по умолчанию. Обязательны только тема и текст.</p>
-    <fieldset><legend>Идея и текст</legend><div class="fields">
-      <div class="f"><label for="r-title">Тема</label><input type="text" id="r-title" value="${esc(p.title)}" placeholder="Профессии, которые заменит ИИ"${ro}></div>
+    <p>Вставь текст и дай ролику название. Остальное можно не трогать: пустые поля берутся по умолчанию.</p>
+    <fieldset><legend>Текст ролика</legend><div class="fields">
+      <div class="f"><label for="r-title">Название</label><input type="text" id="r-title" value="${esc(p.title)}" placeholder="Профессии, которые заменит ИИ"${ro}></div>
+      <div class="f wide"><label for="r-script">Текст сценария</label><textarea id="r-script" style="min-height:220px" placeholder="Вставь сюда текст ролика целиком"${ro}>${esc(p.script)}</textarea><span class="hint" id="r-count"></span></div>
+    </div></fieldset>
+    <fieldset><legend>Промпт для картинок · ChatGPT</legend><div class="fields">
+      <div class="f wide"><label for="r-gpt">Один запрос на все картинки</label>
+        <textarea id="r-gpt" style="min-height:160px;font-family:var(--mono);font-size:13px" placeholder="Сюда Claude положит запрос после раскадровки. Можно вставить и свой."${ro}>${esc(p.gptPrompt)}</textarea>
+        <div class="row"><button class="btn" type="button" id="r-gptCopy">Скопировать промпт</button><span class="hint">Отправь его в ChatGPT (режим work) вместе с фото и видео референсов.</span></div></div>
+    </div></fieldset>
+    <fieldset><legend>Раскадровка</legend><div class="fields">
+      <div class="f wide"><label for="r-story">Сцены по фразам</label>
+        <textarea id="r-story" style="min-height:140px" placeholder="Сюда Claude положит раскадровку: фраза, режим A/B/C, сцена. Правь прямо здесь."${ro}>${esc(p.storyboard)}</textarea></div>
+    </div></fieldset>
+    <details${isNew?' open':''}><summary style="cursor:pointer;font-weight:600;margin-bottom:14px">Бриф: цель, стиль, кадр, монтаж</summary>
+    <fieldset><legend>Идея</legend><div class="fields">
       <div class="f"><label for="r-angle">Угол подачи</label><input type="text" id="r-angle" value="${esc(p.angle)}" placeholder="Учиться один раз больше не работает"${ro}></div>
       <div class="f"><label for="r-goal">Цель</label><select id="r-goal"${ro}>${opts(GOALS,p.goal)}</select></div>
       <div class="f"><label for="r-cta">Призыв в конце</label><input type="text" id="r-cta" value="${esc(p.cta)}"${ro}></div>
       <div class="f"><label for="r-tone">Тон</label><select id="r-tone"${ro}>${opts(TONES,p.tone)}</select></div>
       <div class="f"><label for="r-who">Кто в кадре</label><select id="r-who"${ro}>${opts(WHO,p.who)}</select></div>
-      <div class="f wide"><label for="r-script">Текст сценария</label><textarea id="r-script" placeholder="Вставь сюда текст ролика целиком"${ro}>${esc(p.script)}</textarea><span class="hint" id="r-count"></span></div>
     </div></fieldset>
     <fieldset><legend>Стиль и кадр</legend><div class="fields">
       <div class="f"><label for="r-tpl">Шаблон</label><select id="r-tpl"${ro}><option value="">Без шаблона: предложить 3–5 стилей</option>${opts(S.templates.map(t=>[t.id,t.name]),p.templateId)}</select></div>
@@ -339,9 +351,13 @@ function openReel(p, tplId){
       <div class="f"><label for="r-words">Слов в субтитре</label><select id="r-words"${ro}>${opts([1,2,3],p.subWords)}</select></div>
       <div class="f"><label for="r-subc">Цвет субтитров</label><select id="r-subc"${ro}>${opts(['по подложке','чёрный','белый'],p.subColor)}</select></div>
       <div class="f"><label for="r-drive">Папка на Диске</label><input type="url" id="r-drive" value="${esc(p.drive)}" placeholder="https://drive.google.com/…"${ro}></div>
-      <div class="f"><label for="r-status">Этап</label><select id="r-status"${ro}>${opts(STATUSES,p.status)}</select></div>
     </div></fieldset>
-    <div class="row">
+    </details>
+    <div class="row" style="margin-top:8px">
+      <label for="r-status" style="font-size:13px;font-weight:500">Этап</label>
+      <select id="r-status" style="width:auto"${ro}>${opts(STATUSES,p.status)}</select>
+    </div>
+    <div class="row" style="margin-top:14px">
       <button class="btn primary" type="submit"${ro}>${isNew?'Создать ролик':'Сохранить'}</button>
       ${isNew?'':'<button class="btn" type="button" id="r-copy">Скопировать задание для чата</button>'}
       <button class="btn ghost" type="button" id="r-close">Закрыть</button>
@@ -365,7 +381,7 @@ function openReel(p, tplId){
   F.addEventListener('submit', async e=>{
     e.preventDefault(); if(!db||!canWrite) return;
     const d = collect();
-    if(!d.title){ toast('Заполни тему'); $('#r-title').focus(); return; }
+    if(!d.title){ toast('Заполни название'); $('#r-title').focus(); return; }
     if(d.presetId==='custom' && d.custom.a+d.custom.b+d.custom.c!==100){ toast('Доли должны давать 100%'); return; }
     const now = new Date().toISOString();
     const ref = isNew ? db.collection('projects').doc() : db.collection('projects').doc(p.id);
@@ -377,6 +393,13 @@ function openReel(p, tplId){
     $('#r-delBox').innerHTML = `<span class="confirm">Удалить ролик? <button class="btn danger" type="button" id="r-delYes">Удалить</button><button class="btn ghost" type="button" id="r-delNo">Отмена</button></span>`;
     $('#r-delNo').onclick = ()=>openReel(p);
     $('#r-delYes').onclick = async ()=>{ if(await write(()=>db.collection('projects').doc(p.id).delete(),'Ролик удалён')){ E.hidden=true; E.innerHTML=''; } };
+  });
+  $('#r-gptCopy').addEventListener('click', ()=>{
+    const text = $('#r-gpt').value.trim();
+    if(!text){ toast('Промпта пока нет: его положит Claude после раскадровки'); return; }
+    const done=()=>toast('Промпт скопирован: вставь его в ChatGPT');
+    const fb=()=>{ const ta=$('#r-gpt'); ta.focus(); ta.select(); toast('Скопируй выделенный текст вручную'); };
+    if(navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(done, fb); else fb();
   });
   const cp = $('#r-copy');
   if(cp) cp.addEventListener('click', ()=>{
@@ -409,7 +432,8 @@ function collect(){
   return {title:v('#r-title').trim(), angle:v('#r-angle').trim(), goal:v('#r-goal'), cta:v('#r-cta').trim(), tone:v('#r-tone'), who:v('#r-who'),
     script:v('#r-script'), templateId:v('#r-tpl'), presetId:v('#r-preset'),
     custom:{a:+v('#r-a')||0,b:+v('#r-b')||0,c:+v('#r-c')||0}, bg:v('#r-bg'), n3d:v('#r-3d'), nMotion:v('#r-motion'), sound:v('#r-sound'),
-    ownMedia:v('#r-own').trim(), speed:+v('#r-speed'), subWords:+v('#r-words'), subColor:v('#r-subc'), drive:v('#r-drive').trim(), status:v('#r-status')};
+    ownMedia:v('#r-own').trim(), speed:+v('#r-speed'), subWords:+v('#r-words'), subColor:v('#r-subc'), drive:v('#r-drive').trim(), status:v('#r-status'),
+    gptPrompt:v('#r-gpt'), storyboard:v('#r-story')};
 }
 $('#newReel').addEventListener('click', ()=>openReel(null));
 
