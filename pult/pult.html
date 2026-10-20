@@ -292,7 +292,7 @@ function renderReels(){
     const sh = sharesOf(p); const t = tplOf(p.templateId);
     return `<div class="projrow" tabindex="0" data-open="${esc(p.id)}">
       <div style="min-width:0"><h3>${esc(p.title||'Без названия')}</h3>
-      <div class="sub">${esc(t?t.name:'без шаблона')} · ${esc(p.goal||'')} · обновлён ${esc((p.updatedAt||'').slice(0,10))}</div></div>
+      <div class="sub">${esc(t?t.name:'без шаблона')} · обновлён ${esc((p.updatedAt||'').slice(0,10))}</div></div>
       ${sh?strip(sh.a,sh.b,sh.c):'<span></span>'}
       <span class="pill s-${esc(st[0])}">${esc(st[1])}</span></div>`;
   }).join('');
@@ -353,14 +353,7 @@ function openReel(p){
       <div class="f wide"><label for="r-story">Сцены по фразам</label>
         <textarea id="r-story" style="min-height:140px" placeholder="Сюда Claude положит раскадровку: фраза, режим A/B/C, сцена. Правь прямо здесь."${ro}>${esc(p.storyboard)}</textarea></div>
     </div></fieldset>
-    <details><summary style="cursor:pointer;font-weight:600;margin-bottom:14px">Бриф: цель, стиль, кадр, монтаж</summary>
-    <fieldset><legend>Идея</legend><div class="fields">
-      <div class="f"><label for="r-angle">Угол подачи</label><input type="text" id="r-angle" value="${esc(p.angle)}" placeholder="Учиться один раз больше не работает"${ro}></div>
-      <div class="f"><label for="r-goal">Цель</label><select id="r-goal"${ro}>${opts(GOALS,p.goal)}</select></div>
-      <div class="f"><label for="r-cta">Призыв в конце</label><input type="text" id="r-cta" value="${esc(p.cta)}"${ro}></div>
-      <div class="f"><label for="r-tone">Тон</label><select id="r-tone"${ro}>${opts(TONES,p.tone)}</select></div>
-      <div class="f"><label for="r-who">Кто в кадре</label><select id="r-who"${ro}>${opts(WHO,p.who)}</select></div>
-    </div></fieldset>
+    <details><summary style="cursor:pointer;font-weight:600;margin-bottom:14px">Бриф: шаблон, кадр, монтаж</summary>
     <fieldset><legend>Стиль и кадр</legend><div class="fields">
       <div class="f"><label for="r-tpl">Шаблон</label><select id="r-tpl"${ro}><option value="">Без шаблона: предложить 3–5 стилей</option>${opts(S.templates.map(t=>[t.id,t.name]),p.templateId)}</select></div>
       <div class="f"><label for="r-preset">Пресет долей</label><select id="r-preset"${ro}>${opts([...S.presets.map(x=>[x.id,`${x.name} · A${x.a}/B${x.b}/C${x.c}`]),['custom','Свои доли']],p.presetId)}</select></div>
@@ -436,8 +429,7 @@ function openReel(p){
       `Новый ролик, подключи auto-editing.`,
       `Проект на пульте: «${d.title}» (id: ${p.id}). Бриф и текст бери оттуда.`,
       ``,
-      `Тема: ${d.title}${d.angle?` — ${d.angle}`:''}`,
-      `Цель: ${d.goal}. Призыв: ${d.cta}. Тон: ${d.tone}. В кадре: ${d.who}.`,
+      `Тема: ${d.title}`,
       `Шаблон: ${t?t.name:'нет, предложи 3–5 стилей'}. Доли: ${sh?`A ${sh.a}% / B ${sh.b}% / C ${sh.c}%`:'по умолчанию'}.`,
       `Подложка: ${d.bg}. 3D: ${d.n3d}. Моушн: ${d.nMotion}. Звук: ${d.sound}.`,
       `Ускорение ×${d.speed}. Субтитры: ${d.subWords} сл., цвет ${d.subColor}.`,
@@ -658,7 +650,7 @@ function fallbackCopy(text){
 }
 function collect(){
   const v = id=>$(id).value;
-  return {title:titleFrom(v('#r-script')), angle:v('#r-angle').trim(), goal:v('#r-goal'), cta:v('#r-cta').trim(), tone:v('#r-tone'), who:v('#r-who'),
+  return {title:titleFrom(v('#r-script')),
     script:v('#r-script'), templateId:v('#r-tpl'), presetId:v('#r-preset'),
     custom:{a:+v('#r-a')||0,b:+v('#r-b')||0,c:+v('#r-c')||0}, bg:v('#r-bg'), n3d:v('#r-3d'), nMotion:v('#r-motion'), sound:v('#r-sound'),
     ownMedia:v('#r-own').trim(), speed:+v('#r-speed'), subWords:+v('#r-words'), subColor:v('#r-subc'), drive:v('#r-drive').trim(), status:v('#r-status'),
