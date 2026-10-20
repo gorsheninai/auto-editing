@@ -8,7 +8,7 @@ const B = [...BOUNDS(), TOTAL];
 // ---------- captions: strictly 2 words, static, black ----------
 type Chunk = {text: string; s: number; e: number};
 const SHORT = new Set(['в', 'с', 'и', 'а', 'на', 'за', 'из', 'у', 'со', 'не', 'к', 'о', 'от']);
-const KEEP = /^(ии|сша|«монтаж»)/i;
+const KEEP = /^(ии|сша|apple)/i;
 const fmt = (w: string) => {
   let t = w.replace(/[.!?:—]+$/, '');
   if (/^«монтаж»/i.test(t)) return '«МОНТАЖ»';
@@ -63,7 +63,7 @@ const Captions: React.FC = () => {
       <span style={{
         fontFamily: SANS, fontWeight: 700, fontSize: 56, letterSpacing: -1, color: C.ink,
         ...(onDark || mode === 'C'
-          ? {background: 'rgba(244,241,234,0.94)', padding: '6px 22px 10px', borderRadius: 18}
+          ? {background: 'rgba(255,255,255,0.94)', padding: '6px 22px 10px', borderRadius: 18, boxShadow: `0 0 0 2px ${C.ink}`}
           : {textShadow: '0 1px 0 rgba(255,255,255,0.7)'}),
       }}>{ch.text}</span>
     </div>
@@ -77,7 +77,7 @@ const BlobWipe: React.FC = () => {
   if (b === undefined) return null;
   const d = fr - b; // -4..4
   const r = interpolate(Math.abs(d), [0, 4], [1500, 0], clamp);
-  const cols = [C.lav, C.violet, C.orange];
+  const cols = [C.blue, C.yellow, C.violet];
   const col = cols[B.indexOf(b) % 3];
   return (
     <AbsoluteFill style={{pointerEvents: 'none'}}>
@@ -89,21 +89,19 @@ const BlobWipe: React.FC = () => {
 // ---------- sfx ----------
 const sfx: [string, number, number][] = (() => {
   const L: [string, number, number][] = [];
-  B.slice(1, -1).forEach((b) => L.push(['whoosh', b - 6, 0.16]));
-  ['образование', 'стажировка', 'развитие', 'рост'].forEach((w) => L.push(['pop', wf(w), 0.2]));
-  L.push(['swish', wf('но') + 2, 0.2], ['thud', wf('но') + 4, 0.25]);
-  L.push(['tick', wf('обучиться') + 6, 0.15], ['tick', wf('обучиться') + 16, 0.15], ['tick', wf('обучиться') + 26, 0.15]);
-  for (let k = 0; k < 6; k++) L.push(['pop', wf('быстрее') + k * 3, 0.12]);
-  L.push(['thud', wf('дешёвый'), 0.2]);
-  L.push(['click', wf('120'), 0.2]);
-  for (let k = 0; k < 16; k += 3) L.push(['tick', wf('120') + 12 + k * 2, 0.1]);
-  L.push(['ding', wf('изменилась'), 0.2]);
-  L.push(['swish', wf('поэтому') + 2, 0.22]);
-  ['ставить', 'выбирать', 'подключать', 'контролировать'].forEach((w) => L.push(['pop', wf(w), 0.2]));
-  L.push(['click', wf('стыке'), 0.25], ['ding', wf('придумывать'), 0.2]);
-  L.push(['pop', wf('хорошую'), 0.2], ['thud', wf('плохой'), 0.2]);
-  for (let k = 0; k < 4; k++) L.push(['type', wf('кстати') + 14 + k * 4, 0.12]);
-  L.push(['success', wf('монтаж'), 0.22]);
+  B.slice(1, -1).forEach((b) => L.push(['whoosh', b - 6, 0.12]));
+  L.push(['pop', wf('почему') + 2, 0.12]);
+  L.push(['swish', wf('дорого'), 0.16], ['thud', wf('дорого') + 6, 0.14]);
+  for (let k = 0; k < 6; k++) L.push(['pop', wf('а') + 3 + k * 3, 0.08]);
+  L.push(['click', wf('скидке'), 0.2], ['pop', wf('скидке') + 1, 0.12]);
+  L.push(['swish', wf('дело'), 0.16], ['thud', wf('дело') + 8, 0.16], ['swish', wf('цене'), 0.14], ['pop', wf('не', 0), 0.14]);
+  L.push(['swish', wf('не', 1), 0.12], ['ding', wf('эмоции'), 0.16], ['pop', wf('эмоции') + 8, 0.12]);
+  L.push(['pop', wf('статус'), 0.14], ['pop', wf('статус') + 4, 0.1], ['pop', wf('статус') + 7, 0.1], ['swish', wf('ощущение'), 0.12], ['pop', wf('даёт'), 0.1]);
+  L.push(['pop', wf('apple'), 0.1], ['swish', wf('телефоны') + 2, 0.14]);
+  for (let k = 0; k < 5; k++) L.push(['pop', wf('образ') + k * 2, 0.09]);
+  L.push(['pop', wf('маркетинг'), 0.14], ['pop', wf('не', 3), 0.12], ['swish', wf('продавать') - 2, 0.14], ['thud', wf('продавать') + 2, 0.14]);
+  L.push(['whoosh', wf('это', 1), 0.14]);
+  for (let k = 0; k < 7; k++) L.push(['type', wf('создавать') + Math.round(k * 1.6), 0.09]);
   return L;
 })();
 

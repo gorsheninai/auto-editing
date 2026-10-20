@@ -402,3 +402,4 @@ export const S3Laptop: React.FC<SP> = ({dur}) => (
 );
 
 export {pop};
+export {CutOut, Canvas3D, Stage, Cam, Clay, P as P3};

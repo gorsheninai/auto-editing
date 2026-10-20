@@ -7,8 +7,8 @@ import words from './words.json';
 
 export const FPS = 30;
 export const C = {
-  cream: '#F4F1EA', ink: '#1C1B22', green: '#1F6B45', orange: '#FF6A2B',
-  violet: '#7B61FF', lav: '#CFC6FF', yellow: '#FFD23F',
+  cream: '#FFFFFF', ink: '#111111', green: '#1F6B45', orange: '#FF6A2B',
+  violet: '#B06CF0', lav: '#D4D4DA', yellow: '#F4C542', grey: '#8C8C8C', blue: '#E8EEF8',
 };
 export const SANS = "'InterTight', sans-serif";
 export const SERIF = "'NotoDisplay', serif";
@@ -33,7 +33,7 @@ const idx = (word: string, occ = 0) => {
 export const wf = (word: string, occ = 0) => f(WORDS[idx(word, occ)].s);
 /** start of the word right before `word` (to cut on "и вот…") */
 export const wfPrev = (word: string, occ = 0) => f(WORDS[idx(word, occ) - 1].s);
-export const VIDEO_DUR = 46.0; // cleaned avatar video length, s
+export const VIDEO_DUR = 15.63; // cleaned avatar video length, s
 export const TOTAL = Math.min(Math.ceil((WORDS[WORDS.length - 1].e + 0.45) * FPS), Math.floor(VIDEO_DUR * FPS));
 
 // ---------- fonts ----------
@@ -122,7 +122,7 @@ export const Split: React.FC<{from: number; children: React.ReactNode}> = ({from
   const clip = `polygon(0px 0px, 1080px 0px, 1080px ${WIN.y}px, ${WIN.x + WIN.w}px ${WIN.y}px, ${WIN.x + WIN.w}px 1920px, ${WIN.x}px 1920px, ${WIN.x}px ${WIN.y}px, 0px ${WIN.y}px)`;
   return (
     <AbsoluteFill style={{background: C.cream}}>
-      <AbsoluteFill style={{backgroundImage: `radial-gradient(${C.lav} 2.4px, transparent 2.8px)`, backgroundSize: '26px 26px'}} />
+      <AbsoluteFill style={{backgroundImage: `radial-gradient(${C.lav} 2px, transparent 2.4px)`, backgroundSize: '30px 30px'}} />
       <div style={{position: 'absolute', left: 0, top: 0, width: 1080, height: TOP_H, overflow: 'hidden'}}>
         {children}
         <div style={{position: 'absolute', left: 0, right: 0, bottom: 0, height: 240, background: `linear-gradient(180deg, rgba(244,241,234,0), ${C.cream})`}} />
@@ -136,7 +136,7 @@ export const Split: React.FC<{from: number; children: React.ReactNode}> = ({from
             style={{position: 'absolute', left: WIN.x, top: VID.top, width: VID.w, height: VID_H}} />
         </AbsoluteFill>
       </AbsoluteFill>
-      <Grain o={0.05} />
+      <Grain o={0.03} />
     </AbsoluteFill>
   );
 };
@@ -160,5 +160,61 @@ export const Title: React.FC<{at?: number; top: number; a: string; b: string; co
         <div style={{position: 'absolute', left: 6, bottom: 4, height: 5, width: `${line}%`, background: C.orange, borderRadius: 3}} />
       </div>
     </div>
+  );
+};
+
+/** Mode A for light reels: cut-out speaker on white dotted sheet */
+export const AvatarCut: React.FC<{from: number; dur: number; zoom?: [number, number]; children?: React.ReactNode}> = ({from, dur, zoom = [1.0, 1.04], children}) => {
+  const fr = useCurrentFrame();
+  return (
+    <AbsoluteFill style={{background: C.cream}}>
+      <AbsoluteFill style={{backgroundImage: `radial-gradient(${C.lav} 2px, transparent 2.4px)`, backgroundSize: '30px 30px'}} />
+      <AbsoluteFill style={{scale: String(interpolate(fr, [0, dur], zoom, clamp)), transformOrigin: '50% 30%'}}>
+        <OffthreadVideo src={S('avatar_cut.webm')} transparent muted startFrom={from} style={{width: '100%', height: '100%'}} />
+      </AbsoluteFill>
+      {children}
+      <Grain o={0.03} />
+    </AbsoluteFill>
+  );
+};
+
+/** small scattered grotesque word (reference style) */
+export const Word: React.FC<{at: number; x: number; y: number; children: React.ReactNode; size?: number; color?: string; it?: boolean}> = ({at, x, y, children, size = 44, color = C.ink, it}) => {
+  const fr = useCurrentFrame();
+  if (fr < at) return null;
+  return (
+    <div style={{position: 'absolute', left: x, top: y, fontFamily: SANS, fontWeight: 600, fontSize: size, letterSpacing: -0.5, color, whiteSpace: 'nowrap',
+      fontStyle: it ? 'italic' : 'normal', opacity: interpolate(fr, [at, at + 3], [0, 1], clamp), translate: `0px ${interpolate(fr, [at, at + 6], [10, 0], clamp)}px`}}>{children}</div>
+  );
+};
+
+/** sticker image: pops in with a small overshoot and slight tilt sway */
+export const Sticker: React.FC<{src: string; at: number; x: number; y: number; w: number; rot?: number; out?: number; sway?: number; style?: React.CSSProperties}> = ({src, at, x, y, w, rot = 0, out, sway = 1.5, style}) => {
+  const fr = useCurrentFrame();
+  if (fr < at) return null;
+  const s = pop(fr, at);
+  const o = out !== undefined ? interpolate(fr, [out, out + 5], [1, 0], clamp) : 1;
+  return <Img src={S(src)} style={{position: 'absolute', left: x - w / 2, top: y, width: w, scale: String(s), opacity: o, rotate: `${rot + Math.sin((fr - at) / 9) * sway}deg`, ...style}} />;
+};
+
+/** black plate with white text */
+export const Plate: React.FC<{at: number; x: number; y: number; children: React.ReactNode; size?: number; bg?: string; color?: string; rot?: number}> = ({at, x, y, children, size = 46, bg = C.ink, color = '#fff', rot = 0}) => {
+  const fr = useCurrentFrame();
+  if (fr < at) return null;
+  return (
+    <div style={{position: 'absolute', left: x, top: y, translate: '-50% -50%', scale: String(pop(fr, at)), rotate: `${rot}deg`, background: bg, color,
+      fontFamily: SANS, fontWeight: 600, fontSize: size, letterSpacing: -0.5, padding: '6px 20px 10px', borderRadius: 6, whiteSpace: 'nowrap'}}>{children}</div>
+  );
+};
+
+/** strike line drawn left to right */
+export const Strike: React.FC<{a: number; x1: number; y1: number; x2: number; y2: number; w?: number; color?: string; len?: number}> = ({a, x1, y1, x2, y2, w = 8, color = C.ink, len = 7}) => {
+  const fr = useCurrentFrame();
+  const k = interpolate(fr, [a, a + len], [0, 1], {...clamp, easing: ease});
+  if (k <= 0) return null;
+  return (
+    <svg width={1080} height={1920} style={{position: 'absolute', left: 0, top: 0, pointerEvents: 'none'}}>
+      <line x1={x1} y1={y1} x2={x1 + (x2 - x1) * k} y2={y1 + (y2 - y1) * k} stroke={color} strokeWidth={w} strokeLinecap="round" />
+    </svg>
   );
 };
