@@ -8,5 +8,5 @@
 
 ## Пульт монтажа
 Интерфейс: https://claude.ai/artifact/5hvEdgNfsfN5esbxToxz9r (исходник — pult/pult.html, публиковать через Artifact с url).
-Данные пульта (ArtifactData): projects (брифы роликов; поля script — текст, storyboard — раскадровка текстом, gptPrompt — один запрос для ChatGPT: после раскадровки записывай их туда через update), templates, blocks, presets. Когда пользователь пишет «проект на пульте … id: X» — прочитай projects/X и работай по нему; по ходу обновляй поле status (draft → story → images → edit → done).
+Данные пульта (ArtifactData): projects (брифы роликов; поля script — текст, storyboard — раскадровка текстом, gptPrompt — один запрос для ChatGPT, refs — референсы (id ассетов пульта, читать через Artifact read с path=id), styleAnalysis — разбор стиля; разбор и промпт пульт делает сам через Claude, в чате их можно доработать и записать обратно через update), templates, blocks, presets. Когда пользователь пишет «проект на пульте … id: X» — прочитай projects/X и работай по нему; по ходу обновляй поле status (draft → story → images → edit → done).
 Новые блоки после ролика: превью-клип (432×768, без звука) загрузить в assets пульта и добавить документ в blocks.

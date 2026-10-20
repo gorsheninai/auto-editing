@@ -130,6 +130,11 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .swatches{display:flex;gap:4px}
 .swatches i{width:18px;height:18px;border-radius:4px;border:1px solid var(--line)}
 [hidden]{display:none!important}
+.refs{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}
+.ref{margin:0;display:flex;flex-direction:column;gap:6px;min-width:0}
+.ref .media{border-radius:8px;border:1px solid var(--line)}
+.ref figcaption{display:flex;flex-direction:column;gap:2px;min-width:0}
+details > summary{list-style-position:inside}
 @media (max-width:640px){.brand .tc{display:none}.bar{gap:10px}nav{flex-wrap:nowrap;overflow-x:auto;width:100%;scrollbar-width:none}.tab{flex:none}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -154,7 +159,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   <!-- РОЛИКИ -->
   <section id="view-reels" hidden>
     <div class="head">
-      <div><h2>Ролики</h2><p>Каждый ролик — бриф и текст. Заполни, нажми «Скопировать задание» и вставь в чат с Claude: монтаж идёт там.</p></div>
+      <div><h2>Ролики</h2><p>Текст ролика → референсы стиля → разбор стиля → промпт для ChatGPT. Монтаж идёт в чате с Claude: нажми «Скопировать задание» и вставь его туда.</p></div>
       <button class="btn primary" id="newReel">Новый ролик</button>
     </div>
     <div id="reelEditor" hidden></div>
@@ -203,7 +208,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 const $ = (s, r=document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const blob = id => id ? '/_blob/' + id : '';
-let db = null, assets = null, user = null, canWrite = true, canEdit = false;
+let db = null, assets = null, user = null, sample = null, canWrite = true, canEdit = false;
 const S = {projects:[], templates:[], blocks:[], presets:[]};
 let kindFilter = 'all';
 
@@ -316,10 +321,25 @@ function openReel(p, tplId){
       <div class="f"><label for="r-title">Название</label><input type="text" id="r-title" value="${esc(p.title)}" placeholder="Профессии, которые заменит ИИ"${ro}></div>
       <div class="f wide"><label for="r-script">Текст сценария</label><textarea id="r-script" style="min-height:220px" placeholder="Вставь сюда текст ролика целиком"${ro}>${esc(p.script)}</textarea><span class="hint" id="r-count"></span></div>
     </div></fieldset>
-    <fieldset><legend>Промпт для картинок · ChatGPT</legend><div class="fields">
-      <div class="f wide"><label for="r-gpt">Один запрос на все картинки</label>
-        <textarea id="r-gpt" style="min-height:160px;font-family:var(--mono);font-size:13px" placeholder="Сюда Claude положит запрос после раскадровки. Можно вставить и свой."${ro}>${esc(p.gptPrompt)}</textarea>
-        <div class="row"><button class="btn" type="button" id="r-gptCopy">Скопировать промпт</button><span class="hint">Отправь его в ChatGPT (режим work) вместе с фото и видео референсов.</span></div></div>
+    <fieldset><legend>1 · Референсы стиля</legend>
+      ${isNew ? `<div class="empty" style="padding:16px">Сначала нажми «Создать ролик» внизу, потом сюда можно будет загрузить до 5 видео или картинок.</div>` : `
+      <div class="refs" id="r-refs"></div>
+      <div class="row" style="margin-top:10px">
+        <label class="btn" id="r-refAdd" style="cursor:pointer">Загрузить референсы<input type="file" id="r-refFile" accept="video/mp4,video/webm,video/quicktime,image/jpeg,image/png,image/webp" multiple hidden></label>
+        <span class="hint">До 5 файлов, каждый до 20 МБ. Видео лучше короткие, до 90 секунд.</span>
+      </div>`}
+    </fieldset>
+    <fieldset><legend>2 · Разбор стиля</legend><div class="fields">
+      <div class="f wide">
+        <textarea id="r-style" style="min-height:180px" placeholder="Здесь появится разбор: эстетика, палитра, шрифты, раскладки кадра, ритм, переходы, движение, как это сделать у нас."${ro}>${esc(p.styleAnalysis)}</textarea>
+        <div class="row"><button class="btn primary" type="button" id="r-styleGo"${isNew?' disabled':''}>Разобрать стиль</button><button class="btn ghost" type="button" id="r-styleStop" hidden>Остановить</button><span class="hint" id="r-styleNote">Claude посмотрит кадры каждого референса и посчитает частоту склеек.</span></div>
+      </div>
+    </div></fieldset>
+    <fieldset><legend>3 · Промпт для GPT Image 2.5</legend><div class="fields">
+      <div class="f wide">
+        <textarea id="r-gpt" style="min-height:200px;font-family:var(--mono);font-size:13px" placeholder="Здесь появится один большой запрос на все картинки: персонаж, предметы, фоны — в стиле из разбора."${ro}>${esc(p.gptPrompt)}</textarea>
+        <div class="row"><button class="btn primary" type="button" id="r-gptGo"${isNew?' disabled':''}>Составить промпт</button><button class="btn" type="button" id="r-gptCopy">Скопировать промпт</button><button class="btn ghost" type="button" id="r-gptStop" hidden>Остановить</button><span class="hint" id="r-gptNote">Отправь его в ChatGPT (режим work) вместе со своим фото и референсами.</span></div>
+      </div>
     </div></fieldset>
     <fieldset><legend>Раскадровка</legend><div class="fields">
       <div class="f wide"><label for="r-story">Сцены по фразам</label>
@@ -394,6 +414,7 @@ function openReel(p, tplId){
     $('#r-delNo').onclick = ()=>openReel(p);
     $('#r-delYes').onclick = async ()=>{ if(await write(()=>db.collection('projects').doc(p.id).delete(),'Ролик удалён')){ E.hidden=true; E.innerHTML=''; } };
   });
+  if(!isNew) wireStyle(p);
   $('#r-gptCopy').addEventListener('click', ()=>{
     const text = $('#r-gpt').value.trim();
     if(!text){ toast('Промпта пока нет: его положит Claude после раскадровки'); return; }
@@ -422,6 +443,201 @@ function openReel(p, tplId){
   });
   E.scrollIntoView({behavior:'smooth', block:'start'});
 }
+/* ---------- референсы, разбор стиля, промпт ---------- */
+const MAX_REFS = 5;
+function seek(v, t){ return new Promise((res,rej)=>{ const to=setTimeout(()=>{ v.removeEventListener('seeked',on); rej(new Error('seek')); },8000); const on=()=>{ clearTimeout(to); v.removeEventListener('seeked',on); res(); }; v.addEventListener('seeked',on); v.currentTime=t; }); }
+async function loadVideo(src){
+  const v=document.createElement('video'); v.muted=true; v.playsInline=true; v.preload='auto'; v.src=src;
+  await new Promise((res,rej)=>{ const to=setTimeout(()=>rej(new Error('video')),20000); v.onloadeddata=()=>{clearTimeout(to);res();}; v.onerror=()=>{clearTimeout(to);rej(new Error('video'));}; });
+  return v;
+}
+async function videoStats(src, onProgress){
+  const v = await loadVideo(src); const d = v.duration || 0; const T = Math.min(d, 75), step = 1/3;
+  const c=document.createElement('canvas'); c.width=32; c.height=56; const x=c.getContext('2d',{willReadFrequently:true});
+  let prev=null, cuts=0, n=0;
+  for(let t=0.05; t<T; t+=step){
+    await seek(v,t); x.drawImage(v,0,0,32,56); const px=x.getImageData(0,0,32,56).data;
+    const g=new Float32Array(32*56); for(let i=0;i<g.length;i++) g[i]=(px[i*4]*.3+px[i*4+1]*.59+px[i*4+2]*.11);
+    if(prev){ let s=0; for(let i=0;i<g.length;i++) s+=Math.abs(g[i]-prev[i]); if(s/g.length>30) cuts++; }
+    prev=g; n++; if(onProgress && n%15===0) onProgress(t/T);
+  }
+  const shots = cuts+1;
+  return {duration:+d.toFixed(1), analyzed:+T.toFixed(1), cuts, cutsPerMin:+(cuts/(T/60)).toFixed(1), avgShot:+(T/shots).toFixed(2)};
+}
+function coverDraw(ctx, src, sw, sh, dx, dy, dw, dh){
+  const r=Math.max(dw/sw, dh/sh), w=dw/r, h=dh/r; ctx.drawImage(src,(sw-w)/2,(sh-h)/2,w,h,dx,dy,dw,dh);
+}
+async function contactSheet(ref){
+  const cv=document.createElement('canvas'), ctx=cv.getContext('2d');
+  if(ref.kind==='video'){
+    const v=await loadVideo(blob(ref.id)); const d=v.duration||1; const cols=4, rows=3, fw=270, fh=480;
+    cv.width=cols*fw; cv.height=rows*fh;
+    for(let i=0;i<cols*rows;i++){ await seek(v, d*(0.03+0.94*i/(cols*rows-1))); coverDraw(ctx,v,v.videoWidth,v.videoHeight,(i%cols)*fw,Math.floor(i/cols)*fh,fw,fh); }
+  } else {
+    const im=new Image(); im.src=blob(ref.id); await im.decode();
+    const s=Math.min(1, 1200/Math.max(im.naturalWidth,im.naturalHeight)); cv.width=Math.round(im.naturalWidth*s); cv.height=Math.round(im.naturalHeight*s);
+    ctx.drawImage(im,0,0,cv.width,cv.height);
+  }
+  return await new Promise(res=>cv.toBlob(res,'image/jpeg',0.85));
+}
+const SAMPLE_ERR = {not_granted:'Ты не разрешил пульту обращаться к Claude. Разреши в меню разрешений артефакта.',rate_limited:'Слишком много запросов или закончился лимит подписки. Попробуй позже.',
+  image_rejected:'Один из кадров не принят. Попробуй другой референс.',images_unavailable:'В этом просмотре нельзя отправлять картинки Claude.',refused:'Claude отказался обрабатывать этот запрос. Измени референсы или текст.',
+  session_expired:'Войди в Claude заново.',prompt_too_large:'Слишком длинный текст. Сократи сценарий.',sampling_disabled:'Claude недоступен для этого аккаунта.',empty_completion:'Пустой ответ. Попробуй ещё раз.'};
+function sampleErr(e){ return SAMPLE_ERR[e&&e.code] || 'Не получилось, попробуй ещё раз.'; }
+
+function wireStyle(p){
+  let refs = Array.isArray(p.refs) ? [...p.refs] : [];
+  const docRef = db.collection('projects').doc(p.id);
+  const box = $('#r-refs');
+  const saveRefs = () => write(()=>docRef.update({refs, updatedAt:new Date().toISOString()}));
+  function renderRefs(){
+    if(!refs.length){ box.innerHTML = `<div class="empty" style="padding:16px">Референсов пока нет. Загрузи 1–5 роликов, стиль которых хочешь повторить.</div>`; }
+    else box.innerHTML = refs.map((r,i)=>`<figure class="ref">
+      <div class="media" style="max-height:none">${r.kind==='video'?`<video src="${blob(r.id)}" muted loop playsinline preload="metadata" data-hover></video>`:`<img src="${blob(r.id)}" alt="">`}</div>
+      <figcaption><span class="code" style="font-size:11.5px;word-break:break-all">${esc(r.name)}</span>
+      ${r.stats?`<span class="hint">${r.stats.duration} с · ${r.stats.cutsPerMin} склеек/мин · кадр ≈ ${r.stats.avgShot} с</span>`:''}
+      ${canWrite?`<button class="btn ghost danger" type="button" data-rm="${i}" style="padding:4px 0">Убрать</button>`:''}</figcaption></figure>`).join('');
+    wireVideos(box);
+    box.querySelectorAll('[data-rm]').forEach(b=>b.onclick=async()=>{ const r=refs[+b.dataset.rm]; refs.splice(+b.dataset.rm,1); renderRefs(); await saveRefs(); if(assets&&r) assets.delete(r.id).catch(()=>{}); });
+    const add=$('#r-refAdd'); if(add) add.hidden = refs.length>=MAX_REFS || !assets;
+  }
+  renderRefs();
+  const fileIn = $('#r-refFile');
+  if(fileIn) fileIn.addEventListener('change', async ()=>{
+    const files=[...fileIn.files].slice(0, MAX_REFS-refs.length); fileIn.value='';
+    for(const f of files){
+      if(f.size>20*1024*1024){ toast(`${f.name}: больше 20 МБ, сожми файл`); continue; }
+      toast(`Загружаю ${f.name}…`);
+      const up = await upload(f); if(!up) continue;
+      const ref={id:up.id, kind:up.kind, name:f.name};
+      if(up.kind==='video'){ try{ const u=URL.createObjectURL(f); toast(`Считаю склейки в ${f.name}…`); ref.stats=await videoStats(u); URL.revokeObjectURL(u); }catch(e){} }
+      refs.push(ref); renderRefs(); await saveRefs();
+    }
+    toast('Референсы сохранены');
+  });
+
+  /* разбор стиля */
+  let ctlS=null;
+  $('#r-styleStop').onclick=()=>ctlS?.abort();
+  $('#r-styleGo').onclick = async ()=>{
+    if(!sample){ toast('Claude недоступен в этом просмотре'); return; }
+    if(!refs.length){ toast('Сначала загрузи референсы'); return; }
+    const note=$('#r-styleNote'), out=$('#r-style'), go=$('#r-styleGo'), stop=$('#r-styleStop');
+    go.disabled=true; stop.hidden=false;
+    try{
+      const lim = await sample.limits().catch(()=>null);
+      if(!lim?.images){ note.textContent='В этом просмотре нельзя отправлять кадры Claude.'; return; }
+      const imgs=[], lines=[];
+      for(let i=0;i<refs.length;i++){
+        const r=refs[i]; note.textContent=`Готовлю кадры референса ${i+1} из ${refs.length}…`;
+        if(r.kind==='video' && !r.stats){ try{ r.stats=await videoStats(blob(r.id)); }catch(e){} }
+        let sheet=null; try{ sheet=await contactSheet(r); }catch(e){}
+        if(!sheet){ toast(`«${r.name}» не читается в браузере, пропускаю. Лучше mp4 (H.264).`); continue; }
+        imgs.push(sheet);
+        lines.push(`Референс ${imgs.length} («${r.name}»): ${r.kind==='video' ? `видео; на картинке ${imgs.length} — 12 кадров, равномерно по всей длине, слева направо и сверху вниз.` + (r.stats?` Замер: длительность ${r.stats.duration} с, склеек ${r.stats.cuts} за первые ${r.stats.analyzed} с (${r.stats.cutsPerMin} в минуту), средняя длина кадра ${r.stats.avgShot} с.`:'') : 'картинка; на картинке '+imgs.length+' — сам референс.'}`);
+      }
+      renderRefs();
+      if(!imgs.length){ note.textContent='Ни один референс не прочитался. Загрузи mp4 или картинки.'; return; }
+      const max=lim.images.maxCount||imgs.length; if(imgs.length>max){ imgs.length=max; lines.length=max; }
+      const d=collect(); await saveRefs();
+      const prompt = STYLE_PROMPT
+        .replace('{REFS}', lines.join('\n'))
+        .replace('{BLOCKS}', S.blocks.map(b=>`${b.code||b.id} — ${b.name}: ${b.description}`).join('\n'))
+        .replace('{SCRIPT}', (d.script||'(текст ещё не вставлен)').slice(0,4000));
+      note.textContent='Claude смотрит кадры… обычно 20–60 секунд.'; out.value='';
+      ctlS=new AbortController();
+      const {text, truncated} = await sample(prompt, {images:imgs, signal:ctlS.signal, cache:false, onText:({text})=>{ out.value=text; }});
+      out.value=text; note.textContent = truncated ? 'Разбор оборвался по длине: сохранил то, что успело прийти.' : 'Готово. Разбор сохранён в ролике, его можно править.';
+      await write(()=>docRef.update({styleAnalysis:text, refs, updatedAt:new Date().toISOString()}));
+    }catch(e){
+      if(e && e.code==='cancelled'){ note.textContent='Остановлено.'; if(e.text) out.value=e.text; }
+      else { note.textContent=sampleErr(e); if(e&&e.text) out.value=e.text; }
+    }finally{ go.disabled=false; stop.hidden=true; }
+  };
+
+  /* промпт для GPT Image */
+  let ctlG=null;
+  $('#r-gptStop').onclick=()=>ctlG?.abort();
+  $('#r-gptGo').onclick = async ()=>{
+    if(!sample){ toast('Claude недоступен в этом просмотре'); return; }
+    const d=collect(), note=$('#r-gptNote'), out=$('#r-gpt'), go=$('#r-gptGo'), stop=$('#r-gptStop');
+    if(!d.script.trim()){ toast('Вставь текст сценария'); $('#r-script').focus(); return; }
+    if(!d.styleAnalysis.trim()){ toast('Сначала сделай разбор стиля'); return; }
+    go.disabled=true; stop.hidden=false; note.textContent='Claude пишет промпт… обычно до минуты.'; out.value='';
+    const prompt = GPT_PROMPT.replace('{STYLE}', d.styleAnalysis.slice(0,12000)).replace('{SCRIPT}', d.script.slice(0,6000))
+      .replace('{STORY}', d.storyboard.trim()||'(раскадровки нет — выбери позы и предметы сам по смыслу текста)')
+      .replace('{REFS}', refs.map((r,i)=>`Референс ${i+1}: ${r.name} (${r.kind==='video'?'видео':'картинка'})`).join('\n')||'нет');
+    try{
+      ctlG=new AbortController();
+      const {text, truncated} = await sample(prompt, {signal:ctlG.signal, cache:false, onText:({text})=>{ out.value=text; }});
+      out.value=text.replace(/^```[a-z]*\n?|\n?```$/g,'');
+      note.textContent = truncated ? 'Промпт оборвался по длине: попроси короче или убери часть листов.' : 'Готово. Нажми «Скопировать промпт» и отправь в ChatGPT вместе со своим фото и референсами.';
+      await write(()=>docRef.update({gptPrompt:out.value, updatedAt:new Date().toISOString()}));
+    }catch(e){
+      if(e && e.code==='cancelled'){ note.textContent='Остановлено.'; if(e.text) out.value=e.text; }
+      else { note.textContent=sampleErr(e); if(e&&e.text) out.value=e.text; }
+    }finally{ go.disabled=false; stop.hidden=true; }
+  };
+}
+
+const STYLE_PROMPT = `Ты — арт-директор и монтажёр вертикальных рилсов (9:16). Пользователь хочет повторить стиль референсов в своём ролике. Ролик собирается в Remotion из: спикер (ИИ-аватар, говорящая голова), сцены из слоёв (фон + поза персонажа + предметы), моушн-графика с текстом, 3D, собранное кодом из примитивов, переходы, субтитры. Режимы кадра: A — спикер на весь экран; B — сцена сверху, спикер в окне снизу; C — вставка на весь экран.
+
+Референсы (картинки приложены в том же порядке):
+{REFS}
+
+Текст будущего ролика (для понимания темы):
+{SCRIPT}
+
+Блоки, которые уже есть в библиотеке:
+{BLOCKS}
+
+Разбери стиль. Пиши по-русски, простым текстом, без таблиц и без Markdown-разметки, разделы — заголовки с новой строки. Опирайся на то, что реально видно на кадрах и в замерах; где не уверен — так и скажи. Звук не слышен — не выдумывай его.
+
+1. Общее впечатление — 2–3 предложения.
+2. Эстетика и визуальный язык: материалы, фактура, свет, степень детализации, на что похоже.
+3. Палитра: 5–6 цветов в hex с ролью каждого (фон, текст, акцент…).
+4. Подложка: светлая или тёмная.
+5. Типографика: заголовки и субтитры — тип шрифта (гротеск, антиква, курсив, рукописный), вес, регистр, сколько слов в субтитре, где стоит, есть ли анимация и цветовой акцент. Предложи 2 близких шрифта с кириллицей из Google Fonts.
+6. Кадр: как подан спикер, примерные доли режимов A/B/C в процентах.
+7. Ритм: склейки в минуту и средняя длина кадра по замерам, как это ощущается.
+8. Переходы и движение камеры и элементов.
+9. Графика и вставки: 2D, 3D, моушн-схемы, фото, видео, иконки — какие приёмы повторяются.
+10. Если референсов несколько: что у них общего и как свести их к одному визуальному языку (не смешивать разные стили).
+11. Как сделать у нас: какие блоки из библиотеки подходят (по кодам) и каких блоков не хватает — опиши 2–4 новых блока одной строкой каждый.
+12. Стилевой паспорт для промптов картинок: 6–8 строк НА АНГЛИЙСКОМ — общий блок стиля (эстетика, материалы, свет, палитра hex, ракурс, детализация, чего избегать), который будет вставляться в каждый промпт генерации.`;
+
+const GPT_PROMPT = `Составь ОДИН большой запрос для ChatGPT (режим work, модель GPT Image 2.5). Пользователь вставит его целиком и приложит своё фото и референсы, а ChatGPT за один заход сгенерирует ВСЕ картинки для рилса.
+
+Разбор стиля (главный источник стиля; блок «Стилевой паспорт» используй как ОБЩИЙ СТИЛЬ):
+{STYLE}
+
+Текст ролика:
+{SCRIPT}
+
+Раскадровка:
+{STORY}
+
+Референсы, которые приложит пользователь:
+{REFS}
+
+Правила:
+- Только три группы картинок: (1) персонаж на прозрачном фоне — разворот 4 ракурса, лист поз 3×3 (каждая поза под конкретный момент текста), руки от первого лица 2×2 (телефон, ноутбук, указательный палец, лупа — или то, что нужно по тексту); (2) предметы на прозрачном фоне — 2–3 листа 3×3 по смыслу текста и, если в тексте есть люди или аудитория, лист аватарок людей 4×4; (3) фоны без людей — 3–5 штук, вертикальные 1024×1536, с пустым центром. Готовые сцены с персонажем на фоне НЕ заказывать.
+- Персонаж — тот же человек, что на Фото 1 (фото пользователя): «same person as Photo 1 — keep face, proportions, hairstyle, glasses, outfit identical in every cell». Попроси ChatGPT сначала самому коротко описать внешность по Фото 1 и дальше повторять это описание в каждом листе.
+- Каждый пункт — полный самостоятельный промпт на английском: что за изображение → объект → сетка и содержимое КАЖДОЙ ячейки по номеру → стиль/свет/материал → ограничения. Конкретные визуальные слова, без «epic, masterpiece, 8K».
+- В каждом пункте: no text, no letters, no numbers, no logos, no watermark.
+- Прозрачный фон: isolated on a fully transparent background, PNG with alpha, no backdrop, no floor, no cast shadow, no checkerboard pattern, clean edges, no halo.
+- Сетки: «3×3 grid, 9 equal cells, each item fully inside its cell with generous empty margin, nothing crosses cell borders, same scale and same light direction in every cell».
+- Размеры: листы 2048×2048, фоны 1024×1536. Указывать в каждом пункте.
+- Служебные инструкции агенту — по-русски, сами промпты — по-английски.
+
+Формат ответа: только сам запрос, без вступления и без пояснений после, без Markdown-разметки и без блока кода. Структура запроса строго такая:
+ЗАДАЧА — сгенерируй все изображения по очереди, каждое отдельным файлом, без уточняющих вопросов, не пропускай и не объединяй пункты; после каждого проверь по разделу ПРОВЕРКА и при провале перегенерируй; в конце дай список файлов.
+РЕФЕРЕНСЫ — Фото 1 — лицо и внешность пользователя; дальше каждый референс с ролью «только стиль, палитра, свет — не копировать кадры».
+ОБЩИЙ СТИЛЬ — стилевой паспорт.
+ПЕРСОНАЖ — как держать сходство.
+ИЗОБРАЖЕНИЯ — пронумерованный список: 01_turnaround.png, 02_poses.png, 03_hands.png, 04_items_….png, …, затем bg_1.png … Для каждого — размер, прозрачность и полный промпт.
+ПРОВЕРКА — прозрачность без шахматки, ровно N ячеек без заходов, лицо совпадает с Фото 1, нет текста, стиль совпадает с ОБЩИМ СТИЛЕМ.`;
+
 function fallbackCopy(text){
   const E=$('#reelEditor'); let ta=$('#r-copyText');
   if(!ta){ ta=document.createElement('textarea'); ta.id='r-copyText'; ta.readOnly=true; ta.style.marginTop='12px'; $('#reelForm').append(ta); }
@@ -433,7 +649,7 @@ function collect(){
     script:v('#r-script'), templateId:v('#r-tpl'), presetId:v('#r-preset'),
     custom:{a:+v('#r-a')||0,b:+v('#r-b')||0,c:+v('#r-c')||0}, bg:v('#r-bg'), n3d:v('#r-3d'), nMotion:v('#r-motion'), sound:v('#r-sound'),
     ownMedia:v('#r-own').trim(), speed:+v('#r-speed'), subWords:+v('#r-words'), subColor:v('#r-subc'), drive:v('#r-drive').trim(), status:v('#r-status'),
-    gptPrompt:v('#r-gpt'), storyboard:v('#r-story')};
+    gptPrompt:v('#r-gpt'), storyboard:v('#r-story'), styleAnalysis:v('#r-style')};
 }
 $('#newReel').addEventListener('click', ()=>openReel(null));
 
@@ -594,6 +810,7 @@ renderAll();
     try{ const w = await user.can('data.write'); if(w===false) canWrite=false; }catch(e){}
   }
   assets = canEdit ? await window.claude.use('assets') : null;
+  sample = await window.claude.use('sample');
   status('');
   let loaded = 0;
   for(const col of ['projects','templates','blocks','presets']){
