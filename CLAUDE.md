@@ -14,6 +14,10 @@
 ## Монтаж по шаблону
 Документ templates может иметь rules {style, win, bg, subAnim, titleAnim, target {a,b,c} или null, punch, progress, assets — папка Диска с базовыми ассетами стиля, assetsList — «имя — о чём», allowed — коды разрешённых блоков, [] = все}. Кнопка «Создать монтаж» на карточке создаёт проект с templateId, quick:true, mode auto|own и полями из rules (styleAnalysis = rules.style). Раскадровку пульт собирает сам только из allowed. Если в задании указан шаблон: блоки брать только из allowed, ассеты из rules.assets скачать в public/media/ вместе с картинками ролика.
 
+## Ассеты
+Коллекция assets на пульте: {code (имя для раскадровки), name, section overlay|broll|photo|graphic|sound|font|lut, group, when, tags, license, source, drive — ссылка на Диск, fileId — файл на пульте (читать через Artifact read с path=fileId), fileKind, fileName, size}. Оригиналы — Диск «Библиотека ассетов» (https://drive.google.com/drive/folders/1msXBtJaeY4AnzL5Y7bN6KQ2es2lCPpbm, подпапки 01 Видео-оверлеи … 07 Цвет и LUT). Звук пульт не хранит — только на Диске. В git медиа не класть. Код ассета в описании сегмента → скачать файл в public/media/ ролика и вставить по смыслу.
+Блоки библиотеки имеют поле group (подгруппа внутри kind); стили субтитров Sub… — в textanims с полем group.
+
 ## Материалы на Диске
 Промпт для ChatGPT заканчивается блоком СОХРАНЕНИЕ: ChatGPT кладёт картинки в «Ролики/<дата> <название>/» с подпапками 01_персонаж, 02_предметы, 03_люди, 04_фоны, 05_смысловые, 06_мои_вставки (запасной вариант — ZIP с той же структурой). Для монтажа всю папку ролика скачать в reels/NN/public/media/ как есть — pult_to_story.py ищет файлы по имени во всех подпапках.
 

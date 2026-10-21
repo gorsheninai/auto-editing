@@ -93,6 +93,13 @@ main{padding-block:24px 64px}
 .filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
 .filters button{border:1px solid var(--line);background:var(--surface);padding:5px 12px;border-radius:999px;cursor:pointer;font-size:13.5px}
 .filters button[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.filters.sub{margin-top:-6px}
+.filters.sub button{font-size:12.5px;padding:4px 10px;border-style:dashed}
+.filters.sub button[aria-pressed="true"]{border-style:solid}
+.grouphead{margin:22px 0 10px;font-size:15px;font-weight:600;display:flex;gap:8px;align-items:baseline}
+.grouphead:first-child{margin-top:4px}
+.media .ext{font:600 28px var(--mono);color:var(--muted);text-transform:uppercase}
+.media audio{width:88%}
 
 /* forms */
 .panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:20px;margin-bottom:24px}
@@ -189,6 +196,7 @@ details > summary{list-style-position:inside}
       <button class="tab" role="tab" id="tab-reels" data-view="reels">Ролики</button>
       <button class="tab" role="tab" id="tab-templates" data-view="templates">Шаблоны</button>
       <button class="tab" role="tab" id="tab-library" data-view="library">Библиотека</button>
+      <button class="tab" role="tab" id="tab-assets" data-view="assets">Ассеты</button>
       <button class="tab" role="tab" id="tab-presets" data-view="presets" hidden>Пресеты</button>
     </nav>
   </div>
@@ -224,10 +232,23 @@ details > summary{list-style-position:inside}
       <button class="btn" id="newBlock" hidden>Добавить блок</button>
     </div>
     <div class="filters" id="kindFilters" role="group" aria-label="Тип блока"></div>
+    <div class="filters sub" id="groupFilters" role="group" aria-label="Подгруппа" hidden></div>
     <div id="blockEditor" hidden></div>
     <div id="blockList"></div>
     <div class="head" style="margin-top:36px"><div><h2>Анимации текста</h2><p>Как появляются субтитры и заголовки. Берутся из видео-референсов: в ролике, в шаге «Стиль», кнопка «Анимация текста» под видео.</p></div></div>
     <div id="animList"></div>
+  </section>
+
+  <!-- АССЕТЫ -->
+  <section id="view-assets" hidden>
+    <div class="head">
+      <div><h2>Ассеты</h2><p>Готовые файлы для монтажа: оверлеи, видео-вставки, фото и фоны, графика, звук, шрифты, LUT. Оригиналы лежат на Диске в папке <a href="https://drive.google.com/drive/folders/1msXBtJaeY4AnzL5Y7bN6KQ2es2lCPpbm" target="_blank" rel="noopener">«Библиотека ассетов»</a>, здесь — карточка с превью. В раскадровке ассет называют по коду, например <span class="code">sfx_whoosh_01</span>.</p></div>
+      <button class="btn" id="newAsset" hidden>Добавить ассет</button>
+    </div>
+    <div class="filters" id="assetFilters" role="group" aria-label="Раздел"></div>
+    <div class="filters sub" id="assetGroups" role="group" aria-label="Подгруппа" hidden></div>
+    <div id="assetEditor" hidden></div>
+    <div id="assetList"></div>
   </section>
 
   <!-- ПРЕСЕТЫ -->
@@ -252,8 +273,8 @@ const $ = (s, r=document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const blob = id => id ? '/_blob/' + id : '';
 let db = null, assets = null, user = null, sample = null, canWrite = true, canEdit = false;
-const S = {projects:[], templates:[], blocks:[], presets:[], textanims:[]};
-let kindFilter = 'all';
+const S = {projects:[], templates:[], blocks:[], presets:[], textanims:[], assets:[]};
+let kindFilter = 'all', groupFilter = 'all', assetSec = 'all', assetGroup = 'all';
 
 const GOALS = ['слово в директ','охват','подписка','продажа'];
 const TONES = ['разбор','эксперт','история','провокация'];
@@ -261,14 +282,33 @@ const WHO = ['аватар','живая запись','только голос']
 const AMOUNT = ['нет','1–2','2–3','много'];
 const SOUND = ['тихие эффекты','музыка','без звуков'];
 const STATUSES = [['draft','Черновик'],['story','Раскадровка'],['images','Картинки'],['edit','Монтаж'],['done','Готово']];
-const KINDS = [['all','Все'],['motion','Моушн'],['phone','Телефон'],['text','Текст'],['3d','3D'],['2d','2D-сцена'],['transition','Переход'],['overlay','Пометки'],['fx','Эффект'],['bg','Фон'],['insert','Вставка'],['sound','Звук']];
+const KINDS = [['all','Все'],['motion','Моушн'],['phone','Телефон и интерфейсы'],['text','Текст'],['subs','Субтитры'],['3d','3D'],['2d','2D-сцена'],['transition','Переход'],['overlay','Пометки'],['fx','Эффект'],['bg','Фон'],['insert','Вставка'],['sound','Звук']];
 const kindName = k => (KINDS.find(x=>x[0]===k)||[k,k])[1];
+const GROUPS = {
+  motion:['Графики и диаграммы','Цифры и показатели','Сравнения','Списки и топы','Время и процессы','Карточки и галереи'],
+  phone:['Мессенджеры и ИИ','Соцсети','Деньги','Скриншоты'],
+  text:['Появление фразы','Акцент на слове','Цифры и смена слова','Текст с видео'],
+  subs:['Пословные','С подложкой','Акцентные'],
+  transition:['Мягкие','Динамичные','Стилизованные'],
+  overlay:['От руки','Указатели','Плашки','Скрыть'],
+  fx:['Камера','Атмосфера','Интерфейс ролика'],
+  bg:['Подложки']};
+const ASSET_ROOT = 'https://drive.google.com/drive/folders/1msXBtJaeY4AnzL5Y7bN6KQ2es2lCPpbm';
+const ASSET_SECS = [
+  ['overlay','Видео-оверлеи','ov', ['Плёнка и засветы','Частицы и дым','Хромакей'], 'https://drive.google.com/drive/folders/18DEtmaamP04xcwBxWB4dKwup9_A4xIJm'],
+  ['broll','Видео-вставки','br', ['Деньги','Офис и ноутбук','Город','Соцсети и телефон','Люди','Природа','Другое'], 'https://drive.google.com/drive/folders/1PnbDRCTICBSKS2CrjStiAzUQ5Hpnvc1A'],
+  ['photo','Фото и фоны','ph', ['Текстуры','Фоны и градиенты','Фото по темам'], 'https://drive.google.com/drive/folders/18oZlvsr511Ylm7OYY3era-SV7iMOeHTm'],
+  ['graphic','Графика','gr', ['Стикеры','Стрелки и мазки','Рамки и плашки','Иконки и эмодзи','Логотипы'], 'https://drive.google.com/drive/folders/1RRGpqBYLpE3RooypvrkJyGYwNPCnr-x4'],
+  ['sound','Звук','sfx', ['Переходы','Интерфейс','Акценты','Музыка'], 'https://drive.google.com/drive/folders/12K7G260bQ09V8VjYVqglKH0oRCaTzGQo'],
+  ['font','Шрифты','font', ['Без засечек','С засечками','Рукописные','Акцидентные'], 'https://drive.google.com/drive/folders/1sFIe-lQ5bAKfwyn8-QVxMuYOSwygFShO'],
+  ['lut','Цвет и LUT','lut', ['Тёплые','Холодные','Плёнка'], 'https://drive.google.com/drive/folders/1sCGnomRlNJDiBlhCphTFI2_Gtv3B3kwW']];
+const secOf = k => ASSET_SECS.find(x=>x[0]===k);
 
 function toast(msg){ const t=$('#toast'); t.textContent=msg; t.hidden=false; clearTimeout(toast.t); toast.t=setTimeout(()=>t.hidden=true,2600); }
 function status(msg, err){ const s=$('#status'); s.textContent=msg||''; s.hidden=!msg; s.classList.toggle('err',!!err); }
 
 /* ---------- routing ---------- */
-const VIEWS = ['reels','templates','library','presets'];
+const VIEWS = ['reels','templates','library','assets','presets'];
 function show(v){
   if(!VIEWS.includes(v)) v='reels';
   VIEWS.forEach(x=>{ $('#view-'+x).hidden = x!==v; $('#tab-'+x).setAttribute('aria-selected', String(x===v)); });
@@ -316,7 +356,7 @@ async function write(fn, okMsg){
 async function upload(file){
   if(!assets){ toast('Загрузка файлов доступна только редактору'); return null; }
   const type = file.type || (/\.mp4$/i.test(file.name)?'video/mp4':/\.webm$/i.test(file.name)?'video/webm':'');
-  try{ const r = await assets.upload(file, type?{type}:undefined); return {id:r.id, kind: r.contentType.startsWith('video')?'video':'image'}; }
+  try{ const r = await assets.upload(file, type?{type}:undefined); const ct=r.contentType||type||''; return {id:r.id, kind: ct.startsWith('video')?'video':ct.startsWith('image')?'image':'file', contentType:ct, size:r.sizeBytes??file.size}; }
   catch(e){
     const m={too_large:'Файл больше 20 МБ',unsupported_type:'Такой тип файла не поддерживается',quota_or_state:'Хранилище пульта заполнено',rate_limited:'Слишком часто, попробуй через минуту'};
     toast(m[e&&e.code]||'Не загрузилось'); return null;
@@ -858,7 +898,7 @@ function wireTiming(p){
       .replace('{WIN}', winName(d.win))
       .replace('{PLAN}', (planText(p.assetPlan)||'картинки ещё не заказаны — ставь l2d и gen по смыслу, их закажут после').slice(0,6000))
       .replace('{MEDIA}', files.length ? files.map(f=>`${f.name} — ${f.desc||'без описания'}`).join('\n') : 'нет — тип media не используй')
-      .replace('{BLOCKS}', (allow?`Монтаж по шаблону «${tpl.name}»: бери блоки ТОЛЬКО из этого списка.\n`:'')+lib.map(b=>`${b.code||b.id} (${kindName(b.kind)}) — ${b.name}. Для: ${b.fits||''}${b.params?`. Данные: ${b.params}`:''}`).join('\n'))
+      .replace('{BLOCKS}', (allow?`Монтаж по шаблону «${tpl.name}»: бери блоки ТОЛЬКО из этого списка.\n`:'')+(S.assets.length?`АССЕТЫ (файлы, код можно писать в описании сегмента): `+S.assets.map(a=>`${a.code} — ${a.name} (${secOf(a.section)?.[1]||''}${a.group?', '+a.group:''})${a.when?': '+a.when:''}`).join('; ')+`\nБЛОКИ:\n`:'')+lib.map(b=>`${b.code||b.id} (${kindName(b.kind)}) — ${b.name}. Для: ${b.fits||''}${b.params?`. Данные: ${b.params}`:''}`).join('\n'))
       .replace('{STYLE}', (d.styleAnalysis||'стиль ещё не создан').slice(0,3000))
       .replace('{NW}', curWords.length).replace('{DUR}', (curWords.at(-1)?.e||0).toFixed(1))
       .replace('{WORDS}', curWords.map((w,i)=>`${i}:${w.w}@${w.s.toFixed(1)}`).join(' '));
@@ -1474,25 +1514,59 @@ $('#newTpl').addEventListener('click', ()=>{
 });
 
 /* ---------- БИБЛИОТЕКА ---------- */
+const subStyles = () => S.textanims.filter(a=>a.style);
 function renderFilters(){
-  const counts = k => k==='all'?S.blocks.length:S.blocks.filter(b=>b.kind===k).length;
-  $('#kindFilters').innerHTML = KINDS.filter(([k])=>k==='all'||counts(k)>0||canEdit).map(([k,l])=>`<button type="button" data-kind="${k}" aria-pressed="${k===kindFilter}">${esc(l)} <span class="code" style="font-weight:400">${counts(k)}</span></button>`).join('');
-  $('#kindFilters').querySelectorAll('button').forEach(b=>b.onclick=()=>{ kindFilter=b.dataset.kind; renderLibrary(); });
+  const counts = k => k==='all'?S.blocks.length+subStyles().length : k==='subs'?subStyles().length : S.blocks.filter(b=>b.kind===k).length;
+  $('#kindFilters').innerHTML = KINDS.filter(([k])=>k==='all'||counts(k)>0).map(([k,l])=>`<button type="button" data-kind="${k}" aria-pressed="${k===kindFilter}">${esc(l)} <span class="code" style="font-weight:400">${counts(k)}</span></button>`).join('');
+  $('#kindFilters').querySelectorAll('button').forEach(b=>b.onclick=()=>{ kindFilter=b.dataset.kind; groupFilter='all'; renderLibrary(); });
+  const G=$('#groupFilters'), items = kindFilter==='subs' ? subStyles() : S.blocks.filter(b=>b.kind===kindFilter);
+  const gs = kindFilter==='all' ? [] : orderGroups(kindFilter, items);
+  G.hidden = gs.length<2;
+  G.innerHTML = gs.length<2 ? '' : [['all','Все подгруппы',items.length], ...gs.map(g=>[g,g,items.filter(x=>(x.group||'Без подгруппы')===g).length])]
+    .map(([v,l,n])=>`<button type="button" data-group="${esc(v)}" aria-pressed="${v===groupFilter}">${esc(l)} <span class="code" style="font-weight:400">${n}</span></button>`).join('');
+  G.querySelectorAll('button').forEach(b=>b.onclick=()=>{ groupFilter=b.dataset.group; renderLibrary(); });
 }
-function renderLibrary(){
-  $('#newBlock').hidden = !canEdit; renderFilters();
-  const L=$('#blockList'); const list = S.blocks.filter(b=>kindFilter==='all'||b.kind===kindFilter).sort((a,b)=>(a.order??99)-(b.order??99));
-  if(!S.blocks.length){ L.innerHTML=`<div class="empty"><strong>Библиотека пуста</strong>Здесь будут блоки анимаций с превью: моушн-схемы, 3D-сцены, фоны, вставки и звуки.</div>`; return; }
-  if(!list.length){ L.innerHTML=`<div class="empty"><strong>В этом типе блоков пока нет</strong>Добавь первый кнопкой «Добавить блок».</div>`; return; }
-  L.innerHTML = `<div class="grid">${list.map(b=>`<article class="card">
+function orderGroups(kind, items){
+  const have=[...new Set(items.map(x=>x.group||'Без подгруппы'))], ord=GROUPS[kind]||[];
+  return [...ord.filter(g=>have.includes(g)), ...have.filter(g=>!ord.includes(g))];
+}
+function blockCard(b){
+  return `<article class="card">
     ${media(b.previewId, b.previewKind)}
     <div class="body">
-      <div class="row" style="justify-content:space-between"><span class="code">${esc(b.code||b.id)}</span><span class="chip">${esc(kindName(b.kind))}</span></div>
+      <div class="row" style="justify-content:space-between"><span class="code">${esc(b.code||b.id)}</span><span class="chip">${esc(b.group||kindName(b.kind))}</span></div>
       <h3>${esc(b.name)}</h3>
       <p class="desc">${esc(b.description)}</p>
       ${b.fits?`<dl class="kv"><dt>Для</dt><dd>${esc(b.fits)}</dd>${b.params?`<dt>Параметры</dt><dd>${esc(b.params)}</dd>`:''}${b.source?`<dt>Ролик</dt><dd>${esc(b.source)}</dd>`:''}</dl>`:''}
       ${canEdit?`<div class="actions"><label class="btn ghost" style="cursor:pointer">${b.previewId?'Заменить превью':'Добавить превью'}<input type="file" accept="image/*,video/mp4,video/webm" data-bprev="${esc(b.id)}" hidden></label></div>`:''}
-    </div></article>`).join('')}</div>`;
+    </div></article>`;
+}
+function subCard(a){
+  return `<article class="card">${a.previewId?media(a.previewId,a.previewKind||'video'):media(null)}
+    <div class="body"><div class="row" style="justify-content:space-between"><span class="code">${esc(a.style)}</span><span class="chip">${esc(a.group||'Субтитры')}</span></div>
+    <h3>${esc(a.name)}</h3><p class="desc">${esc(a.summary||'')}</p>
+    <dl class="kv"><dt>Как включить</dt><dd>В ролике, «Настройки» → «Анимация субтитров»</dd>${a.source?`<dt>Источник</dt><dd>${esc(a.source)}</dd>`:''}</dl></div></article>`;
+}
+function renderLibrary(){
+  $('#newBlock').hidden = !canEdit; renderFilters();
+  const L=$('#blockList');
+  if(!S.blocks.length && !subStyles().length){ L.innerHTML=`<div class="empty"><strong>Библиотека пуста</strong>Здесь будут блоки анимаций с превью: моушн-схемы, 3D-сцены, фоны, вставки и звуки.</div>`; return; }
+  const byOrder=(a,b)=>(a.order??99)-(b.order??99);
+  const isSubs = kindFilter==='subs';
+  let items = isSubs ? subStyles() : S.blocks.filter(b=>kindFilter==='all'||b.kind===kindFilter);
+  if(groupFilter!=='all') items = items.filter(x=>(x.group||'Без подгруппы')===groupFilter);
+  items = [...items].sort(byOrder);
+  const card = isSubs ? subCard : blockCard;
+  if(!items.length){ L.innerHTML=`<div class="empty"><strong>Здесь пока пусто</strong>Добавь первый блок кнопкой «Добавить блок».</div>`; return; }
+  let html;
+  if(kindFilter==='all'){
+    html = KINDS.filter(([k])=>k!=='all').map(([k,l])=>{ const list = k==='subs' ? [...subStyles()].sort(byOrder) : items.filter(b=>b.kind===k);
+      return list.length ? `<h3 class="grouphead">${esc(l)} <span class="code hint">${list.length}</span></h3><div class="grid">${list.map(k==='subs'?subCard:blockCard).join('')}</div>` : ''; }).join('');
+  } else if(groupFilter==='all'){
+    html = orderGroups(kindFilter, items).map(g=>{ const list=items.filter(x=>(x.group||'Без подгруппы')===g);
+      return `<h3 class="grouphead">${esc(g)} <span class="code hint">${list.length}</span></h3><div class="grid">${list.map(card).join('')}</div>`; }).join('');
+  } else html = `<div class="grid">${items.map(card).join('')}</div>`;
+  L.innerHTML = html;
   wireVideos(L);
   L.querySelectorAll('[data-bprev]').forEach(inp=>inp.addEventListener('change', async ()=>{
     const f=inp.files[0]; if(!f) return; toast('Загружаю…'); const r=await upload(f); if(!r) return;
@@ -1504,7 +1578,8 @@ $('#newBlock').addEventListener('click', ()=>{
   E.innerHTML = `<form class="panel" id="blockForm" novalidate><h3>Новый блок</h3><p>Код блока — короткое имя для раскадровки, латиницей.</p>
     <div class="fields">
       <div class="f"><label for="b-code">Код</label><input type="text" id="b-code" placeholder="MCounter"></div>
-      <div class="f"><label for="b-kind">Тип</label><select id="b-kind">${opts(KINDS.filter(k=>k[0]!=='all'),kindFilter==='all'?'motion':kindFilter)}</select></div>
+      <div class="f"><label for="b-kind">Тип</label><select id="b-kind">${opts(KINDS.filter(k=>k[0]!=='all'&&k[0]!=='subs'),['all','subs'].includes(kindFilter)?'motion':kindFilter)}</select></div>
+      <div class="f"><label for="b-group">Подгруппа</label><input type="text" id="b-group" list="b-groups" value="${esc(groupFilter!=='all'?groupFilter:'')}"><datalist id="b-groups">${Object.values(GROUPS).flat().map(g=>`<option value="${esc(g)}">`).join('')}</datalist></div>
       <div class="f"><label for="b-name">Название</label><input type="text" id="b-name" placeholder="Счётчик до большого числа"></div>
       <div class="f wide"><label for="b-desc">Что на экране</label><input type="text" id="b-desc"></div>
       <div class="f wide"><label for="b-fits">Подходит для</label><input type="text" id="b-fits" placeholder="Цифры, масштаб, рост"></div>
@@ -1518,9 +1593,102 @@ $('#newBlock').addEventListener('click', ()=>{
     if(!code||!name){ toast('Заполни код и название'); return; }
     if(!/^[A-Za-z0-9_-]+$/.test(code)){ toast('Код — латиница, цифры, _ и -'); return; }
     let prev=null; const f=$('#b-file').files[0]; if(f){ toast('Загружаю превью…'); prev=await upload(f); }
-    const body={code, kind:$('#b-kind').value, name, description:$('#b-desc').value.trim(), fits:$('#b-fits').value.trim(), params:$('#b-params').value.trim(),
+    const body={code, kind:$('#b-kind').value, group:$('#b-group').value.trim(), name, description:$('#b-desc').value.trim(), fits:$('#b-fits').value.trim(), params:$('#b-params').value.trim(),
       previewId:prev?.id||null, previewKind:prev?.kind||null, order:50, createdAt:new Date().toISOString()};
     if(await write(()=>db.collection('blocks').doc(code).set(body),'Блок добавлен')){ E.hidden=true; E.innerHTML=''; }
+  });
+});
+
+/* ---------- АССЕТЫ ---------- */
+const fmtSize = b => !b ? '' : b>1048576 ? (b/1048576).toFixed(1)+' МБ' : Math.max(1,Math.round(b/1024))+' КБ';
+function assetMedia(a){
+  if(a.fileId && a.fileKind==='video') return media(a.fileId,'video');
+  if(a.fileId && a.fileKind==='image') return `<div class="media"><img src="${blob(a.fileId)}" alt="" loading="lazy" style="object-fit:contain"></div>`;
+  if(a.previewId) return media(a.previewId, a.previewKind);
+  const ext=(a.fileName||'').split('.').pop();
+  return `<div class="media short"><span class="ext">${esc(ext && ext!==a.fileName ? ext : secOf(a.section)?.[2]||'файл')}</span></div>`;
+}
+function renderAssets(){
+  $('#newAsset').hidden = !canEdit;
+  const count = k => k==='all' ? S.assets.length : S.assets.filter(a=>a.section===k).length;
+  $('#assetFilters').innerHTML = [['all','Все'], ...ASSET_SECS.map(x=>[x[0],x[1]])].map(([k,l])=>`<button type="button" data-asec="${k}" aria-pressed="${k===assetSec}">${esc(l)} <span class="code" style="font-weight:400">${count(k)}</span></button>`).join('');
+  $('#assetFilters').querySelectorAll('button').forEach(b=>b.onclick=()=>{ assetSec=b.dataset.asec; assetGroup='all'; renderAssets(); });
+  const sec=secOf(assetSec), G=$('#assetGroups');
+  let items = S.assets.filter(a=>assetSec==='all'||a.section===assetSec);
+  G.hidden = !sec;
+  G.innerHTML = sec ? [['all','Все подгруппы'], ...sec[3].map(g=>[g,g])].map(([v,l])=>`<button type="button" data-agr="${esc(v)}" aria-pressed="${v===assetGroup}">${esc(l)} <span class="code" style="font-weight:400">${v==='all'?items.length:items.filter(a=>a.group===v).length}</span></button>`).join('') + `<a class="btn ghost" style="margin-left:auto" href="${esc(sec[4])}" target="_blank" rel="noopener">Папка на Диске</a>` : '';
+  G.querySelectorAll('button').forEach(b=>b.onclick=()=>{ assetGroup=b.dataset.agr; renderAssets(); });
+  if(assetGroup!=='all') items = items.filter(a=>a.group===assetGroup);
+  items.sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+  const L=$('#assetList');
+  if(!items.length){ L.innerHTML=`<div class="empty"><strong>${S.assets.length?'Здесь пока пусто':'Ассетов пока нет'}</strong>Добавляй по одному файлу кнопкой «Добавить ассет». Видео, картинки и шрифты до 20 МБ хранятся прямо на пульте. Звук и крупные файлы клади в <a href="${ASSET_ROOT}" target="_blank" rel="noopener">папку на Диске</a> и вставляй ссылку.</div>`; return; }
+  L.innerHTML = `<div class="grid">${items.map(a=>`<article class="card">
+    ${assetMedia(a)}
+    <div class="body">
+      <div class="row" style="justify-content:space-between"><span class="code">${esc(a.code||a.id)}</span><span class="chip">${esc(a.group||secOf(a.section)?.[1]||'')}</span></div>
+      <h3>${esc(a.name)}</h3>
+      ${a.when?`<p class="desc">${esc(a.when)}</p>`:''}
+      <dl class="kv">${a.fileName?`<dt>Файл</dt><dd>${esc(a.fileName)}${a.size?` · ${fmtSize(a.size)}`:''}</dd>`:''}${a.tags?`<dt>Теги</dt><dd>${esc(a.tags)}</dd>`:''}${a.license?`<dt>Лицензия</dt><dd>${esc(a.license)}</dd>`:''}${a.source?`<dt>Источник</dt><dd>${esc(a.source)}</dd>`:''}</dl>
+      <div class="actions">
+        ${a.drive?`<a class="btn ghost" href="${esc(a.drive)}" target="_blank" rel="noopener">На Диске</a>`:''}
+        ${canEdit?`<button class="btn ghost danger" type="button" data-asdel="${esc(a.id)}">Удалить</button>`:''}
+      </div>
+    </div></article>`).join('')}</div>`;
+  wireVideos(L);
+  L.querySelectorAll('[data-asdel]').forEach(b=>b.onclick=()=>{
+    b.outerHTML=`<button class="btn danger" type="button" data-asyes="${esc(b.dataset.asdel)}">Точно удалить</button>`;
+    L.querySelector(`[data-asyes="${CSS.escape(b.dataset.asdel)}"]`).onclick=async e=>{
+      const a=S.assets.find(x=>x.id===e.target.dataset.asyes); if(!a) return;
+      if(await write(()=>db.collection('assets').doc(a.id).delete(),'Ассет удалён') && a.fileId && assets){ try{ await assets.delete(a.fileId); }catch(err){} }
+    };
+  });
+}
+function nextAssetCode(sec){
+  const pre=secOf(sec)?.[2]||'as'; let n=1;
+  while(S.assets.some(a=>a.code===`${pre}_${String(n).padStart(2,'0')}`)) n++;
+  return `${pre}_${String(n).padStart(2,'0')}`;
+}
+$('#newAsset').addEventListener('click', ()=>{
+  const E=$('#assetEditor'); E.hidden=false;
+  const sec0 = assetSec==='all' ? 'overlay' : assetSec;
+  E.innerHTML = `<form class="panel" id="assetForm" novalidate><h3>Новый ассет</h3><p>Один файл — одна карточка. Видео, картинки и шрифты до 20 МБ сохраняются на пульте. Звук и всё крупнее клади на Диск в папку раздела и вставь ссылку.</p>
+    <div class="fields">
+      <div class="f wide"><label for="as-file">Файл</label><input type="file" id="as-file"><span class="hint" id="as-fileInfo"></span></div>
+      <div class="f"><label for="as-sec">Раздел</label><select id="as-sec">${opts(ASSET_SECS.map(x=>[x[0],x[1]]), sec0)}</select></div>
+      <div class="f"><label for="as-group">Подгруппа</label><select id="as-group"></select></div>
+      <div class="f"><label for="as-name">Название</label><input type="text" id="as-name" placeholder="Тёплый засвет плёнки"></div>
+      <div class="f"><label for="as-code">Код для раскадровки</label><input type="text" id="as-code"><span class="hint">Латиница, цифры, _ и -</span></div>
+      <div class="f wide"><label for="as-when">Когда использовать</label><input type="text" id="as-when" placeholder="Поверх смены темы, на переходах, в тёплых роликах"></div>
+      <div class="f"><label for="as-tags">Теги</label><input type="text" id="as-tags" placeholder="тёплый, плёнка, мягкий"></div>
+      <div class="f"><label for="as-lic">Лицензия</label><input type="text" id="as-lic" placeholder="Pexels License / CC0 / свой"></div>
+      <div class="f"><label for="as-src">Источник</label><input type="text" id="as-src" placeholder="pexels.com/…, сделано в коде"></div>
+      <div class="f"><label for="as-drive">Ссылка на Диск</label><input type="url" id="as-drive" placeholder="https://drive.google.com/…"><a class="hint" id="as-folder" target="_blank" rel="noopener">Открыть папку раздела</a></div>
+    </div>
+    <div class="row" style="margin-top:14px"><button class="btn primary" type="submit" id="as-save">Добавить ассет</button><button class="btn ghost" type="button" id="as-close">Закрыть</button><span class="hint" id="as-note"></span></div></form>`;
+  const syncSec=()=>{ const s=secOf($('#as-sec').value); $('#as-group').innerHTML=opts(s[3], assetGroup!=='all'&&s[3].includes(assetGroup)?assetGroup:s[3][0]); $('#as-folder').href=s[4]; if(!$('#as-code').dataset.touched) $('#as-code').value=nextAssetCode(s[0]); };
+  $('#as-sec').onchange=syncSec; syncSec();
+  $('#as-code').oninput=()=>{ $('#as-code').dataset.touched='1'; };
+  $('#as-file').onchange=()=>{ const f=$('#as-file').files[0]; if(!f){ $('#as-fileInfo').textContent=''; return; }
+    if(!$('#as-name').value) $('#as-name').value=f.name.replace(/\.[^.]+$/,'').replace(/[_-]+/g,' ');
+    const audio=/^audio\//.test(f.type)||/\.(mp3|wav|m4a|aac|ogg|flac)$/i.test(f.name);
+    if(audio && $('#as-sec').value!=='sound'){ $('#as-sec').value='sound'; syncSec(); }
+    $('#as-fileInfo').textContent = `${f.name} · ${fmtSize(f.size)}` + (audio ? ' · звук пульт не хранит: положи файл в папку «05 Звук» на Диске и вставь ссылку ниже' : f.size>20*1024*1024 ? ' · больше 20 МБ: положи на Диск и вставь ссылку' : ''); };
+  $('#as-close').onclick=()=>{E.hidden=true;E.innerHTML='';};
+  $('#assetForm').addEventListener('submit', async e=>{
+    e.preventDefault();
+    const f=$('#as-file').files[0], name=$('#as-name').value.trim(), code=$('#as-code').value.trim(), drive=$('#as-drive').value.trim();
+    if(!f && !drive){ toast('Выбери файл или вставь ссылку на Диск'); return; }
+    if(!name){ toast('Заполни название'); return; }
+    if(!/^[A-Za-z0-9_-]+$/.test(code)){ toast('Код — латиница, цифры, _ и -'); return; }
+    if(S.assets.some(a=>a.code===code)){ toast('Такой код уже есть'); return; }
+    const audio=f && (/^audio\//.test(f.type)||/\.(mp3|wav|m4a|aac|ogg|flac)$/i.test(f.name));
+    let up=null;
+    if(f && !audio && f.size<=20*1024*1024){ $('#as-save').disabled=true; $('#as-note').textContent='Загружаю файл…'; up=await upload(f); $('#as-save').disabled=false; $('#as-note').textContent=''; if(!up && !drive) return; }
+    else if(f && !drive){ toast(audio?'Звук положи на Диск и вставь ссылку':'Файл больше 20 МБ: положи на Диск и вставь ссылку'); return; }
+    const body={code, name, section:$('#as-sec').value, group:$('#as-group').value, when:$('#as-when').value.trim(), tags:$('#as-tags').value.trim(),
+      license:$('#as-lic').value.trim(), source:$('#as-src').value.trim(), drive, fileId:up?.id||null, fileKind:up?.kind||(audio?'audio':null),
+      fileName:f?.name||'', size:f?.size||null, createdAt:new Date().toISOString()};
+    if(await write(()=>db.collection('assets').doc(code).set(body),'Ассет добавлен')){ E.hidden=true; E.innerHTML=''; assetSec=body.section; assetGroup='all'; renderAssets(); }
   });
 });
 
@@ -1561,7 +1729,9 @@ function renderPresets(){
 function renderAnims(){
   const L=$('#animList'); if(!L) return;
   if(!S.textanims.length){ L.innerHTML=`<div class="empty"><strong>Анимаций пока нет</strong>Открой ролик, загрузи видео-референс и под ним нажми «Анимация текста»: отметь момент, где появляется надпись.</div>`; return; }
-  L.innerHTML=`<div class="grid">${[...S.textanims].sort((a,b)=>(!!b.style-!!a.style)||(a.order??99)-(b.order??99)||(b.createdAt||'').localeCompare(a.createdAt||'')).map(a=>`<article class="card">
+  const own=S.textanims.filter(a=>!a.style);
+  if(!own.length){ L.innerHTML=`<div class="empty"><strong>Своих анимаций пока нет</strong>Готовые стили субтитров — во вкладке «Субтитры» выше. Свою анимацию можно снять с видео-референса: в ролике, шаг «Стиль», кнопка «Анимация текста» под видео.</div>`; return; }
+  L.innerHTML=`<div class="grid">${[...own].sort((a,b)=>(!!b.style-!!a.style)||(a.order??99)-(b.order??99)||(b.createdAt||'').localeCompare(a.createdAt||'')).map(a=>`<article class="card">
     ${a.previewId?(a.previewKind==='video'?media(a.previewId,'video'):`<div class="media short"><img src="${blob(a.previewId)}" alt="Кадры анимации ${esc(a.name)}" loading="lazy" style="object-fit:contain;background:var(--sunken)"></div>`):''}
     <div class="body"><div class="row" style="justify-content:space-between"><span class="chip">${a.role==='title'?'Заголовки':'Субтитры'}</span><span class="hint">${esc(a.source||'')}</span></div>
     <h3>${esc(a.name)}</h3><p class="desc">${esc(a.summary||'')}</p>
@@ -1569,7 +1739,7 @@ function renderAnims(){
   wireVideos(L);
   L.querySelectorAll('[data-adel]').forEach(b=>b.onclick=()=>{ b.outerHTML=`<button class="btn danger" data-ayes="${esc(b.dataset.adel)}">Точно удалить</button>`; L.querySelector(`[data-ayes="${CSS.escape(b.dataset.adel)}"]`).onclick=e=>write(()=>db.collection('textanims').doc(e.target.dataset.ayes).delete(),'Анимация удалена'); });
 }
-function renderAll(){ renderReels(); renderTemplates(); renderLibrary(); renderPresets(); renderAnims(); refreshAnimSelects(); }
+function renderAll(){ renderReels(); renderTemplates(); renderLibrary(); renderAssets(); renderPresets(); renderAnims(); refreshAnimSelects(); }
 function animOptions(role, projectId){
   const list=[...S.textanims].sort((a,b)=>((b.projectId===projectId)-(a.projectId===projectId))||(b.createdAt||'').localeCompare(a.createdAt||''));
   const lib=list.filter(a=>a.style&&a.role===role).sort((a,b)=>(a.order??99)-(b.order??99)), mine=list.filter(a=>!a.style&&a.role===role), other=list.filter(a=>!a.style&&a.role!==role);
@@ -1595,7 +1765,7 @@ renderAll();
   sample = await window.claude.use('sample');
   status('');
   let loaded = 0;
-  for(const col of ['projects','templates','blocks','presets','textanims']){
+  for(const col of ['projects','templates','blocks','presets','textanims','assets']){
     db.collection(col).onSnapshot(snap=>{
       S[col] = snap.docs.filter(d=>d.exists).map(d=>({id:d.id, ...d.data()}));
       if(++loaded>=0) renderAll();
