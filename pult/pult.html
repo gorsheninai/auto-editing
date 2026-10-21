@@ -257,7 +257,7 @@ const WHO = ['аватар','живая запись','только голос']
 const AMOUNT = ['нет','1–2','2–3','много'];
 const SOUND = ['тихие эффекты','музыка','без звуков'];
 const STATUSES = [['draft','Черновик'],['story','Раскадровка'],['images','Картинки'],['edit','Монтаж'],['done','Готово']];
-const KINDS = [['all','Все'],['motion','Моушн'],['3d','3D'],['2d','2D-сцена'],['transition','Переход'],['bg','Фон'],['insert','Вставка'],['sound','Звук']];
+const KINDS = [['all','Все'],['motion','Моушн'],['text','Текст'],['3d','3D'],['2d','2D-сцена'],['transition','Переход'],['overlay','Пометки'],['fx','Эффект'],['bg','Фон'],['insert','Вставка'],['sound','Звук']];
 const kindName = k => (KINDS.find(x=>x[0]===k)||[k,k])[1];
 
 function toast(msg){ const t=$('#toast'); t.textContent=msg; t.hidden=false; clearTimeout(toast.t); toast.t=setTimeout(()=>t.hidden=true,2600); }
@@ -411,7 +411,7 @@ function openReel(p){
       <div class="f wide"><label>Окно спикера в режиме B</label><span class="hint">По умолчанию на весь ролик. В раскадровке можно поменять у любого сегмента.</span>
         <div class="wins" role="radiogroup" aria-label="Окно спикера">${winCards}</div></div>
       <div class="fields" style="margin-top:14px">
-        <div class="f"><label for="r-bg">Подложка</label><select id="r-bg"${ro}>${opts(['светлая','тёмная'],p.bg)}</select></div>
+        <div class="f"><label for="r-bg">Подложка</label><select id="r-bg"${ro}>${opts(['светлая','тёмная','светлая, живой градиент','тёмная, живой градиент'],p.bg)}</select></div>
         <div class="f"><label for="r-sound">Звук</label><select id="r-sound"${ro}>${opts(SOUND,p.sound)}</select></div>
         <div class="f"><label for="r-speed">Ускорение: <span class="code" id="r-speedV"></span></label><input type="range" id="r-speed" min="1" max="1.3" step="0.05" value="${p.speed??1.2}"${ro}></div>
         <div class="f"><label for="r-words">Слов в субтитре</label><select id="r-words"${ro}>${opts([1,2,3],p.subWords??2)}</select></div>
@@ -637,7 +637,7 @@ const SB_PROMPT = `Ты — монтажёр вертикальных рилсо
 {CTA}
 
 Как резать: текст НЕ обязан резаться по предложениям. Сегмент — любой непрерывный кусок слов: он может начинаться и заканчиваться посреди предложения, если визуал меняется на этом слове. Подбирай визуал под смысл слов: что именно говорится — то и показываем. Сегмент обычно 1.5–6 секунд. Сегменты идут подряд и покрывают ВСЕ слова без пропусков и наложений.
-В "visual" одной-двумя фразами: что видно на экране и что меняется на каком слове, в стиле ролика. Если подходит готовый блок библиотеки — упомяни его код. Для A пиши, что делает спикер. Для gen опиши, что ровно на картинке; если это скриншот или документ — точный короткий текст на нём в кавычках. Ставь gen на КАЖДОЕ конкретное упоминание, которое можно показать картинкой: бренд или товар (Nike — кроссовок), картина или художник, известный человек или роль (клиент, начальник, конкурент), место, событие, документ, новость. Ролик не должен держаться только на герое: под 2D-сценами с героем и под картинками с ним — не больше трети ролика, и не ставь две сцены с героем подряд — чередуй с картинками по смыслу, другими персонажами, моушном и кинетическим текстом.
+В "visual" одной-двумя фразами: что видно на экране и что меняется на каком слове, в стиле ролика. Если подходит готовый блок библиотеки (моушн M… или текст Txt…) — НАЧНИ visual с его кода и данных в формате блока, например «MBars: я — 3 | они — 30 | заголовок: клиентов в месяц», дальше можно пояснение; бери цифры и слова прямо из текста. Цифры, сравнения, рейтинги, годы, проценты, списки шагов — повод для моушн-блока, а не для картинки. Переход Tr… на склейку можно вписать в visual сегмента, НА который переходим (не чаще одного на 3–4 склейки, на смене темы); эффект Fx… — в visual сегмента, где он нужен; пометку Ink… или PaperSticker — тоже в visual, со словом, к которому она относится. Для A пиши, что делает спикер. Для gen опиши, что ровно на картинке; если это скриншот или документ — точный короткий текст на нём в кавычках. Ставь gen на КАЖДОЕ конкретное упоминание, которое можно показать картинкой: бренд или товар (Nike — кроссовок), картина или художник, известный человек или роль (клиент, начальник, конкурент), место, событие, документ, новость. Ролик не должен держаться только на герое: под 2D-сценами с героем и под картинками с ним — не больше трети ролика, и не ставь две сцены с героем подряд — чередуй с картинками по смыслу, другими персонажами, моушном и кинетическим текстом.
 
 Картинки, которые уже заказаны в ChatGPT (план по смысловым блокам). 2D-сцены (l2d) и картинки по смыслу (gen) ставь в первую очередь на слова из этих цитат, чтобы каждая картинка попала в ролик; если картинок под место нет — используй motion, d3, kinetic или media:
 {PLAN}
@@ -823,7 +823,7 @@ function wireTiming(p){
       .replace('{WIN}', winName(d.win))
       .replace('{PLAN}', (planText(p.assetPlan)||'картинки ещё не заказаны — ставь l2d и gen по смыслу, их закажут после').slice(0,6000))
       .replace('{MEDIA}', files.length ? files.map(f=>`${f.name} — ${f.desc||'без описания'}`).join('\n') : 'нет — тип media не используй')
-      .replace('{BLOCKS}', S.blocks.map(b=>`${b.code||b.id} (${kindName(b.kind)}) — ${b.name}. Для: ${b.fits||''}`).join('\n'))
+      .replace('{BLOCKS}', S.blocks.map(b=>`${b.code||b.id} (${kindName(b.kind)}) — ${b.name}. Для: ${b.fits||''}${b.params?`. Данные: ${b.params}`:''}`).join('\n'))
       .replace('{STYLE}', (d.styleAnalysis||'стиль ещё не создан').slice(0,3000))
       .replace('{NW}', curWords.length).replace('{DUR}', (curWords.at(-1)?.e||0).toFixed(1))
       .replace('{WORDS}', curWords.map((w,i)=>`${i}:${w.w}@${w.s.toFixed(1)}`).join(' '));
@@ -1418,18 +1418,19 @@ function renderPresets(){
 function renderAnims(){
   const L=$('#animList'); if(!L) return;
   if(!S.textanims.length){ L.innerHTML=`<div class="empty"><strong>Анимаций пока нет</strong>Открой ролик, загрузи видео-референс и под ним нажми «Анимация текста»: отметь момент, где появляется надпись.</div>`; return; }
-  L.innerHTML=`<div class="grid">${[...S.textanims].sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||'')).map(a=>`<article class="card">
-    ${a.previewId?`<div class="media short"><img src="${blob(a.previewId)}" alt="Кадры анимации ${esc(a.name)}" loading="lazy" style="object-fit:contain;background:var(--sunken)"></div>`:''}
+  L.innerHTML=`<div class="grid">${[...S.textanims].sort((a,b)=>(!!b.style-!!a.style)||(a.order??99)-(b.order??99)||(b.createdAt||'').localeCompare(a.createdAt||'')).map(a=>`<article class="card">
+    ${a.previewId?(a.previewKind==='video'?media(a.previewId,'video'):`<div class="media short"><img src="${blob(a.previewId)}" alt="Кадры анимации ${esc(a.name)}" loading="lazy" style="object-fit:contain;background:var(--sunken)"></div>`):''}
     <div class="body"><div class="row" style="justify-content:space-between"><span class="chip">${a.role==='title'?'Заголовки':'Субтитры'}</span><span class="hint">${esc(a.source||'')}</span></div>
     <h3>${esc(a.name)}</h3><p class="desc">${esc(a.summary||'')}</p>
     ${canWrite?`<div class="actions"><button class="btn ghost danger" data-adel="${esc(a.id)}">Удалить</button></div>`:''}</div></article>`).join('')}</div>`;
+  wireVideos(L);
   L.querySelectorAll('[data-adel]').forEach(b=>b.onclick=()=>{ b.outerHTML=`<button class="btn danger" data-ayes="${esc(b.dataset.adel)}">Точно удалить</button>`; L.querySelector(`[data-ayes="${CSS.escape(b.dataset.adel)}"]`).onclick=e=>write(()=>db.collection('textanims').doc(e.target.dataset.ayes).delete(),'Анимация удалена'); });
 }
 function renderAll(){ renderReels(); renderTemplates(); renderLibrary(); renderPresets(); renderAnims(); refreshAnimSelects(); }
 function animOptions(role, projectId){
   const list=[...S.textanims].sort((a,b)=>((b.projectId===projectId)-(a.projectId===projectId))||(b.createdAt||'').localeCompare(a.createdAt||''));
-  const mine=list.filter(a=>a.role===role), other=list.filter(a=>a.role!==role);
-  return [['static', role==='title'?'Наша: заголовок с подчёркиванием':'Наша: статичные'], ['__auto','Как в видео-референсе — снять автоматически'], ...[...mine,...other].map(a=>[a.id, `${a.projectId===projectId?'Из референса: ':'Библиотека: '}${a.name}${a.role!==role?(a.role==='title'?' (заголовок)':' (субтитры)'):''}`])];
+  const lib=list.filter(a=>a.style&&a.role===role).sort((a,b)=>(a.order??99)-(b.order??99)), mine=list.filter(a=>!a.style&&a.role===role), other=list.filter(a=>!a.style&&a.role!==role);
+  return [['static', role==='title'?'Наша: заголовок с подчёркиванием':'Наша: статичные'], ['__auto','Как в видео-референсе — снять автоматически'], ...lib.map(a=>[a.id, `Стиль: ${a.name}`]), ...[...mine,...other].map(a=>[a.id, `${a.projectId===projectId?'Из референса: ':'Библиотека: '}${a.name}${a.role!==role?(a.role==='title'?' (заголовок)':' (субтитры)'):''}`])];
 }
 function refreshAnimSelects(){
   ['#r-subAnim','#r-titleAnim'].forEach(id=>{ const el=$(id); if(!el) return; const v=el.value||el.dataset.v||'static'; el.innerHTML=opts(animOptions(id==='#r-titleAnim'?'title':'subtitle', el.dataset.pid), v); });

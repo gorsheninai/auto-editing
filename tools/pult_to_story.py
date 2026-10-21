@@ -7,7 +7,7 @@ project.json — документ projects/<id> (ArtifactData get, сохран�
 textanims.json — список документов textanims (ArtifactData list), нужен, если выбраны анимации текста.
 Папка ролика с Диска (подпапки 01_персонаж … 06_мои_вставки) копируется в <reel_dir>/public/media/ как есть; файл ищется по имени в любой подпапке, расширение можно не писать.
 """
-import json, os, sys, glob
+import json, os, re, sys, glob
 
 def unwrap(d):
     while isinstance(d, dict) and 'data' in d and isinstance(d['data'], (dict, list)) and len(d) <= 3:
@@ -26,10 +26,17 @@ def main():
         for it in items:
             it = unwrap(it)
             if isinstance(it, dict): anims.append(it)
+    # коды блоков библиотеки (template/src/blocks/codes.json)
+    here = os.path.dirname(os.path.abspath(__file__))
+    cj = os.path.join(here, '..', 'template', 'src', 'blocks', 'codes.json')
+    CODES = json.load(open(cj)) if os.path.exists(cj) else {}
+    group = {c: g for g, cs in CODES.items() for c in cs}
     def anim(aid):
         if not aid or aid == 'static': return None
+        if group.get(aid) == 'subtitle': return {'style': aid}          # готовый стиль субтитров (SubKaraoke…)
         for x in anims:
-            if aid in (x.get('id'), x.get('_id'), x.get('docId'), x.get('name')): return x.get('params') or None
+            if aid in (x.get('id'), x.get('_id'), x.get('docId'), x.get('name')):
+                return {'style': x['style']} if x.get('style') else (x.get('params') or None)
         print(f'! анимация {aid} не найдена в textanims — субтитры будут статичные'); return None
 
     words = proj.get('words') or []
@@ -58,6 +65,17 @@ def main():
                'note': r.get('note', '')}
         if mode == 'B': row['win'] = r.get('win') or proj.get('win') or 'popout'
         if r.get('scene'): row['scene'] = r['scene']
+        # коды блоков в описании: сцена — код в начале («MBars: я — 3 | они — 30»), переход, эффект, пометки — где угодно
+        note = row['note']
+        lead = re.match(r'\s*([A-Z][A-Za-z0-9]+)\b', note)
+        if not row.get('scene') and lead and group.get(lead.group(1)) == 'scene': row['scene'] = lead.group(1)
+        for c in re.findall(r'\b([A-Z][A-Za-z0-9]+)\b', note):
+            g = group.get(c)
+            if g == 'transition' and i > 0: row['tr'] = c
+            elif g == 'fx': row['fx'] = c
+            elif g == 'overlay': row.setdefault('ov', []).append({'code': c})   # координаты по умолчанию — центр; уточнить вручную
+        for k in ('tr', 'fx', 'ov', 'marks'):
+            if r.get(k): row[k] = r[k]
         if r.get('frame'): row['frame'] = r['frame']
         elif r.get('picType') in ('product', 'poster', 'painting'): row['frame'] = r['picType']
         elif r.get('picType') in ('screenshot', 'news'): row['frame'] = 'phone' if r['picType'] == 'screenshot' else 'window'
@@ -84,6 +102,7 @@ def main():
             'speed': proj.get('speed'), 'avatar': 'avatar.mp4', 'avatarCut': 'avatar_cut.webm',
         },
     }
+    if 'градиент' in (proj.get('bg') or '') or proj.get('backdrop') == 'BgGrain': st['settings']['backdrop'] = 'BgGrain'
     if proj.get('accent'): st['settings']['accent'] = proj['accent']
     os.makedirs(os.path.join(reel, 'src'), exist_ok=True)
     json.dump(st, open(os.path.join(reel, 'src', 'story.json'), 'w'), ensure_ascii=False, indent=1)
