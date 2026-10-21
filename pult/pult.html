@@ -346,7 +346,7 @@ function blankReel(tplId){
   const t = tplOf(tplId);
   return {title:'', ctaOn:false, ctaText:'', win:'popout', mediaList:'',
     templateId: t?t.id:'', presetId: t&&t.presetId ? t.presetId : (S.presets[0]?.id||''), custom:{a:10,b:60,c:30},
-    bg: t?.bg || 'светлая', n3d:'2–3', nMotion:'2–3', ownMedia:'', speed:1.2, subWords:2, subColor:'по подложке',
+    bg: t?.bg || 'светлая', punch:true, progress:false, n3d:'2–3', nMotion:'2–3', ownMedia:'', speed:1.2, subWords:2, subColor:'по подложке',
     sound: t?.sound || SOUND[0], drive:'', script:'', status:'draft'};
 }
 function titleFrom(script){
@@ -418,6 +418,8 @@ function openReel(p){
         <div class="f"><label for="r-subAnim">Анимация субтитров</label><select id="r-subAnim" data-pid="${esc(p.id)}" data-v="${esc(p.subAnim||'static')}"${ro}>${opts(animOptions('subtitle',p.id), p.subAnim||'static')}</select><span class="hint" id="r-subAnimNote"></span></div>
         <div class="f"><label for="r-titleAnim">Анимация заголовков и кинетического текста</label><select id="r-titleAnim" data-pid="${esc(p.id)}" data-v="${esc(p.titleAnim||'static')}"${ro}>${opts(animOptions('title',p.id), p.titleAnim||'static')}</select><span class="hint" id="r-titleAnimNote"></span></div>
         <div class="f"><label for="r-subc">Цвет субтитров</label><select id="r-subc"${ro}>${opts(['по подложке','чёрный','белый'],p.subColor)}</select></div>
+        <div class="f"><label class="row" style="gap:8px;cursor:pointer"><input type="checkbox" id="r-punch"${p.punch?' checked':''}${ro}> Наезды камеры на ударных словах</label><span class="hint">В кадрах со спикером на весь экран (A): резкий зум на ключевом слове фразы.</span></div>
+        <div class="f"><label class="row" style="gap:8px;cursor:pointer"><input type="checkbox" id="r-progress"${p.progress?' checked':''}${ro}> Полоса прогресса вверху</label><span class="hint">Тонкая полоса показывает, сколько ролика осталось.</span></div>
         <div class="f wide"><label class="row" style="gap:8px;cursor:pointer"><input type="checkbox" id="r-ctaOn"${p.ctaOn?' checked':''}${ro}> Призыв в конце</label>
           <input type="text" id="r-ctaText" value="${esc(p.ctaText||'')}" placeholder="Например: подпишись, чтобы не пропустить разбор"${p.ctaOn?'':' hidden'}${ro}>
           <span class="hint">Выключено — конец ролика определяется только текстом.</span></div>
@@ -506,6 +508,7 @@ function openReel(p){
       ``,
       sh?`Раскадровка: ${curRows.length} сегментов, A ${sh.a}% / B ${sh.b}% / C ${sh.c}%. ${cnt}`:'Раскадровки ещё нет.',
       `Окно спикера по умолчанию: ${winName(d.win)}. Подложка: ${d.bg}. Звук: ${d.sound}.`,
+      `Наезды камеры: ${d.punch?'да':'нет'}. Полоса прогресса: ${d.progress?'да':'нет'}.`,
       `Ускорение ×${d.speed}. Субтитры: ${d.subWords} сл., цвет ${d.subColor}, анимация: ${animName(d.subAnim)}. Заголовки: ${animName(d.titleAnim)}.`,
       d.ctaOn ? `Призыв в конце: ${d.ctaText||'да'}.` : `Призыва в конце нет — финал по тексту.`,
       d.drive?`Папка на Диске (вставки и картинки): ${d.drive}`:'',
@@ -1267,7 +1270,7 @@ function collect(){
   const v = id=>$(id)?.value ?? '';
   return {title:titleFrom(v('#r-script')), script:v('#r-script'), bg:v('#r-bg'), sound:v('#r-sound'),
     speed:+v('#r-speed')||1.2, subWords:+v('#r-words')||2, subColor:v('#r-subc'), drive:v('#r-drive').trim(), mediaList:v('#r-media'),
-    win:readWin(), subAnim:(v('#r-subAnim')==='__auto'?'static':v('#r-subAnim'))||'static', titleAnim:(v('#r-titleAnim')==='__auto'?'static':v('#r-titleAnim'))||'static', ctaOn:!!$('#r-ctaOn')?.checked, ctaText:v('#r-ctaText').trim(), status:v('#r-status'),
+    win:readWin(), subAnim:(v('#r-subAnim')==='__auto'?'static':v('#r-subAnim'))||'static', titleAnim:(v('#r-titleAnim')==='__auto'?'static':v('#r-titleAnim'))||'static', ctaOn:!!$('#r-ctaOn')?.checked, punch:!!$('#r-punch')?.checked, progress:!!$('#r-progress')?.checked, ctaText:v('#r-ctaText').trim(), status:v('#r-status'),
     gptPrompt:v('#r-gpt'), styleAnalysis:v('#r-style'), sbRows:curRows, storyboard:rowsText(curRows), target:readTarget(), sub:readSub()};
 }
 $('#newReel').addEventListener('click', ()=>createReel());

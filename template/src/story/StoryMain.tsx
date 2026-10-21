@@ -11,6 +11,7 @@ import {KineticText, LayerScene, PicInsert, Placeholder, pickFrame} from './inse
 import {REG} from './registry';
 import {SUBS, isSubCode, pickKeywords, toCaptions} from '../blocks/subs';
 import {BgGrain, FxConfetti, FxVhs, Overlay, TRANSITIONS} from '../blocks/text-fx';
+import {ProgressBar, Punch, Shake} from '../blocks/essentials';
 import {themeFrom} from '../blocks/kit';
 
 /* Ролик целиком по раскадровке с пульта: src/story.json (tools/pult_to_story.py). */
@@ -62,7 +63,13 @@ const SegmentBody: React.FC<{r: Row; from: number; dur: number}> = ({r, from, du
 };
 /* Сегмент + эффект (fx) + рукописные пометки (ov). lead — на сколько кадров сегмент начат раньше из-за перехода */
 const Segment: React.FC<{r: Row; from: number; dur: number; lead?: number}> = ({r, from, dur, lead = 0}) => {
-  const body = <SegmentBody r={r} from={from} dur={dur} />;
+  let body = <SegmentBody r={r} from={from} dur={dur} />;
+  /* наезды: на ударных словах в режиме A (настройка punch) или по коду FxPunch */
+  if ((STORY.settings.punch && r.mode === 'A') || r.fx === 'FxPunch') {
+    const hits = wordsIn(r).filter((w) => KEYSET.has(bareW(w.w))).map((w) => Math.round((w.s - r.s) * FPS) + lead);
+    body = <Punch at={hits.length ? hits : [lead + 2]}>{body}</Punch>;
+  }
+  if (r.fx === 'FxShake') body = <Shake at={lead + 3}>{body}</Shake>;
   return <AbsoluteFill>
     {r.fx === 'FxVhs' ? <FxVhs>{body}</FxVhs> : body}
     {r.fx === 'FxConfetti' ? <FxConfetti theme={themeFrom(T)} at={lead + 4} /> : null}
@@ -95,6 +102,9 @@ const CHUNKS: Chunk[] = (() => {
 })();
 
 /* Готовые стили субтитров (remocn): весь текст ролика в их формате, страницы = наши куски */
+/* ударные слова для наездов: самое длинное значимое слово каждой фразы */
+const bareW = (w: string) => w.toLowerCase().replace(/[^\p{L}\d]/gu, '');
+const KEYSET = new Set(pickKeywords(STORY.words));
 const SUB_STYLE = isSubCode(STORY.settings.subAnim?.style) ? STORY.settings.subAnim!.style as keyof typeof SUBS : null;
 const CAPS = SUB_STYLE ? toCaptions(STORY.words.map((w) => ({...w, w: fmt(w.w)})), new Set(CHUNKS.map((c) => STORY.words.indexOf(c.ws[c.ws.length - 1])))) : [];
 const KEYS = SUB_STYLE ? pickKeywords(STORY.words, STORY.settings.subAnim?.keywords) : [];
@@ -155,6 +165,7 @@ export const StoryMain: React.FC = () => {
   return <AbsoluteFill style={{background: T.bg}}>
     {ROWS.some((x) => trOf(x.r)) ? <Transitions /> : ROWS.map(({r, i, from, dur}) => <Sequence key={i} from={from} durationInFrames={dur}><Segment r={r} from={from} dur={dur} /></Sequence>)}
     <Captions />
+    {STORY.settings.progress ? <ProgressBar total={STORY_TOTAL} theme={themeFrom(T)} /> : null}
     <Wipe />
     <Audio src={staticFile(AV)} />
   </AbsoluteFill>;

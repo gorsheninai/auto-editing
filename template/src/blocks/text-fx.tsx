@@ -16,6 +16,7 @@ import {whipPan} from '../remocn/whip-pan';
 import {zoomBlur} from '../remocn/zoom-blur';
 import {focusPull} from '../remocn/focus-pull';
 import {pageTurn} from '../remocn/page-turn';
+import {BlurBox, Callout, NameTag, Notify} from './essentials';
 
 /* ---------- Текст на весь экран (сцены, как моушн: row.scene = код) ---------- */
 const Center: React.FC<{h: number; children: React.ReactNode}> = ({h, children}) =>
@@ -86,6 +87,10 @@ export const TRANSITIONS: Record<string, {make: () => TransitionPresentation<nev
 export type Ov = {code: string; x?: number; y?: number; w?: number; h?: number; to?: [number, number]; text?: string; at?: number};
 export const Overlay: React.FC<{ov: Ov; theme: Theme}> = ({ov, theme}) => {
   const at = ov.at ?? 6; const x = ov.x ?? 540, y = ov.y ?? 900, w = ov.w ?? 520, h = ov.h ?? 220;
+  if (ov.code === 'Callout') return <Callout ov={ov} theme={theme} />;
+  if (ov.code === 'BlurBox') return <BlurBox ov={ov} />;
+  if (ov.code === 'Notify') return <Notify ov={ov} theme={theme} />;
+  if (ov.code === 'NameTag') return <NameTag ov={ov} theme={theme} />;
   if (ov.code === 'InkUnderline') return <div style={{position: 'absolute', left: x - w / 2, top: y}}><InkUnderline width={w} color={theme.accent2} thickness={16} delay={at} /></div>;
   if (ov.code === 'InkCircle') return <div style={{position: 'absolute', left: x - w / 2, top: y - h / 2}}><ScribbleCircle width={w} height={h} color={theme.accent2} strokeWidth={14} delay={at} /></div>;
   if (ov.code === 'InkArrow') return <AbsoluteFill><InkArrow from={{x, y}} to={{x: ov.to?.[0] ?? x + 260, y: ov.to?.[1] ?? y - 200}} color={theme.accent2} strokeWidth={16} delay={at} headSize={60} /></AbsoluteFill>;
@@ -98,6 +103,10 @@ export const OVERLAYS: Record<string, {name: string; summary: string}> = {
   InkCircle: {name: 'Обвод кистью', summary: 'Кисть обводит важное: начинает тонко, заканчивает жирно'},
   InkArrow: {name: 'Нарисованная стрелка', summary: 'Стрелка рисуется от точки к точке, наконечник выпрыгивает в конце'},
   PaperSticker: {name: 'Бумажная наклейка', summary: 'Наклейка на скотче шлёпается в кадр с рукописной надписью'},
+  Callout: {name: 'Рамка с подписью', summary: 'Вокруг области рисуется рамка, над ней выпрыгивает подпись'},
+  BlurBox: {name: 'Размытие куска кадра', summary: 'Прячет номер, имя или сумму на скриншоте'},
+  Notify: {name: 'Уведомление', summary: 'Уведомление выезжает сверху и уходит через 2,5 секунды'},
+  NameTag: {name: 'Плашка с именем', summary: 'Имя и роль выезжают плашкой слева внизу'},
 };
 
 /* ---------- Фон и эффекты ---------- */
@@ -133,5 +142,9 @@ export const FX: Record<string, {name: string; summary: string}> = {
   BgGrain: {name: 'Зернистый градиент', summary: 'Живой фон из мягкого градиента с плёночным зерном вместо подложки с точками'},
   FxVhs: {name: 'Видеокассета', summary: 'Дрожание строк, цветной сдвиг, бегущая полоса и шум — для ретро-стиля'},
   FxConfetti: {name: 'Конфетти', summary: 'Залп конфетти на ключевой фразе'},
+  FxPunch: {name: 'Наезд камеры', summary: 'Резкий наезд на ударных словах, ступенькой туда-обратно'},
+  FxShake: {name: 'Тряска', summary: 'Кадр встряхивается в начале сегмента и затухает'},
+  Progress: {name: 'Полоса прогресса', summary: 'Тонкая полоса вверху показывает, сколько ролика осталось'},
+  KenBurns: {name: 'Ken Burns', summary: 'Медленный наезд и панорама по каждой картинке'},
 };
 void clamp; void interpolate;

@@ -6,6 +6,8 @@ import {SCENES} from './library';
 import {useStoryFonts} from '../story/fonts';
 import {TransitionSeries, linearTiming} from '@remotion/transitions';
 import {BgGrain, FX, FxConfetti, FxVhs, OVERLAYS, Overlay, TRANSITIONS} from './text-fx';
+import {KenBurns, ProgressBar, Punch, Shake} from './essentials';
+import {Img, staticFile} from 'remotion';
 
 /* Стенд превью: каждый блок — композиция P_<код> 1080×1920 (рендер со --scale=0.4 → 432×768 для пульта). */
 const FPS = 30;
@@ -34,6 +36,8 @@ export const MOTION_DEMO: Record<string, {note: string; dur: number}> = {
   TxtMarker: {note: 'TxtMarker: главное — | регулярность', dur: 90},
   TxtNumber: {note: 'TxtNumber: рублей в месяц — 300 000', dur: 90},
   TxtStrike: {note: 'TxtStrike: дорого | выгодно', dur: 100},
+  MChat: {note: 'MChat: Как набрать первых 1000 подписчиков? | Снимай каждый день 30 дней подряд и отвечай на каждый комментарий.', dur: 150},
+  TxtRotate: {note: 'TxtRotate: это для | блогеров, экспертов, бизнеса', dur: 120},
   MGallery: {note: 'MGallery: demo/g1.jpg | demo/g2.jpg | demo/g3.jpg | demo/g4.jpg', dur: 110},
 };
 
@@ -66,9 +70,28 @@ const TrPreview: React.FC<{code: string}> = ({code}) => { useStoryFonts(); const
   return <TransitionSeries><TransitionSeries.Sequence durationInFrames={45 + t.len}><Mock n={0} /></TransitionSeries.Sequence>
     <TransitionSeries.Transition presentation={t.make()} timing={linearTiming({durationInFrames: t.len})} />
     <TransitionSeries.Sequence durationInFrames={45}><Mock n={1} /></TransitionSeries.Sequence></TransitionSeries>; };
-const OV_DEMO: Record<string, object> = {InkUnderline: {x: 540, y: 1075, w: 560}, InkCircle: {x: 540, y: 960, w: 900, h: 420}, InkArrow: {x: 240, y: 1450, to: [430, 1100]}, PaperSticker: {x: 760, y: 700, text: 'без скрытых!'}};
-const OvPreview: React.FC<{code: string}> = ({code}) => { useStoryFonts(); return <AbsoluteFill><Backdrop t={LIGHT} /><Card /><Overlay ov={{code, at: 8, ...OV_DEMO[code]}} theme={LIGHT} /></AbsoluteFill>; };
+/* Макет спикера для превью наездов и плашки с именем */
+const Speaker: React.FC = () => <AbsoluteFill style={{background: 'radial-gradient(ellipse at 50% 30%, #3B3F52, #15171E 70%)'}}>
+  <div style={{position: 'absolute', left: 540 - 175, top: 520, width: 350, height: 430, borderRadius: '50%', background: 'linear-gradient(#E9C3A8, #D6A98B)'}} />
+  <div style={{position: 'absolute', left: 540 - 190, top: 470, width: 380, height: 200, borderRadius: '190px 190px 60px 60px', background: '#2B2118'}} />
+  <div style={{position: 'absolute', left: 540 - 380, top: 960, width: 760, height: 1100, borderRadius: '320px 320px 0 0', background: 'linear-gradient(#7B61FF, #5A43D6)'}} />
+</AbsoluteFill>;
+const Shot: React.FC = () => <AbsoluteFill style={{display: 'grid', placeItems: 'center', background: '#F4F1EA'}}>
+  <div style={{width: 860, borderRadius: 44, background: '#fff', boxShadow: '0 20px 60px rgba(0,0,0,.1)', padding: 54, fontFamily: SANS, color: '#1C1B22', display: 'flex', flexDirection: 'column', gap: 22}}>
+    <div style={{fontWeight: 800, fontSize: 56, letterSpacing: -1.5}}>Заказ № 4815</div>
+    <div style={{fontSize: 40, color: '#6B6A75'}}>Клиент: Анна Смирнова</div>
+    <div style={{fontSize: 40, color: '#6B6A75'}}>Телефон: +7 912 345-67-89</div>
+    <div style={{fontWeight: 800, fontSize: 72, color: '#7B61FF', letterSpacing: -2}}>15 000 ₽</div>
+  </div></AbsoluteFill>;
+const OV_DEMO: Record<string, object> = {Callout: {x: 306, y: 1078, w: 330, h: 112, text: 'вот сумма'}, BlurBox: {x: 418, y: 985, w: 540, h: 66, at: 20}, Notify: {text: 'Телеграм — Новый заказ на 15 000 ₽'}, NameTag: {text: 'Иван Петров — маркетолог'}, InkUnderline: {x: 540, y: 1075, w: 560}, InkCircle: {x: 540, y: 960, w: 900, h: 420}, InkArrow: {x: 240, y: 1450, to: [430, 1100]}, PaperSticker: {x: 760, y: 700, text: 'без скрытых!'}};
+const OvPreview: React.FC<{code: string}> = ({code}) => { useStoryFonts();
+  const bg = code === 'NameTag' ? <Speaker /> : code === 'Callout' || code === 'BlurBox' ? <Shot /> : <><Backdrop t={LIGHT} /><Card /></>;
+  return <AbsoluteFill>{bg}<Overlay ov={{code, at: 8, ...OV_DEMO[code]}} theme={LIGHT} /></AbsoluteFill>; };
 const FxPreview: React.FC<{code: string}> = ({code}) => { useStoryFonts();
+  if (code === 'FxPunch') return <Punch at={[14, 44, 74]}><Speaker /></Punch>;
+  if (code === 'FxShake') return <Shake at={12}><AbsoluteFill><Backdrop t={LIGHT} /><Card /></AbsoluteFill></Shake>;
+  if (code === 'Progress') return <AbsoluteFill><Speaker /><ProgressBar total={90} theme={LIGHT} /></AbsoluteFill>;
+  if (code === 'KenBurns') return <AbsoluteFill style={{overflow: 'hidden'}}><KenBurns seed="g2" dur={90}><Img src={staticFile('demo/g2.jpg')} style={{width: '100%', height: '100%', objectFit: 'cover'}} /></KenBurns></AbsoluteFill>;
   if (code === 'BgGrain') return <AbsoluteFill><BgGrain theme={LIGHT} /><Card /></AbsoluteFill>;
   if (code === 'FxVhs') return <FxVhs><AbsoluteFill><Backdrop t={LIGHT} /><Card /></AbsoluteFill></FxVhs>;
   return <AbsoluteFill><Backdrop t={LIGHT} /><Card /><FxConfetti theme={LIGHT} /></AbsoluteFill>; };

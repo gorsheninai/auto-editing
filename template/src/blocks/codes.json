@@ -1,8 +1,63 @@
 {
- "subtitle": ["SubPop", "SubWord", "SubBox", "SubKaraoke", "SubMarker", "SubStamp", "SubStack", "SubDrop"],
- "scene": ["MBars", "MGrowth", "MShare", "MTop", "MTimeline", "MGauge", "MVersus", "MChecklist", "MHub", "MFlow", "MInk", "MBurst", "MSpeed", "MGooey", "MBauhaus", "MGallery", "TxtSoftBlur", "TxtCenterBuild", "TxtMarker", "TxtNumber", "TxtStrike"],
- "transition": ["TrWhip", "TrZoom", "TrFocus", "TrGlitch", "TrPage"],
- "overlay": ["InkUnderline", "InkCircle", "InkArrow", "PaperSticker"],
- "fx": ["FxVhs", "FxConfetti"],
- "backdrop": ["BgGrain"]
+ "subtitle": [
+  "SubPop",
+  "SubWord",
+  "SubBox",
+  "SubKaraoke",
+  "SubMarker",
+  "SubStamp",
+  "SubStack",
+  "SubDrop"
+ ],
+ "scene": [
+  "MBars",
+  "MGrowth",
+  "MShare",
+  "MTop",
+  "MTimeline",
+  "MGauge",
+  "MVersus",
+  "MChecklist",
+  "MHub",
+  "MFlow",
+  "MInk",
+  "MBurst",
+  "MSpeed",
+  "MGooey",
+  "MBauhaus",
+  "MGallery",
+  "TxtSoftBlur",
+  "TxtCenterBuild",
+  "TxtMarker",
+  "TxtNumber",
+  "TxtStrike",
+  "MChat",
+  "TxtRotate"
+ ],
+ "transition": [
+  "TrWhip",
+  "TrZoom",
+  "TrFocus",
+  "TrGlitch",
+  "TrPage"
+ ],
+ "overlay": [
+  "InkUnderline",
+  "InkCircle",
+  "InkArrow",
+  "PaperSticker",
+  "Callout",
+  "BlurBox",
+  "Notify",
+  "NameTag"
+ ],
+ "fx": [
+  "FxVhs",
+  "FxConfetti",
+  "FxPunch",
+  "FxShake"
+ ],
+ "backdrop": [
+  "BgGrain"
+ ]
 }

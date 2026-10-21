@@ -29,6 +29,6 @@ export type Row = {
 export type Story = {
   fps: number; duration: number;
   settings: {bg: 'светлая' | 'тёмная' | string; accent?: string; subWords?: number; subColor?: string; win?: Win;
-    subAnim?: AnimParams | null; titleAnim?: AnimParams | null; backdrop?: string; avatar?: string; avatarCut?: string; speed?: number};
+    subAnim?: AnimParams | null; titleAnim?: AnimParams | null; backdrop?: string; punch?: boolean; progress?: boolean; avatar?: string; avatarCut?: string; speed?: number};
   words: Word[]; rows: Row[];
 };

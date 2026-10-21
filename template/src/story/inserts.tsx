@@ -41,10 +41,11 @@ const isVideo = (n: string) => /\.(mp4|webm|mov)$/i.test(n);
 export const PicInsert: React.FC<{src: string; dur: number; frame: Frame; zoneH: number; bg: string; full: boolean}> = ({src, dur, frame, zoneH, bg, full}) => {
   const f = useCurrentFrame(), {fps} = useVideoConfig();
   const k = spring({frame: f, fps, config: {damping: 15}});
-  const z = interpolate(f, [0, dur], [1.0, 1.08], clamp);
+  const z = interpolate(f, [0, dur], [1.04, 1.14], clamp); /* Ken Burns: наезд + панорама, направление от имени файла */
+  const dir = src.length % 2 ? 1 : -1; const pan = interpolate(f, [0, dur], [-2.5, 2.5], clamp) * dir;
   const media = isVideo(src)
     ? <OffthreadVideo src={staticFile(src)} muted style={{width: '100%', height: '100%', objectFit: 'cover'}} />
-    : <Img src={staticFile(src)} style={{width: '100%', height: '100%', objectFit: 'cover', scale: String(z)}} />;
+    : <Img src={staticFile(src)} style={{width: '100%', height: '100%', objectFit: 'cover', scale: String(z), translate: `${pan}% ${pan * -0.5}%`}} />;
   if (frame === 'product') {
     // товар на подиуме: картинка без рамки, мягкое пятно света и тень-эллипс, лёгкое покачивание
     const S = Math.min(full ? 900 : 760, zoneH - 200);

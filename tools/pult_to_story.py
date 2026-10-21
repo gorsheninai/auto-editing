@@ -73,7 +73,11 @@ def main():
             g = group.get(c)
             if g == 'transition' and i > 0: row['tr'] = c
             elif g == 'fx': row['fx'] = c
-            elif g == 'overlay': row.setdefault('ov', []).append({'code': c})   # координаты по умолчанию — центр; уточнить вручную
+            elif g == 'overlay':   # координаты по умолчанию — центр; текст — после «Код:» до | или ;
+                m = re.search(re.escape(c) + r'\s*:\s*([^|;\n]+)', note)
+                o = {'code': c}
+                if m: o['text'] = m.group(1).strip()
+                row.setdefault('ov', []).append(o)
         for k in ('tr', 'fx', 'ov', 'marks'):
             if r.get(k): row[k] = r[k]
         if r.get('frame'): row['frame'] = r['frame']
@@ -84,10 +88,10 @@ def main():
             m = find_media(name)
             if m: row['media'] = m
             else: warn.append(f'{i + 1}: нет файла «{name or "?"}» в public/media ({kind})')
-        if kind == 'l2d' and not r.get('scene'):
+        if kind == 'l2d' and not row.get('scene'):
             if r.get('layer'): row['layer'] = r['layer']
             else: warn.append(f'{i + 1}: 2D-сцена «{row["text"][:40]}» — собрать слоями (layer) или своей сценой в registry.tsx')
-        if kind in ('motion', 'd3') and not r.get('scene'):
+        if kind in ('motion', 'd3') and not row.get('scene'):
             warn.append(f'{i + 1}: {kind} «{row["text"][:40]}» — нужна сцена в registry.tsx (пока кинетический текст)')
         out.append(row)
     out.sort(key=lambda x: x['s'])
@@ -102,6 +106,8 @@ def main():
             'speed': proj.get('speed'), 'avatar': 'avatar.mp4', 'avatarCut': 'avatar_cut.webm',
         },
     }
+    if proj.get('punch'): st['settings']['punch'] = True
+    if proj.get('progress'): st['settings']['progress'] = True
     if 'градиент' in (proj.get('bg') or '') or proj.get('backdrop') == 'BgGrain': st['settings']['backdrop'] = 'BgGrain'
     if proj.get('accent'): st['settings']['accent'] = proj['accent']
     os.makedirs(os.path.join(reel, 'src'), exist_ok=True)
