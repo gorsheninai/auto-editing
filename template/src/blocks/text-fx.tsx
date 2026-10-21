@@ -34,7 +34,7 @@ export const TxtSoftBlur: React.FC<BlockProps> = (p) => {
     <div key={i} style={{position: 'relative', width: 1000, height: fs * 1.08}}><Sequence from={i * 7} layout="none"><SoftBlurIn text={l} fontSize={fs} color={p.theme.ink} fontWeight={800} /></Sequence></div>)}</div></Center>;
 };
 /* TxtCenterBuild — фраза собирается в центре, новое слово въезжает справа и сдвигает строку */
-export const TxtCenterBuild: React.FC<BlockProps> = (p) => { const s = txt(p, 'делай раньше, чем готов'); return <Center h={p.zoneH}><KineticCenterBuild text={s} fontSize={Math.min(150, 2100 / Math.max(6, s.length))} color={p.theme.ink} fontWeight={800} /></Center>; };
+export const TxtCenterBuild: React.FC<BlockProps> = (p) => { const s = txt(p, 'делай раньше, чем готов'); return <Center h={p.zoneH}><KineticCenterBuild text={s} fontSize={Math.min(130, 1600 / Math.max(6, s.length))} color={p.theme.ink} fontWeight={800} /></Center>; };
 /* TxtMarker — «до | выделить | после»: маркер прокрашивается за выделенной частью */
 export const TxtMarker: React.FC<BlockProps> = (p) => {
   const parts = p.data.items.map((i) => i.raw); const [before, hl, after] = parts.length >= 2 ? [parts[0], parts[1], parts[2] || ''] : ['главное —', 'регулярность', ''];
