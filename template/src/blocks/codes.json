@@ -45,7 +45,12 @@
   "MFunnel",
   "MKpi",
   "MHeatmap",
-  "MCompareBars"
+  "MCompareBars",
+  "MTimeTravel",
+  "MScrollBrake",
+  "MListReveal",
+  "MCardStack",
+  "MProductCard"
  ],
  "transition": [
   "TrWhip",

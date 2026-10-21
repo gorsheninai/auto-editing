@@ -51,6 +51,11 @@ export const MOTION_DEMO: Record<string, {note: string; dur: number}> = {
   MKpi: {note: 'MKpi: выручка — 1,2 млн | клиенты — 48 | конверсия — 3,5% | средний чек — 25 000 ₽ | заголовок: итоги октября', dur: 110},
   MHeatmap: {note: 'MHeatmap: 30 | заголовок: 30 дней подряд', dur: 120},
   MCompareBars: {note: 'MCompareBars: охваты — 2 000 → 45 000 | заявки — 3 → 40 | доход — 30 тыс → 210 тыс | заголовок: до и после', dur: 120},
+  MTimeTravel: {note: 'MTimeTravel: 2019 — первый ролик | 2021 — 10 тысяч, первые заказы | 2023 — свой курс | сейчас — миллион, команда из 5 человек', dur: 150},
+  MScrollBrake: {note: 'MScrollBrake: цель: Первый миллион просмотров | метка: вот он', dur: 130},
+  MListReveal: {note: 'MListReveal: Идея | Сценарий | Съёмка | Монтаж | Публикация | Аналитика | заголовок: путь ролика', dur: 120},
+  MCardStack: {note: 'MCardStack: Хук | Сценарий | Съёмка | Монтаж | Субтитры | Звук | Обложка | заголовок: 7 шагов ролика', dur: 140},
+  MProductCard: {note: 'MProductCard: Курс по монтажу рилсов | цена: 9 900 ₽ → 4 900 ₽ | онлайн | текст: 12 уроков, шаблоны и разбор твоих роликов | кнопка: Купить', dur: 130},
   TxtRotate: {note: 'TxtRotate: это для | блогеров, экспертов, бизнеса', dur: 120},
   MGallery: {note: 'MGallery: demo/g1.jpg | demo/g2.jpg | demo/g3.jpg | demo/g4.jpg', dur: 110},
 };
