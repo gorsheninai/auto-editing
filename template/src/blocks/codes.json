@@ -34,7 +34,18 @@
   "TxtFly",
   "TxtSweep",
   "TxtUnderline",
-  "TxtMask"
+  "TxtMask",
+  "PhoneFrame",
+  "PhoneScroll",
+  "PhoneChat",
+  "PhoneNotifs",
+  "PhonePay",
+  "PhoneStats",
+  "MBarRace",
+  "MFunnel",
+  "MKpi",
+  "MHeatmap",
+  "MCompareBars"
  ],
  "transition": [
   "TrWhip",

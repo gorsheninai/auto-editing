@@ -257,7 +257,7 @@ const WHO = ['аватар','живая запись','только голос']
 const AMOUNT = ['нет','1–2','2–3','много'];
 const SOUND = ['тихие эффекты','музыка','без звуков'];
 const STATUSES = [['draft','Черновик'],['story','Раскадровка'],['images','Картинки'],['edit','Монтаж'],['done','Готово']];
-const KINDS = [['all','Все'],['motion','Моушн'],['text','Текст'],['3d','3D'],['2d','2D-сцена'],['transition','Переход'],['overlay','Пометки'],['fx','Эффект'],['bg','Фон'],['insert','Вставка'],['sound','Звук']];
+const KINDS = [['all','Все'],['motion','Моушн'],['phone','Телефон'],['text','Текст'],['3d','3D'],['2d','2D-сцена'],['transition','Переход'],['overlay','Пометки'],['fx','Эффект'],['bg','Фон'],['insert','Вставка'],['sound','Звук']];
 const kindName = k => (KINDS.find(x=>x[0]===k)||[k,k])[1];
 
 function toast(msg){ const t=$('#toast'); t.textContent=msg; t.hidden=false; clearTimeout(toast.t); toast.t=setTimeout(()=>t.hidden=true,2600); }
