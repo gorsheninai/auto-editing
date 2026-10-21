@@ -22,6 +22,7 @@ export type Row = {
   scene?: string;          // код своей сцены из registry.tsx — перекрывает kind
   layer?: {bg?: string; pose?: string; props?: string[]}; // для l2d без своей сцены: файлы в public
   tr?: string;             // переход НА этот сегмент: TrWhip | TrZoom | TrFocus | TrGlitch | TrPage
+  fxText?: string;         // подпись эффекта (FxFreeze: …)
   fx?: string;             // эффект на сегмент: FxVhs | FxConfetti
   ov?: {code: string; x?: number; y?: number; w?: number; h?: number; to?: [number, number]; text?: string; at?: number}[]; // пометки InkUnderline | InkCircle | InkArrow | PaperSticker
   marks?: number[];        // индексы слов (в words), на которых появляются пункты моушн-сцены

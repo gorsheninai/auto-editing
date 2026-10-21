@@ -32,14 +32,26 @@
   "TxtNumber",
   "TxtStrike",
   "MChat",
-  "TxtRotate"
+  "TxtRotate",
+  "MSlam",
+  "MCounter",
+  "MBeforeAfter",
+  "TxtFly",
+  "TxtSweep",
+  "TxtUnderline",
+  "TxtMask"
  ],
  "transition": [
   "TrWhip",
   "TrZoom",
   "TrFocus",
   "TrGlitch",
-  "TrPage"
+  "TrPage",
+  "TrFlash",
+  "TrTear",
+  "TrInk",
+  "TrLeak",
+  "TrGrain"
  ],
  "overlay": [
   "InkUnderline",
@@ -49,13 +61,17 @@
   "Callout",
   "BlurBox",
   "Notify",
-  "NameTag"
+  "NameTag",
+  "Spotlight",
+  "ScanFocus"
  ],
  "fx": [
   "FxVhs",
   "FxConfetti",
   "FxPunch",
-  "FxShake"
+  "FxShake",
+  "FxFlash",
+  "FxFreeze"
  ],
  "backdrop": [
   "BgGrain"

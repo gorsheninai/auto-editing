@@ -54,7 +54,7 @@ export const fmtNum = (v: number, like: string) => {
 };
 
 /* Общие пропсы блока-сцены */
-export type BlockProps = {data: BlockData; theme: Theme; zoneH: number; full: boolean; dur: number; marks?: number[]};
+export type BlockProps = {data: BlockData; theme: Theme; zoneH: number; full: boolean; dur: number; marks?: number[]; speaker?: {src: string; from: number}};
 /* Кадры появления пунктов: по словам раскадровки (marks), иначе равномерно в первой половине сцены */
 export const beats = (n: number, dur: number, marks?: number[], start = 10) =>
   Array.from({length: n}, (_, i) => (marks && marks[i] != null ? marks[i] : Math.round(start + i * Math.min(16, (dur * 0.55 - start) / Math.max(1, n)))));

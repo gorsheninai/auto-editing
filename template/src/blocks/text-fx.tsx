@@ -17,6 +17,7 @@ import {zoomBlur} from '../remocn/zoom-blur';
 import {focusPull} from '../remocn/focus-pull';
 import {pageTurn} from '../remocn/page-turn';
 import {BlurBox, Callout, NameTag, Notify} from './essentials';
+import {SC_TRANSITIONS, ScanFocus, Spotlight} from './shotcraft';
 
 /* ---------- Текст на весь экран (сцены, как моушн: row.scene = код) ---------- */
 const Center: React.FC<{h: number; children: React.ReactNode}> = ({h, children}) =>
@@ -82,11 +83,14 @@ export const TRANSITIONS: Record<string, {make: () => TransitionPresentation<nev
   TrGlitch: {make: () => glitch() as never, len: 8, name: 'Глитч', summary: 'Кадр рвётся на полосы со сдвигом и цветным разломом'},
   TrPage: {make: () => pageTurn() as never, len: 16, name: 'Страница блокнота', summary: 'Сцена уходит вверх покадрово, как перевёрнутая страница'},
 };
+Object.assign(TRANSITIONS, SC_TRANSITIONS);
 
 /* ---------- Рукописные пометки поверх сцены: row.ov = [{code, x, y, w, h, to, text, at}] ---------- */
 export type Ov = {code: string; x?: number; y?: number; w?: number; h?: number; to?: [number, number]; text?: string; at?: number};
 export const Overlay: React.FC<{ov: Ov; theme: Theme}> = ({ov, theme}) => {
   const at = ov.at ?? 6; const x = ov.x ?? 540, y = ov.y ?? 900, w = ov.w ?? 520, h = ov.h ?? 220;
+  if (ov.code === 'Spotlight') return <Spotlight ov={ov} />;
+  if (ov.code === 'ScanFocus') return <ScanFocus ov={ov} theme={theme} />;
   if (ov.code === 'Callout') return <Callout ov={ov} theme={theme} />;
   if (ov.code === 'BlurBox') return <BlurBox ov={ov} />;
   if (ov.code === 'Notify') return <Notify ov={ov} theme={theme} />;
@@ -107,6 +111,8 @@ export const OVERLAYS: Record<string, {name: string; summary: string}> = {
   BlurBox: {name: 'Размытие куска кадра', summary: 'Прячет номер, имя или сумму на скриншоте'},
   Notify: {name: 'Уведомление', summary: 'Уведомление выезжает сверху и уходит через 2,5 секунды'},
   NameTag: {name: 'Плашка с именем', summary: 'Имя и роль выезжают плашкой слева внизу'},
+  Spotlight: {name: 'Луч света', summary: 'Кадр темнеет, луч ведётся и останавливается на детали'},
+  ScanFocus: {name: 'Сканер с рамкой', summary: 'Линия сканирует кадр, на детали защёлкиваются уголки и подпись'},
 };
 
 /* ---------- Фон и эффекты ---------- */
@@ -146,5 +152,7 @@ export const FX: Record<string, {name: string; summary: string}> = {
   FxShake: {name: 'Тряска', summary: 'Кадр встряхивается в начале сегмента и затухает'},
   Progress: {name: 'Полоса прогресса', summary: 'Тонкая полоса вверху показывает, сколько ролика осталось'},
   KenBurns: {name: 'Ken Burns', summary: 'Медленный наезд и панорама по каждой картинке'},
+  FxFlash: {name: 'Фотовспышки', summary: 'Три белые вспышки, на каждой кадр скачком приближается'},
+  FxFreeze: {name: 'Стоп-кадр', summary: 'Картинка замирает, уходит в ч/б, уголки и подпись'},
 };
 void clamp; void interpolate;

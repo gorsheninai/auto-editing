@@ -12,6 +12,7 @@ import {REG} from './registry';
 import {SUBS, isSubCode, pickKeywords, toCaptions} from '../blocks/subs';
 import {BgGrain, FxConfetti, FxVhs, Overlay, TRANSITIONS} from '../blocks/text-fx';
 import {ProgressBar, Punch, Shake} from '../blocks/essentials';
+import {Flash, FreezeAt} from '../blocks/shotcraft';
 import {themeFrom} from '../blocks/kit';
 
 /* Ролик целиком по раскадровке с пульта: src/story.json (tools/pult_to_story.py). */
@@ -35,7 +36,7 @@ const rowAt = (fr: number) => ROWS.find((x) => fr >= x.from && fr < x.from + x.d
 /* Содержимое сцены: B — зона сверху, C — весь кадр */
 const Content: React.FC<{r: Row; from: number; dur: number; zoneH: number; full: boolean}> = ({r, from, dur, zoneH, full}) => {
   const ws = wordsIn(r);
-  if (r.scene && REG[r.scene]) { const Sc = REG[r.scene]; return <Sc from={from} dur={dur} t0={r.s} row={r} words={ws} zoneH={zoneH} full={full} theme={T} allWords={STORY.words} />; }
+  if (r.scene && REG[r.scene]) { const Sc = REG[r.scene]; return <Sc from={from} dur={dur} t0={r.s} row={r} words={ws} zoneH={zoneH} full={full} theme={T} allWords={STORY.words} speaker={{src: AV, from}} />; }
   const kind = r.kind || (full ? 'kinetic' : 'l2d');
   if ((kind === 'gen' || kind === 'media') && r.media) {
     const fr = r.frame && r.frame !== 'auto' ? r.frame : (kind === 'media' || kind === 'gen' ? pickFrame(r.note, r.media) : 'plain');
@@ -70,6 +71,8 @@ const Segment: React.FC<{r: Row; from: number; dur: number; lead?: number}> = ({
     body = <Punch at={hits.length ? hits : [lead + 2]}>{body}</Punch>;
   }
   if (r.fx === 'FxShake') body = <Shake at={lead + 3}>{body}</Shake>;
+  if (r.fx === 'FxFlash') body = <Flash at={lead + 4}>{body}</Flash>;
+  if (r.fx === 'FxFreeze') body = <FreezeAt at={lead + Math.min(20, Math.round(dur * 0.4))} text={r.fxText} theme={themeFrom(T)}>{body}</FreezeAt>;
   return <AbsoluteFill>
     {r.fx === 'FxVhs' ? <FxVhs>{body}</FxVhs> : body}
     {r.fx === 'FxConfetti' ? <FxConfetti theme={themeFrom(T)} at={lead + 4} /> : null}

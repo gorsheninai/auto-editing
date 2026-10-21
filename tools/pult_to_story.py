@@ -72,7 +72,10 @@ def main():
         for c in re.findall(r'\b([A-Z][A-Za-z0-9]+)\b', note):
             g = group.get(c)
             if g == 'transition' and i > 0: row['tr'] = c
-            elif g == 'fx': row['fx'] = c
+            elif g == 'fx':
+                row['fx'] = c
+                m = re.search(re.escape(c) + r'\s*:\s*([^|;\n]+)', note)
+                if m: row['fxText'] = m.group(1).strip()
             elif g == 'overlay':   # координаты по умолчанию — центр; текст — после «Код:» до | или ;
                 m = re.search(re.escape(c) + r'\s*:\s*([^|;\n]+)', note)
                 o = {'code': c}

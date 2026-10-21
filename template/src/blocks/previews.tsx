@@ -7,6 +7,7 @@ import {useStoryFonts} from '../story/fonts';
 import {TransitionSeries, linearTiming} from '@remotion/transitions';
 import {BgGrain, FX, FxConfetti, FxVhs, OVERLAYS, Overlay, TRANSITIONS} from './text-fx';
 import {KenBurns, ProgressBar, Punch, Shake} from './essentials';
+import {Flash, FreezeAt} from './shotcraft';
 import {Img, staticFile} from 'remotion';
 
 /* Стенд превью: каждый блок — композиция P_<код> 1080×1920 (рендер со --scale=0.4 → 432×768 для пульта). */
@@ -37,6 +38,13 @@ export const MOTION_DEMO: Record<string, {note: string; dur: number}> = {
   TxtNumber: {note: 'TxtNumber: рублей в месяц — 300 000', dur: 90},
   TxtStrike: {note: 'TxtStrike: дорого | выгодно', dur: 100},
   MChat: {note: 'MChat: Как набрать первых 1000 подписчиков? | Снимай каждый день 30 дней подряд и отвечай на каждый комментарий.', dur: 150},
+  MSlam: {note: 'MSlam: текст: стоп', dur: 80},
+  MCounter: {note: 'MCounter: подписчиков — 10 000', dur: 110},
+  MBeforeAfter: {note: 'MBeforeAfter: demo/g1.jpg | demo/g3.jpg', dur: 120},
+  TxtFly: {note: 'TxtFly: идеи, охваты, клиенты, деньги, рост, контент, свобода, команда | заголовок: всё это — твоё', dur: 120},
+  TxtSweep: {note: 'TxtSweep: главное — системность | системность', dur: 80},
+  TxtUnderline: {note: 'TxtUnderline: делай раньше, чем готов | раньше', dur: 80},
+  TxtMask: {note: 'TxtMask: СТИЛЬ | demo/g2.jpg', dur: 90},
   TxtRotate: {note: 'TxtRotate: это для | блогеров, экспертов, бизнеса', dur: 120},
   MGallery: {note: 'MGallery: demo/g1.jpg | demo/g2.jpg | demo/g3.jpg | demo/g4.jpg', dur: 110},
 };
@@ -83,11 +91,13 @@ const Shot: React.FC = () => <AbsoluteFill style={{display: 'grid', placeItems: 
     <div style={{fontSize: 40, color: '#6B6A75'}}>Телефон: +7 912 345-67-89</div>
     <div style={{fontWeight: 800, fontSize: 72, color: '#7B61FF', letterSpacing: -2}}>15 000 ₽</div>
   </div></AbsoluteFill>;
-const OV_DEMO: Record<string, object> = {Callout: {x: 306, y: 1078, w: 330, h: 112, text: 'вот сумма'}, BlurBox: {x: 418, y: 985, w: 540, h: 66, at: 20}, Notify: {text: 'Телеграм — Новый заказ на 15 000 ₽'}, NameTag: {text: 'Иван Петров — маркетолог'}, InkUnderline: {x: 540, y: 1075, w: 560}, InkCircle: {x: 540, y: 960, w: 900, h: 420}, InkArrow: {x: 240, y: 1450, to: [430, 1100]}, PaperSticker: {x: 760, y: 700, text: 'без скрытых!'}};
+const OV_DEMO: Record<string, object> = {Spotlight: {x: 306, y: 1078, w: 420}, ScanFocus: {x: 306, y: 1078, w: 330, h: 112, text: 'итоговая сумма'}, Callout: {x: 306, y: 1078, w: 330, h: 112, text: 'вот сумма'}, BlurBox: {x: 418, y: 985, w: 540, h: 66, at: 20}, Notify: {text: 'Телеграм — Новый заказ на 15 000 ₽'}, NameTag: {text: 'Иван Петров — маркетолог'}, InkUnderline: {x: 540, y: 1075, w: 560}, InkCircle: {x: 540, y: 960, w: 900, h: 420}, InkArrow: {x: 240, y: 1450, to: [430, 1100]}, PaperSticker: {x: 760, y: 700, text: 'без скрытых!'}};
 const OvPreview: React.FC<{code: string}> = ({code}) => { useStoryFonts();
-  const bg = code === 'NameTag' ? <Speaker /> : code === 'Callout' || code === 'BlurBox' ? <Shot /> : <><Backdrop t={LIGHT} /><Card /></>;
+  const bg = code === 'NameTag' ? <Speaker /> : ['Callout', 'BlurBox', 'Spotlight', 'ScanFocus'].includes(code) ? <Shot /> : <><Backdrop t={LIGHT} /><Card /></>;
   return <AbsoluteFill>{bg}<Overlay ov={{code, at: 8, ...OV_DEMO[code]}} theme={LIGHT} /></AbsoluteFill>; };
 const FxPreview: React.FC<{code: string}> = ({code}) => { useStoryFonts();
+  if (code === 'FxFlash') return <Flash at={14}><Speaker /></Flash>;
+  if (code === 'FxFreeze') return <FreezeAt at={30} text="вот этот момент" theme={LIGHT}><Shake at={0} power={0.4}><Speaker /></Shake></FreezeAt>;
   if (code === 'FxPunch') return <Punch at={[14, 44, 74]}><Speaker /></Punch>;
   if (code === 'FxShake') return <Shake at={12}><AbsoluteFill><Backdrop t={LIGHT} /><Card /></AbsoluteFill></Shake>;
   if (code === 'Progress') return <AbsoluteFill><Speaker /><ProgressBar total={90} theme={LIGHT} /></AbsoluteFill>;
