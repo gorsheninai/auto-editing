@@ -11,7 +11,6 @@ import {InkUnderline} from '../remocn/ink-underline';
 import {ScribbleCircle} from '../remocn/scribble-circle';
 import {InkArrow} from '../remocn/ink-arrow';
 import {PaperSticker} from '../remocn/paper-sticker';
-import {ShaderGrainGradient} from '../remocn/shader-grain-gradient';
 import {Confetti} from '../remocn/confetti';
 import {whipPan} from '../remocn/whip-pan';
 import {zoomBlur} from '../remocn/zoom-blur';
@@ -63,13 +62,15 @@ const GlitchPresentation: React.FC<TransitionPresentationComponentProps<GlitchPr
   const show = dir === 'exiting' ? p < 0.5 : p >= 0.5;
   if (!show) return null;
   const amp = Math.sin(p * Math.PI);  // сильнее всего в середине
-  const bands = 7;
+  const dx = (random(`gx${f}`) - 0.5) * 70 * amp;
+  // сцена рисуется ОДИН раз (копии с видео и фоном рендерились слишком долго); разлом — цветные полосы поверх
   return <AbsoluteFill>
-    {Array.from({length: bands}, (_, i) => {
-      const dx = (random(`g${i}-${f}`) - 0.5) * 160 * amp; const top = (i / bands) * 100, bot = 100 - ((i + 1) / bands) * 100;
-      return <AbsoluteFill key={i} style={{clipPath: `inset(${top}% 0 ${bot}% 0)`, translate: `${dx}px 0`, filter: amp > 0.4 && i % 2 ? `brightness(${1 + 0.35 * amp}) saturate(1.4)` : undefined}}>{children}</AbsoluteFill>;
+    <AbsoluteFill style={{translate: `${dx}px 0`, filter: `contrast(${1 + 0.3 * amp}) saturate(${1 + 0.6 * amp})`}}>{children}</AbsoluteFill>
+    {Array.from({length: 7}, (_, i) => {
+      const y = random(`gy${i}-${f}`) * 100, h = 1.5 + random(`gh${i}-${f}`) * 7, x = (random(`gs${i}-${f}`) - 0.5) * 240 * amp;
+      const c = ['rgba(255,0,90,.55)', 'rgba(0,220,255,.55)', 'rgba(255,255,255,.7)', 'rgba(0,0,0,.6)'][i % 4];
+      return random(`gv${i}-${f}`) < 0.25 + amp * 0.6 ? <div key={i} style={{position: 'absolute', left: x, right: -x, top: `${y}%`, height: `${h}%`, background: c, mixBlendMode: i % 4 === 3 ? 'multiply' : 'screen'}} /> : null;
     })}
-    <AbsoluteFill style={{background: `linear-gradient(90deg, rgba(255,0,90,${0.25 * amp}), transparent 30%, transparent 70%, rgba(0,220,255,${0.25 * amp}))`, mixBlendMode: 'screen'}} />
   </AbsoluteFill>;
 };
 const glitch = (): TransitionPresentation<GlitchProps> => ({component: GlitchPresentation, props: {}});
@@ -100,10 +101,19 @@ export const OVERLAYS: Record<string, {name: string; summary: string}> = {
 };
 
 /* ---------- Фон и эффекты ---------- */
-/* BgGrain — живой зернистый градиент вместо подложки с точками (settings.backdrop = 'BgGrain') */
-export const BgGrain: React.FC<{theme: Theme}> = ({theme}) => <AbsoluteFill>
-  <ShaderGrainGradient colors={theme.dark ? ['#7B61FF', '#FF6A2B', '#1C1F27'] : ['#B9AAFF', '#FFB48A', '#FFE3A3']} colorBack={theme.bg} softness={0.7} intensity={0.35} noise={0.25} shape="wave" speed={0.6} style={{width: '100%', height: '100%'}} />
-</AbsoluteFill>;
+/* BgGrain — живой фон: мягкие цветные пятна медленно плывут, сверху плёночное зерно (settings.backdrop = 'BgGrain').
+   Без WebGL: шейдер remocn под размытием переходов рендерился по 20 с на кадр. */
+const GRAIN = `url("data:image/svg+xml;utf8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/><feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.55 0"/></filter><rect width="100%" height="100%" filter="url(#n)"/></svg>')}")`;
+export const BgGrain: React.FC<{theme: Theme}> = ({theme}) => {
+  const f = useCurrentFrame(); const t = f / 30;
+  const blobs = theme.dark ? ['#7B61FF', '#FF6A2B', '#2F9BEA'] : ['#B9AAFF', '#FFB48A', '#FFE3A3'];
+  const pos = [[0.25, 0.22, 0.9], [0.78, 0.55, 0.8], [0.35, 0.86, 1]].map(([x, y, k], i) => [x + Math.sin(t * 0.35 + i * 2) * 0.12, y + Math.cos(t * 0.28 + i * 1.7) * 0.08, k]);
+  return <AbsoluteFill style={{background: theme.bg, overflow: 'hidden'}}>
+    {pos.map(([x, y, k], i) => <div key={i} style={{position: 'absolute', left: `${x * 100}%`, top: `${y * 100}%`, width: 1300 * k, height: 1300 * k, translate: '-50% -50%', borderRadius: '50%',
+      background: `radial-gradient(circle, ${blobs[i]} 0%, ${blobs[i]}00 68%)`, opacity: theme.dark ? 0.55 : 0.85}} />)}
+    <AbsoluteFill style={{backgroundImage: GRAIN, opacity: theme.dark ? 0.35 : 0.22, mixBlendMode: 'multiply', backgroundPosition: `${(f * 37) % 240}px ${(f * 53) % 240}px`}} />
+  </AbsoluteFill>;
+};
 /* FxVhs — сцена как с видеокассеты: дрожание строк, цветной сдвиг, полосы, шум (row.fx = 'FxVhs') */
 export const FxVhs: React.FC<{children: React.ReactNode}> = ({children}) => {
   const f = useCurrentFrame(); const jx = (random(`j${f}`) - 0.5) * 6; const band = (f * 23) % 2100 - 100;
