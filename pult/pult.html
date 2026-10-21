@@ -163,6 +163,10 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 details > summary{list-style-position:inside}
 .manual{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:12px}
 .chipbtn{border:1px solid var(--line);background:var(--surface);padding:5px 12px;border-radius:999px;cursor:pointer;font-size:13.5px}
+.quick{border:1.5px solid var(--ink);border-radius:14px;padding:14px 16px;margin:12px 0 4px;display:grid;gap:10px}
+.quick ol{margin:0;padding-left:20px;color:var(--muted);font-size:13.5px;line-height:1.55}
+.blkgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:4px 14px;margin:6px 0 12px}
+.blkgrid label{display:flex;gap:7px;align-items:center;font-size:13.5px;cursor:pointer}
 .chipbtn[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
 .sbt{border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .sbr{display:grid;grid-template-columns:64px minmax(0,1fr) minmax(0,1.1fr);gap:12px;padding:10px 12px;border-bottom:1px solid var(--line);border-left:4px solid var(--line);align-items:start}
@@ -343,11 +347,29 @@ function renderReels(){
   });
 }
 function blankReel(tplId){
-  const t = tplOf(tplId);
-  return {title:'', ctaOn:false, ctaText:'', win:'popout', mediaList:'',
+  const t = tplOf(tplId), r = t?.rules || {};
+  const base = {title:'', ctaOn:false, ctaText:'', win:'popout', mediaList:'',
     templateId: t?t.id:'', presetId: t&&t.presetId ? t.presetId : (S.presets[0]?.id||''), custom:{a:10,b:60,c:30},
     bg: t?.bg || 'светлая', punch:true, progress:false, n3d:'2–3', nMotion:'2–3', ownMedia:'', speed:1.2, subWords:2, subColor:'по подложке',
     sound: t?.sound || SOUND[0], drive:'', script:'', status:'draft'};
+  if(!t) return base;
+  return {...base, quick:true, mode:'auto', win:r.win||base.win, subAnim:r.subAnim||'static', titleAnim:r.titleAnim||'static',
+    punch: r.punch ?? base.punch, progress: r.progress ?? base.progress, bg: r.bg || base.bg,
+    ...(r.target ? {target:{...r.target}, useTarget:true} : {}),
+    styleAnalysis: tplStyle(t), mediaList: r.assetsList || ''};
+}
+/* стиль шаблона → поле «Стиль ролика»: свой текст правил или сборка из полей карточки */
+function tplStyle(t){
+  const r=t.rules||{};
+  if(r.style?.trim()) return r.style.trim();
+  return [`Шаблон «${t.name}».`, t.aesthetic&&`Эстетика: ${t.aesthetic}`, t.palette?.length&&`Палитра: ${t.palette.join(', ')}`,
+    t.fonts&&`Шрифты: ${t.fonts}`, t.motion&&`Движение и переходы: ${t.motion}`, t.bg&&`Подложка: ${t.bg}`].filter(Boolean).join('\n');
+}
+function tplAllowed(t){
+  if(!t) return null;
+  if(t.rules) return t.rules.allowed?.length ? t.rules.allowed : null;
+  const have=new Set(S.blocks.map(b=>b.code||b.id)), l=(t.blocks||[]).filter(c=>have.has(c));
+  return l.length ? l : null;
 }
 function titleFrom(script){
   const t=(script||'').trim().split(/(?<=[.!?…])\s/)[0].replace(/\s+/g,' ');
@@ -357,7 +379,8 @@ function titleFrom(script){
 async function createReel(tplId){
   if(!db||!canWrite) return;
   const now=new Date().toISOString(), ref=db.collection('projects').doc();
-  const body={...blankReel(tplId), title:titleFrom(''), refs:[], createdAt:now, updatedAt:now};
+  const t=tplOf(tplId);
+  const body={...blankReel(tplId), title: t ? `${t.name} · ${new Date().toLocaleDateString('ru-RU')}` : titleFrom(''), refs:[], createdAt:now, updatedAt:now};
   if(await write(()=>ref.set(body),'Ролик создан')) openReel({...body, id:ref.id});
 }
 function openReel(p){
@@ -369,6 +392,7 @@ function openReel(p){
   E.innerHTML = `<form class="panel" id="reelForm" novalidate>
     <h3>${esc(p.title||'Новый ролик')}</h3>
     <nav class="steps" id="r-steps" aria-label="Шаги ролика"></nav>
+    ${quickPanel(p, ro)}
 
     <section class="step" id="r-sec-1"><h4>1 · Стиль</h4>
       <div class="refs" id="r-refs"></div>
@@ -505,6 +529,9 @@ function openReel(p){
     const text = [
       `Новый ролик, подключи auto-editing.`,
       `Проект на пульте: «${d.title}» (id: ${p.id}). Текст, стиль, раскадровку и материалы бери оттуда.`,
+      ...(tplOf(p.templateId) ? (t=>[`Монтаж по шаблону «${t.name}» (templates/${t.id}), режим: ${p.mode==='own'?'свои настройки':'авто'}.`,
+        tplAllowed(t) ? `Блоки — только разрешённые шаблоном: ${tplAllowed(t).join(', ')}.` : '',
+        t.rules?.assets ? `Базовые ассеты шаблона на Диске: ${t.rules.assets} — скачать в public/media/ вместе с картинками ролика.` : ''])(tplOf(p.templateId)) : []),
       ``,
       sh?`Раскадровка: ${curRows.length} сегментов, A ${sh.a}% / B ${sh.b}% / C ${sh.c}%. ${cnt}`:'Раскадровки ещё нет.',
       `Окно спикера по умолчанию: ${winName(d.win)}. Подложка: ${d.bg}. Звук: ${d.sound}.`,
@@ -522,7 +549,8 @@ function openReel(p){
     const hasModes = curRows.length && curRows.every(r=>r.mode);
     const need2d = curRows.some(r=>r.kind==='l2d'||r.kind==='gen');
     const st=[['Стиль',!!d.style],['Текст',!!d.script],['Картинки',!!d.gpt],['Материалы',!!(p.timing||curWordsLen())],['Настройки',true],['Раскадровка',!!hasModes],['Монтаж',$('#r-status').value==='done']];
-    $('#r-steps').innerHTML = st.map(([n,ok],i)=>`<a href="#r-sec-${i+1}" class="stepchip${ok?' ok':''}" data-sec="${i+1}"><span class="code">${ok?'✓':i+1}</span>${esc(n)}</a>`).join('');
+    const order=[...document.querySelectorAll('#reelForm section.step')].filter(x=>!x.hidden).map(x=>+x.id.slice(6));
+    $('#r-steps').innerHTML = order.map((sec,j)=>{ const [n,ok]=st[sec-1]; return `<a href="#r-sec-${sec}" class="stepchip${ok?' ok':''}" data-sec="${sec}"><span class="code">${ok?'✓':j+1}</span>${esc(n)}</a>`; }).join('');
     $('#r-steps').querySelectorAll('a').forEach(a=>a.onclick=e=>{ e.preventDefault(); $('#r-sec-'+a.dataset.sec).scrollIntoView({behavior:'smooth',block:'start'}); });
   }
   function renderSummary(){
@@ -728,10 +756,10 @@ function wireTiming(p){
   }
   renderSb();
 
-  $('#r-send').onclick = async ()=>{
+  async function sendMaterials(){
     const script=$('#r-script').value.trim(); const drive=$('#r-drive').value.trim();
-    if(!script){ toast('Сначала вставь текст ролика'); $('#r-script').focus(); return; }
-    if(!avFile && !curAvatar){ toast('Выбери видео аватара'); return; }
+    if(!script){ toast('Сначала вставь текст ролика'); $('#r-script').focus(); return false; }
+    if(!avFile && !curAvatar){ toast('Выбери видео аватара'); return false; }
     const btn=$('#r-send'); btn.disabled=true;
     try{
       let buf;
@@ -740,7 +768,7 @@ function wireTiming(p){
         else curAvatar={id:null, name:avFile.name, size:avFile.size};
         buf=await avFile.arrayBuffer();
       } else {
-        if(!curAvatar.id){ toast('Выбери видео заново: прошлое не сохранено на пульте'); return; }
+        if(!curAvatar.id){ toast('Выбери видео заново: прошлое не сохранено на пульте'); return false; }
         note.textContent='Беру видео с пульта…'; buf=await (await fetch(blob(curAvatar.id))).arrayBuffer();
       }
       note.textContent='Считаю паузы и хронометраж…';
@@ -753,9 +781,12 @@ function wireTiming(p){
       p.timing=timing; avFile=null; showAv(); showTiming(timing); renderSb();
       const ok = await write(()=>docRef.update({avatar:curAvatar, drive, mediaList:$('#r-media').value, timing, words:curWords, segs, script, title:titleFrom(script), sbRows:curRows, storyboard:rowsText(curRows), status:'story', updatedAt:new Date().toISOString()}));
       note.textContent = ok ? 'Материалы сохранены, хронометраж готов. Дальше — настройки и раскадровка.' : 'Хронометраж посчитан, но не сохранился.';
-    }catch(e){ note.textContent='Не получилось прочитать звук из видео. Лучше mp4 (H.264 + AAC).'; }
+      sentScript = script; return true;
+    }catch(e){ note.textContent='Не получилось прочитать звук из видео. Лучше mp4 (H.264 + AAC).'; return false; }
     finally{ btn.disabled=false; }
-  };
+  }
+  let sentScript = curWords.length ? (p.script||'').trim() : null;
+  $('#r-send').onclick = ()=>sendMaterials();
 
   /* подгонка: 1) режимы — сдвиг границ по словам, затем смена режима сегмента; 2) типы внутри B и C */
   function fitShares(){
@@ -814,7 +845,8 @@ function wireTiming(p){
       if(tg.a+tg.b+tg.c!==100){ toast('Режимы должны давать 100%'); return; }
       for(const m of ['B','C']) if(Object.values(sb[m]).reduce((x,y)=>x+y,0)!==100){ toast(`Доли внутри ${m} должны давать 100%`); return; }
     }
-    const btns=['#r-sbGo','#r-sbSend'].map(x=>$(x)), stop=$('#r-sbStop'), n=$('#r-sbNote');
+    const btns=['#r-sbGo','#r-sbSend','#r-quickGo'].map(x=>$(x)).filter(Boolean), stop=$('#r-sbStop'), n=$('#r-sbNote');
+    const tpl=tplOf(p.templateId), allow=tplAllowed(tpl), lib=allow ? S.blocks.filter(b=>allow.includes(b.code||b.id)) : S.blocks;
     btns.forEach(b=>b.disabled=true); stop.hidden=false; n.textContent='Claude подбирает сцены по тексту и хронометражу… обычно до минуты.';
     const d=collect(), files=mediaFiles();
     const kindsTxt = m => SEG_KINDS[m].map(([k,l])=>`${k} — ${l} ${sb[m][k]}%`).join(', ');
@@ -826,10 +858,11 @@ function wireTiming(p){
       .replace('{WIN}', winName(d.win))
       .replace('{PLAN}', (planText(p.assetPlan)||'картинки ещё не заказаны — ставь l2d и gen по смыслу, их закажут после').slice(0,6000))
       .replace('{MEDIA}', files.length ? files.map(f=>`${f.name} — ${f.desc||'без описания'}`).join('\n') : 'нет — тип media не используй')
-      .replace('{BLOCKS}', S.blocks.map(b=>`${b.code||b.id} (${kindName(b.kind)}) — ${b.name}. Для: ${b.fits||''}${b.params?`. Данные: ${b.params}`:''}`).join('\n'))
+      .replace('{BLOCKS}', (allow?`Монтаж по шаблону «${tpl.name}»: бери блоки ТОЛЬКО из этого списка.\n`:'')+lib.map(b=>`${b.code||b.id} (${kindName(b.kind)}) — ${b.name}. Для: ${b.fits||''}${b.params?`. Данные: ${b.params}`:''}`).join('\n'))
       .replace('{STYLE}', (d.styleAnalysis||'стиль ещё не создан').slice(0,3000))
       .replace('{NW}', curWords.length).replace('{DUR}', (curWords.at(-1)?.e||0).toFixed(1))
       .replace('{WORDS}', curWords.map((w,i)=>`${i}:${w.w}@${w.s.toFixed(1)}`).join(' '));
+    let done=false;
     try{
       ctl=new AbortController();
       const res = await sample.json(prompt, {signal:ctl.signal, cache:false});
@@ -849,11 +882,14 @@ function wireTiming(p){
       if(withTarget) fitShares();
       renderSb();
       const ok=await write(()=>docRef.update({sbRows:curRows, storyboard:rowsText(curRows), target:tg, sub:sb, useTarget, updatedAt:new Date().toISOString()}));
+      done=true;
       n.textContent = ok ? 'Готово. Меняй режим, тип, окно и визуал в таблице и нажми «Сохранить».' : 'Раскадровка готова, но не сохранилась.';
     }catch(e){ n.textContent = e&&e.code==='cancelled' ? 'Остановлено.' : e&&e.code==='invalid_json' ? 'Claude ответил не в том формате. Нажми ещё раз.' : sampleErr(e); }
     finally{ btns.forEach(b=>b.disabled=false); stop.hidden=true; }
+    return done;
   }
   $('#r-sbGo').onclick = ()=>propose(false);
+  wireQuick(p, {sendMaterials, propose, needSend:()=>!curWords.length || sentScript!==$('#r-script').value.trim() || !!avFile});
   $('#r-sbSend').onclick = ()=>propose(true);
   $('#r-media').addEventListener('change', ()=>renderSb());
   document.querySelectorAll('input[name="r-win"]').forEach(x=>x.addEventListener('change', ()=>{ reelHooks.renderSummary(); }));
@@ -1275,6 +1311,107 @@ function collect(){
 }
 $('#newReel').addEventListener('click', ()=>createReel());
 
+
+/* ---------- МОНТАЖ ПО ШАБЛОНУ ---------- */
+function quickPanel(p, ro){
+  const t=tplOf(p.templateId); if(!p.quick || !t) return '';
+  const m=p.mode==='own'?'own':'auto';
+  return `<div class="quick" id="r-quick">
+    <div class="row" style="justify-content:space-between;gap:10px"><b>Монтаж по шаблону «${esc(t.name)}»</b>
+      <div class="row" role="group" aria-label="Режим" style="gap:6px">
+        <button type="button" class="chipbtn" data-qmode="auto" aria-pressed="${m==='auto'}">Авто</button>
+        <button type="button" class="chipbtn" data-qmode="own" aria-pressed="${m==='own'}">Свои настройки</button></div></div>
+    <ol>
+      <li>Вставь текст ролика и выбери видео аватара в «Материалах».</li>
+      <li>Нажми «Собрать раскадровку»: пульт посчитает паузы и подберёт сцены по правилам шаблона${tplAllowed(t)?` (блоков в шаблоне: ${tplAllowed(t).length})`:''}.</li>
+      <li>Проверь таблицу раскадровки и поправь, что не нравится.</li>
+      <li>«Составить промпт» в «Картинках» → вставь его в ChatGPT.</li>
+      <li>«Скопировать задание для чата» → в чате соберётся готовый ролик.</li>
+    </ol>
+    <div class="row"><button class="btn primary" type="button" id="r-quickGo"${ro}>Собрать раскадровку</button><span class="hint" id="r-quickNote">${m==='auto'?'Авто: стиль, окно, субтитры и доли берутся из шаблона.':'Свои настройки: стиль и настройки открыты, их можно поменять.'}</span></div>
+  </div>`;
+}
+function wireQuick(p, api){
+  const box=$('#r-quick'); if(!box) return;
+  const t=tplOf(p.templateId), docRef=db.collection('projects').doc(p.id), note=$('#r-quickNote');
+  $('#r-sec-6').after($('#r-sec-3'));
+  const apply=()=>{
+    const auto=p.mode!=='own';
+    $('#r-sec-1').hidden=auto; $('#r-sec-5').hidden=auto;
+    box.querySelectorAll('[data-qmode]').forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.qmode===(auto?'auto':'own'))));
+    let i=0; document.querySelectorAll('#reelForm section.step').forEach(sec=>{ if(sec.hidden) return; const h=sec.querySelector('h4'); h.textContent=`${++i} · ${h.textContent.replace(/^\d+\s·\s/,'')}`; });
+    reelHooks.updateSteps();
+  };
+  box.querySelectorAll('[data-qmode]').forEach(b=>b.onclick=async ()=>{
+    p.mode=b.dataset.qmode; apply();
+    note.textContent = p.mode==='auto' ? 'Авто: стиль, окно, субтитры и доли берутся из шаблона.' : 'Свои настройки: шаги «Стиль» и «Настройки» открыты.';
+    if(canWrite) await write(()=>docRef.update({mode:p.mode, updatedAt:new Date().toISOString()}));
+  });
+  apply();
+  $('#r-quickGo').onclick = async ()=>{
+    if(!$('#r-script').value.trim()){ toast('Сначала вставь текст ролика'); $('#r-script').focus(); return; }
+    const go=$('#r-quickGo'); go.disabled=true;
+    try{
+      if(api.needSend()){ note.textContent='Шаг 1 из 2: считаю паузы и хронометраж…'; if(!await api.sendMaterials()){ note.textContent='Не хватает материалов: проверь текст и видео в «Материалах».'; return; } }
+      note.textContent='Шаг 2 из 2: Claude подбирает сцены по правилам шаблона… обычно до минуты.';
+      const withTarget = !!t?.rules?.target || (p.mode==='own' && !$('#r-manual').hidden);
+      const ok = await api.propose(withTarget);
+      if(ok){ note.textContent='Раскадровка готова — проверь таблицу ниже, затем «Составить промпт» для картинок.'; $('#r-sec-6').scrollIntoView({behavior:'smooth',block:'start'}); }
+      else note.textContent='Раскадровка не собралась — подробности в шаге «Раскадровка». Нажми ещё раз.';
+    } finally{ go.disabled=false; }
+  };
+}
+function openTplRules(t){
+  if(!t) return;
+  const E=$('#tplEditor'); E.hidden=false;
+  const r=t.rules||{}, allow=new Set(tplAllowed(t)||S.blocks.map(b=>b.code||b.id));
+  const kinds=KINDS.filter(([k])=>k!=='all' && S.blocks.some(b=>b.kind===k));
+  const anim=role=>animOptions(role,'').filter(x=>x[0]!=='__auto');
+  const tg=r.target||{a:10,b:60,c:30};
+  E.innerHTML=`<form class="panel" id="tplRules" novalidate><h3>Правила шаблона «${esc(t.name)}»</h3>
+    <p>По этим правилам «Создать монтаж» собирает раскадровку сам: стиль, окно спикера, субтитры, доли кадра и какие блоки библиотеки можно брать.</p>
+    <div class="fields">
+      <div class="f wide"><label for="tr-style">Стиль монтажа</label><textarea id="tr-style" style="min-height:180px">${esc(r.style||tplStyle(t))}</textarea><span class="hint">Уходит в поле «Стиль ролика»: по нему Claude подбирает сцены и пишет промпт для картинок.</span></div>
+      <div class="f"><label for="tr-win">Окно спикера</label><select id="tr-win">${opts(WINS.map(w=>[w[0],w[1]]), r.win||'popout')}</select></div>
+      <div class="f"><label for="tr-bg">Подложка</label><select id="tr-bg">${opts(['светлая','тёмная','светлая, живой градиент','тёмная, живой градиент'], r.bg||t.bg||'светлая')}</select></div>
+      <div class="f"><label for="tr-sub">Анимация субтитров</label><select id="tr-sub">${opts(anim('subtitle'), r.subAnim||'static')}</select></div>
+      <div class="f"><label for="tr-title">Анимация заголовков</label><select id="tr-title">${opts(anim('title'), r.titleAnim||'static')}</select></div>
+      <div class="f wide"><label class="row" style="gap:8px;cursor:pointer"><input type="checkbox" id="tr-tgOn"${r.target?' checked':''}> Задать доли кадра</label>
+        <div class="trio" id="tr-tg"${r.target?'':' hidden'}>
+          <label class="f"><span class="hint">A · спикер, %</span><input type="number" id="tr-a" min="0" max="100" value="${tg.a}"></label>
+          <label class="f"><span class="hint">B · сцена + окно, %</span><input type="number" id="tr-b" min="0" max="100" value="${tg.b}"></label>
+          <label class="f"><span class="hint">C · на весь экран, %</span><input type="number" id="tr-c" min="0" max="100" value="${tg.c}"></label></div>
+        <span class="hint">Выключено — Claude выбирает доли сам по смыслу текста.</span></div>
+      <div class="f"><label class="row" style="gap:8px;cursor:pointer"><input type="checkbox" id="tr-punch"${(r.punch??true)?' checked':''}> Наезды камеры</label></div>
+      <div class="f"><label class="row" style="gap:8px;cursor:pointer"><input type="checkbox" id="tr-prog"${r.progress?' checked':''}> Полоса прогресса</label></div>
+      <div class="f wide"><label for="tr-assets">Базовые ассеты шаблона на Диске</label><input type="url" id="tr-assets" value="${esc(r.assets||'')}" placeholder="https://drive.google.com/drive/folders/…"><span class="hint">Фоны, стикеры, текстуры, звуки этого стиля — общие для всех роликов по шаблону.</span></div>
+      <div class="f wide"><label for="tr-alist">Что лежит в папке ассетов</label><textarea id="tr-alist" style="min-height:80px" placeholder="По строке на файл: имя — о чём&#10;paper_bg.png — бумажный фон">${esc(r.assetsList||'')}</textarea><span class="hint">Попадёт в «Мои вставки» нового ролика — Claude сможет ставить эти файлы в сцены.</span></div>
+    </div>
+    <h4 style="margin:16px 0 4px">Блоки, которые можно брать</h4>
+    <div class="row" style="gap:6px"><button type="button" class="chipbtn" id="tr-all">Все</button><button type="button" class="chipbtn" id="tr-none">Ничего</button><span class="hint" id="tr-cnt"></span></div>
+    ${kinds.map(([k,l])=>`<p style="margin:12px 0 0;font-weight:600">${esc(l)}</p><div class="blkgrid">${S.blocks.filter(b=>b.kind===k).map(b=>{ const c=b.code||b.id; return `<label><input type="checkbox" data-blk="${esc(c)}"${allow.has(c)?' checked':''}><span class="code">${esc(c)}</span> ${esc(b.name)}</label>`; }).join('')}</div>`).join('')}
+    <div class="row" style="margin-top:14px"><button class="btn primary" type="submit">Сохранить правила</button><button class="btn ghost" type="button" id="tr-close">Закрыть</button></div></form>`;
+  const F=$('#tplRules'), boxes=()=>[...F.querySelectorAll('[data-blk]')];
+  const cnt=()=>{ $('#tr-cnt').textContent=`Выбрано ${boxes().filter(x=>x.checked).length} из ${boxes().length}`; };
+  F.addEventListener('change', cnt); cnt();
+  $('#tr-all').onclick=()=>{ boxes().forEach(x=>x.checked=true); cnt(); };
+  $('#tr-none').onclick=()=>{ boxes().forEach(x=>x.checked=false); cnt(); };
+  $('#tr-tgOn').onchange=e=>{ $('#tr-tg').hidden=!e.target.checked; };
+  $('#tr-close').onclick=()=>{ E.hidden=true; E.innerHTML=''; };
+  E.scrollIntoView({behavior:'smooth',block:'start'});
+  F.addEventListener('submit', async e=>{
+    e.preventDefault();
+    const n=id=>Math.max(0,Math.round(+$(id).value||0));
+    const target=$('#tr-tgOn').checked ? {a:n('#tr-a'), b:n('#tr-b'), c:n('#tr-c')} : null;
+    if(target && target.a+target.b+target.c!==100){ toast('Доли должны давать 100%'); return; }
+    const on=boxes().filter(x=>x.checked).map(x=>x.dataset.blk);
+    if(!on.length){ toast('Выбери хотя бы один блок'); return; }
+    const rules={style:$('#tr-style').value.trim(), win:$('#tr-win').value, bg:$('#tr-bg').value, subAnim:$('#tr-sub').value, titleAnim:$('#tr-title').value,
+      target, punch:$('#tr-punch').checked, progress:$('#tr-prog').checked, assets:$('#tr-assets').value.trim(), assetsList:$('#tr-alist').value,
+      allowed: on.length===boxes().length ? [] : on};
+    if(await write(()=>db.collection('templates').doc(t.id).update({rules, bg:rules.bg, updatedAt:new Date().toISOString()}),'Правила сохранены')){ E.hidden=true; E.innerHTML=''; }
+  });
+}
 /* ---------- ШАБЛОНЫ ---------- */
 function renderTemplates(){
   $('#newTpl').hidden = !canEdit;
@@ -1295,14 +1432,17 @@ function renderTemplates(){
           <dt>Движение</dt><dd>${esc(t.motion||'—')}</dd>
           <dt>Звук</dt><dd>${esc(t.sound||'—')}</dd>
         </dl>
-        ${t.blocks?.length?`<div class="meta">${t.blocks.map(b=>`<span class="chip code">${esc(b)}</span>`).join('')}</div>`:''}
+        ${tplAllowed(t)?`<div class="meta">${tplAllowed(t).slice(0,12).map(b=>`<span class="chip code">${esc(b)}</span>`).join('')}${tplAllowed(t).length>12?`<span class="chip">ещё ${tplAllowed(t).length-12}</span>`:''}</div>`:''}
+        <p class="hint" style="margin:8px 0 0">${t.rules ? `Правила: ${[t.rules.target?`доли ${t.rules.target.a}/${t.rules.target.b}/${t.rules.target.c}`:'доли по смыслу', winName(t.rules.win||'popout').toLowerCase(), tplAllowed(t)?`${tplAllowed(t).length} блоков`:'все блоки', t.rules.assets?'ассеты на Диске':''].filter(Boolean).join(' · ')}` : 'Правила не настроены — возьмутся поля карточки и вся библиотека.'}</p>
         <div class="actions">
-          <button class="btn primary" data-use="${esc(t.id)}"${canWrite&&db?'':' disabled'}>Ролик по шаблону</button>
+          <button class="btn primary" data-use="${esc(t.id)}"${canWrite&&db?'':' disabled'}>Создать монтаж</button>
+          ${canEdit?`<button class="btn" type="button" data-tplcfg="${esc(t.id)}">Настроить</button>`:''}
           ${canEdit?`<label class="btn ghost" style="cursor:pointer">Превью<input type="file" accept="image/*,video/mp4,video/webm" data-tplprev="${esc(t.id)}" hidden></label>`:''}
         </div>
       </div></article>`; }).join('')}</div>`;
   wireVideos(L);
   L.querySelectorAll('[data-use]').forEach(b=>b.addEventListener('click',()=>{ show('reels'); createReel(b.dataset.use); }));
+  L.querySelectorAll('[data-tplcfg]').forEach(b=>b.addEventListener('click',()=>openTplRules(tplOf(b.dataset.tplcfg))));
   L.querySelectorAll('[data-tplprev]').forEach(inp=>inp.addEventListener('change', async ()=>{
     const f=inp.files[0]; if(!f) return; toast('Загружаю…'); const r=await upload(f); if(!r) return;
     await write(()=>db.collection('templates').doc(inp.dataset.tplprev).update({previewId:r.id, previewKind:r.kind, posterId:null}),'Превью обновлено');
