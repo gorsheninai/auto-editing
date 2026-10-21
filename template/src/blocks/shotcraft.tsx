@@ -72,23 +72,6 @@ export const ScanFocus: React.FC<{ov: Ov; theme: Theme}> = ({ov, theme}) => {
 
 /* ================= Сцены ================= */
 
-/* MSlam — слово влетает с огромного масштаба и бьётся о экран: кольца удара, линии, тряска */
-export const MSlam: React.FC<BlockProps> = (p) => {
-  const f = useCurrentFrame(); const T = p.theme; const text = words(p, 'стоп');
-  const hit = 8; const s = interpolate(f, [0, hit], [4.5, 1], {...clamp, easing: Easing.in(Easing.cubic)});
-  const after = f - hit; const shake = after >= 0 ? Math.max(0, 1 - after / 12) : 0;
-  const dx = (random(`x${f}`) - 0.5) * 50 * shake, dy = (random(`y${f}`) - 0.5) * 36 * shake;
-  const fs = Math.min(p.full ? 230 : 190, 1900 / Math.max(3, text.length));
-  const cy = p.zoneH / 2;
-  return <AbsoluteFill style={{height: p.zoneH, overflow: 'hidden', translate: `${dx}px ${dy}px`}}>
-    {after >= 0 ? [0, 1, 2].map((i) => { const t = (after - i * 3) / 18; if (t < 0 || t > 1) return null;
-      return <div key={i} style={{position: 'absolute', left: 540, top: cy, width: 200 + t * 1300, height: 200 + t * 1300, translate: '-50% -50%', borderRadius: '50%', border: `${16 * (1 - t)}px solid ${i % 2 ? T.accent : T.accent2}`, opacity: 1 - t}} />; }) : null}
-    {after >= 0 && after < 10 ? Array.from({length: 16}, (_, i) => { const a = (i / 16) * Math.PI * 2; const r0 = 260 + after * 40; return <div key={i} style={{position: 'absolute', left: 540 + Math.cos(a) * r0, top: cy + Math.sin(a) * r0 * 0.8, width: 90, height: 10, borderRadius: 5, background: T.ink, rotate: `${a}rad`, opacity: 1 - after / 10}} />; }) : null}
-    <AbsoluteFill style={{height: p.zoneH, display: 'grid', placeItems: 'center'}}>
-      <div style={{fontFamily: SANS, fontWeight: 900, fontSize: fs, letterSpacing: -6, color: T.ink, scale: String(s), opacity: f < 1 ? 0 : 1, textTransform: 'uppercase', textShadow: after >= 0 && after < 4 ? `8px 0 ${T.accent2}, -8px 0 ${T.accent}` : 'none', textAlign: 'center', lineHeight: 0.95, padding: '0 50px'}}>{text}</div>
-    </AbsoluteFill>
-  </AbsoluteFill>;
-};
 
 /* MCounter — большое число считается вверх, на финише залп конфетти. «MCounter: подписчиков — 10 000» */
 export const MCounter: React.FC<BlockProps> = (p) => {

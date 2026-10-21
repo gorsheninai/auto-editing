@@ -2,10 +2,7 @@ import React from 'react';
 import {AbsoluteFill, interpolate, random, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
 import {BlockProps, HAND, SANS, SERIF, beats, clamp, pop, ramp} from './kit';
 import {CheckList} from '../remocn/check-list';
-import {TrimBurst} from '../remocn/trim-burst';
 import {SpeedLines} from '../remocn/speed-lines';
-import {GooeyMorph} from '../remocn/gooey-morph';
-import {BauhausBuild} from '../remocn/bauhaus-build';
 import {Reel} from '../remocn/reel';
 
 /* Блоки remocn рисуют на весь кадр 1080×1920. В режиме B зона сцены ниже (zoneH),
@@ -86,43 +83,7 @@ export const MFlow: React.FC<BlockProps> = (p) => {
   </AbsoluteFill>;
 };
 
-/* MInk — чернильная клякса растекается рваным краем и открывает слово */
-export const MInk: React.FC<BlockProps> = (p) => {
-  const f = useCurrentFrame(); const T = p.theme;
-  const text = wordOf(p, 'идея');
-  const g = interpolate(f, [4, 30], [0, 1], {...clamp, easing: (t) => 1 - Math.pow(1 - t, 4)});
-  const R = (p.full ? 620 : 500) * g; const cy = p.zoneH / 2;
-  const blobs = Array.from({length: 9}, (_, i) => ({a: i / 9 * Math.PI * 2 + random(`a${i}`), d: (0.35 + random(`d${i}`) * 0.4) * R, r: (0.25 + random(`s${i}`) * 0.25) * R}));
-  const drops = Array.from({length: 14}, (_, i) => ({a: random(`da${i}`) * Math.PI * 2, d: (0.75 + random(`dd${i}`) * 0.5) * R, r: 8 + random(`dr${i}`) * 26}));
-  const tk = ramp(f, 22, 36);
-  return <AbsoluteFill style={{height: p.zoneH, overflow: 'hidden'}}>
-    <svg width={1080} height={p.zoneH} style={{position: 'absolute', inset: 0}}>
-      <defs><filter id="ink"><feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves={3} seed={4} /><feDisplacementMap in="SourceGraphic" scale={70} /></filter></defs>
-      <g filter="url(#ink)" fill={T.accent}>
-        <circle cx={540} cy={cy} r={R * 0.55} />
-        {blobs.map((b, i) => <circle key={i} cx={540 + Math.cos(b.a) * b.d} cy={cy + Math.sin(b.a) * b.d} r={b.r} />)}
-        {drops.map((d, i) => <circle key={`d${i}`} cx={540 + Math.cos(d.a) * d.d} cy={cy + Math.sin(d.a) * d.d} r={d.r * g} />)}
-      </g>
-    </svg>
-    <AbsoluteFill style={{height: p.zoneH, display: 'grid', placeItems: 'center', opacity: tk, translate: `0 ${(1 - tk) * 40}px`}}>
-      <BigWord text={text} color="#fff" accent={T.dark ? T.ink : '#FFE7A8'} k={0.9 + 0.1 * tk} />
-    </AbsoluteFill>
-  </AbsoluteFill>;
-};
 
-/* MBurst — слово выпрыгивает, вокруг вспышка из штрихов (remocn trim-burst) */
-export const MBurst: React.FC<BlockProps> = (p) => {
-  const f = useCurrentFrame(); const {fps} = useVideoConfig(); const T = p.theme;
-  const text = wordOf(p, 'бесплатно');
-  const k = pop(f, fps, 4, 9);
-  return <AbsoluteFill style={{height: p.zoneH}}>
-    <Frame zoneH={p.zoneH}>
-      <TrimBurst x={0.5} y={0.5} count={14} innerRadius={120} reach={70} strokeLength={32} weight={4} color={T.accent2} delay={6} seed={3} />
-      <TrimBurst x={0.5} y={0.5} count={10} innerRadius={150} reach={50} strokeLength={18} weight={3} color={T.accent} delay={10} seed={8} rotation={18} dots />
-    </Frame>
-    <AbsoluteFill style={{height: p.zoneH, display: 'grid', placeItems: 'center'}}><BigWord text={text} color={T.ink} accent={T.accent} k={k} /></AbsoluteFill>
-  </AbsoluteFill>;
-};
 
 /* MSpeed — плашка со словом влетает с линиями скорости и тормозит с отскоком (remocn speed-lines) */
 export const MSpeed: React.FC<BlockProps> = (p) => {
@@ -136,29 +97,7 @@ export const MSpeed: React.FC<BlockProps> = (p) => {
   </AbsoluteFill>;
 };
 
-/* MGooey — полоски падают как в тетрисе и слипаются в слово (remocn gooey-morph). Лучше 1–2 коротких слова */
-export const MGooey: React.FC<BlockProps> = (p) => {
-  const T = p.theme; const word = wordOf(p, 'ХУК').toUpperCase().slice(0, 9);
-  const W = 1080, H = 1920, n = 4, bw = 150, bh = 128, gap = 18;
-  const x0 = W / 2 - (n * bw + (n - 1) * gap) / 2;
-  const rest: [number, number][] = Array.from({length: n}, (_, i) => [x0 + i * (bw + gap), H / 2 - bh / 2]);
-  const startP: [number, number][] = [[620, 1500], [120, 1560], [500, 300], [960, 360]];
-  const fs = Math.min(230, 900 / Math.max(3, word.length) * 1.55);
-  return <AbsoluteFill style={{height: p.zoneH}}>
-    <Frame zoneH={p.zoneH}>
-      <GooeyMorph width={W} height={H} barWidth={bw} barHeight={bh} barStartPositions={startP} barRestPositions={rest} word={word} fontFamily="InterTight" fontSize={fs} wordCenterX={W / 2} wordBaselineY={H / 2 + fs * 0.35} fill={T.accent} />
-    </Frame>
-  </AbsoluteFill>;
-};
 
-/* MBauhaus — круги, дуги и квадраты кувыркаются и собираются в композицию; сверху может стоять слово */
-export const MBauhaus: React.FC<BlockProps> = (p) => {
-  const f = useCurrentFrame(); const T = p.theme; const text = p.data.text || p.data.title;
-  return <AbsoluteFill style={{height: p.zoneH}}>
-    <Frame zoneH={p.zoneH}><BauhausBuild scale={p.full ? 1.15 : 0.95} seed={7} inkColor={T.ink} accentColor={T.accent2} secondaryColor={T.accent} tertiaryColor="#F2B53B" /></Frame>
-    {text ? <div style={{position: 'absolute', bottom: p.zoneH * 0.1, width: '100%', opacity: ramp(f, p.dur * 0.55, p.dur * 0.55 + 12)}}><BigWord text={text} color={T.ink} accent={T.accent} k={1} size={96} /></div> : null}
-  </AbsoluteFill>;
-};
 
 /* MGallery — картинки (pic_N, свои вставки) распускаются из центра одна за другой (remocn reel).
    «MGallery: pic_3 | pic_4 | pic_5» — файлы из public/media */

@@ -187,7 +187,8 @@ export const MVersus: React.FC<BlockProps> = (p) => {
   const colors = [T.accent, T.accent2];
   return <Zone full={p.full} h={p.zoneH} gap={30}>
     <Title text={p.data.title} color={T.ink} accent={T.accent} size={58} />
-    <div style={{display: 'flex', gap: 26, alignItems: 'flex-start'}}>
+    <div style={{display: 'flex', gap: 26, alignItems: 'flex-start', position: 'relative'}}>
+      <div style={{position: 'absolute', left: '50%', top: 60, translate: '-50% -50%', zIndex: 2, width: 110, height: 110, borderRadius: '50%', background: T.ink, color: T.bg, border: `6px solid ${T.bg}`, display: 'grid', placeItems: 'center', fontFamily: SERIF, fontStyle: 'italic', fontWeight: 700, fontSize: 52, lineHeight: 1, paddingBottom: 8, scale: String(pop(f, fps, 10, 9))}}>vs</div>
       {cols.map((c, ci) => {
         const hk = pop(f, fps, 4 + ci * 5, 13);
         return <div key={ci} style={{width: 420, display: 'flex', flexDirection: 'column', gap: 16}}>
@@ -198,6 +199,5 @@ export const MVersus: React.FC<BlockProps> = (p) => {
         </div>;
       })}
     </div>
-    <div style={{position: 'absolute', top: '50%', width: 110, height: 110, borderRadius: '50%', background: T.ink, color: T.bg, display: 'grid', placeItems: 'center', fontFamily: SERIF, fontStyle: 'italic', fontWeight: 700, fontSize: 52, scale: String(pop(f, fps, 10, 9)), marginTop: 40}}>vs</div>
   </Zone>;
 };
