@@ -31,7 +31,9 @@ def main():
     S['subStyle']['keywords'] = [bare(k['w']) for k in sorted(keys, key=lambda k: k['s'])]
     # склейки только жёсткие, шторки выкл.
     S['wipe'] = False
-    for r in R: r.pop('tr', None)
+    for r in R:
+        r.pop('tr', None)
+        if r['mode'] != 'A' and not (r.get('scene') or '').startswith(('Card', 'Txt')): r['clean'] = True  # у референсов текст только субтитром — сцены без своих подписей
     # звук: план эффектов по частоте и уровню референса
     cuts = [(r['s'], i) for i, r in enumerate(R) if i > 0]
     snd = E['sound']; sfx = []

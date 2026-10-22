@@ -10,7 +10,7 @@ python3 tools/style_spec.py work/an1/report.json work/an2/report.json … -o sty
 виньетка, зерно). Плюс `engine` — готовые значения для story.json и `substitutes` — чем заменять то,
 чего в наших паках нет.
 """
-import json, sys, collections
+import json, os, sys, collections
 import numpy as np
 
 def med(xs, nd=3):
@@ -19,7 +19,7 @@ def med(xs, nd=3):
 
 def main():
     a = sys.argv[1:]; out = a[a.index('-o') + 1] if '-o' in a else 'style_spec.json'
-    reps = [json.load(open(p)) for p in a if p.endswith('.json') and p != out]
+    paths = [p for p in a if p.endswith('.json') and p != out]; reps = [json.load(open(p)) for p in paths]
     # 1. материалы
     share = collections.defaultdict(list)
     for r in reps:
@@ -82,6 +82,10 @@ def main():
     gk = ['L', 'C', 'black', 'white', 'S', 'warm_sh', 'warm_hi', 'vign', 'grain', 'sharp']
     grade = {k: med([r['grade_speaker'][k] for r in reps if r['grade_speaker'].get('L')], 4) for k in gk}
     grade_all = {k: med([r['grade'][k] for r in reps], 4) for k in gk}
+    try:  # тон кожи спикера (для grade_match без доступа к видео референсов)
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); from grade_match import skin_target
+        grade.update({k: round(v, 4) for k, v in skin_target(paths).items()})
+    except Exception as e: print('! тон кожи не замерен:', e)
     bw = round(sum(r['grade']['bw_shots'] for r in reps) / max(1, len(shots)), 2)
     # движок: значения для story.json
     st = text['subtitle']

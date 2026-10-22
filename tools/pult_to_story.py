@@ -63,6 +63,7 @@ def main():
         kind = r.get('kind') or ('speaker' if mode == 'A' else 'l2d')
         row = {'s': float(r.get('s', 0)), 'e': float(r.get('e', 0)), 'text': r.get('text', ''), 'mode': mode, 'kind': kind,
                'note': r.get('note', '')}
+        if r.get('wi'): row['wi'] = [int(r['wi'][0]), int(r['wi'][-1])]   # индексы слов — для переноса на реальные тайминги (spec_build.py)
         if mode == 'B': row['win'] = r.get('win') or proj.get('win') or 'popout'
         if r.get('scene'): row['scene'] = r['scene']
         # коды блоков в описании: сцена — код в начале («MBars: я — 3 | они — 30»), переход, эффект, пометки — где угодно
@@ -117,6 +118,11 @@ def main():
     if proj.get('sfx'): st['settings']['sfx'] = True                      # звуки по рецепту: вжух/удар/поп (public/sfx из tools/make_sfx.py)
     if proj.get('music'): st['settings']['music'] = proj['music']; st['settings']['musicVolume'] = proj.get('musicVolume', 0.12)
     if proj.get('keywords') and st['settings'].get('subAnim'): st['settings']['subAnim']['keywords'] = proj['keywords']  # стилевой паспорт шаблона: цвета, шрифты, форма, движение
+    spec = proj.get('spec')
+    if spec:  # шаблон с глубоким разбором: спецификация стиля едет в ролик, дальше tools/spec_build.py
+        os.makedirs(reel, exist_ok=True); json.dump(spec, open(os.path.join(reel, 'style_spec.json'), 'w'), ensure_ascii=False, indent=1)
+        st['settings']['speed'] = proj.get('speed') or 1.0
+        st['settings']['subWords'] = (spec.get('engine') or {}).get('subtitle', {}).get('words', 1)
     os.makedirs(os.path.join(reel, 'src'), exist_ok=True)
     json.dump(st, open(os.path.join(reel, 'src', 'story.json'), 'w'), ensure_ascii=False, indent=1)
     json.dump(words, open(os.path.join(reel, 'src', 'words.json'), 'w'), ensure_ascii=False)
@@ -124,6 +130,7 @@ def main():
     tot = sum(modes.values()) or 1
     print(f'story.json: {len(out)} сегментов, {dur} с; A {modes["A"]/tot:.0%} / B {modes["B"]/tot:.0%} / C {modes["C"]/tot:.0%}')
     for w in warn: print('!', w)
+    if spec: print(f'спецификация стиля → {reel}/style_spec.json; дальше: python3 tools/spec_build.py {reel} --src исходник.mp4')
 
 if __name__ == '__main__':
     main()

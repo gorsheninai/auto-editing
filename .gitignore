@@ -11,3 +11,8 @@ reels/*/work/*.log
 /work/
 reels/*/node_modules
 reels/*/work/
+__pycache__/
+reels/*/node_modules
+reels/*/work/*.png
+reels/*/work/*.jpg
+reels/*/work/an*/

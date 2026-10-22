@@ -1,0 +1,226 @@
+{
+ "refs": [
+  "ref1.mp4",
+  "ref2.mp4",
+  "ref3.mp4"
+ ],
+ "materials": {
+  "graphic": 0.032,
+  "broll": 0.102,
+  "screenshot": 0.026,
+  "person": 0.0,
+  "speaker": 0.797,
+  "card_black": 0.0
+ },
+ "text": {
+  "subtitle": {
+   "h_px": 49.0,
+   "xh_px": 36.5,
+   "y_rel": 0.63,
+   "x_rel": 0.5,
+   "words_per_screen": 1.0,
+   "dur": 0.33,
+   "case": "lower",
+   "color": "#E5E5E5",
+   "anim": {
+    "blur": 6,
+    "cut": 15,
+    "fade": 8,
+    "slide": 1,
+    "scale": 6
+   },
+   "lead_ms": -92.0,
+   "key_h_px": 111.0,
+   "key_per_min": 26.6
+  },
+  "title": {
+   "count_per_min": 30.13,
+   "h_px": 111.0,
+   "anim_in": {
+    "blur": 4,
+    "scale": 18,
+    "fade": 32,
+    "cut": 62,
+    "slide": 2
+   },
+   "anim_in_ms": 310.0,
+   "anim_out": {
+    "fade": 26,
+    "cut": 66,
+    "scale": 18,
+    "slide": 5,
+    "blur": 2
+   },
+   "dur": 0.33,
+   "y_rel": 0.587,
+   "examples": [
+    "comr",
+    "effect",
+    "punod",
+    "then",
+    "running",
+    "business",
+    "finances",
+    "slow",
+    "fuck",
+    "$10,000",
+    "E5",
+    "06"
+   ]
+  }
+ },
+ "camera": {
+  "speaker_zoom_per_s": -0.0057,
+  "insert_zoom_per_s": 0.0084,
+  "insert_pan": 0.008,
+  "shake": 0.006
+ },
+ "composition": {
+  "speaker_face_h": 0.295,
+  "speaker_face_y": 0.252,
+  "speaker_face_x": 0.479,
+  "shot_sizes": {
+   "close": 58,
+   "medium": 8
+  }
+ },
+ "rhythm": {
+  "cuts_per_min": 28.2,
+  "speaker_shot_median": 2.22,
+  "insert_shot_median": 1.48,
+  "speaker_share": 0.797,
+  "bursts_per_min": 0.51,
+  "burst_shot_len": 0.4,
+  "crop_jump_share": 0.77,
+  "crop_jump_ratio": 1.34,
+  "cut_on_word_share": 0.86,
+  "transitions": {
+   "hard": 0.96,
+   "whip_blur": 0.01,
+   "dip_black": 0.01,
+   "flash": 0.02
+  }
+ },
+ "sound": {
+  "lufs": -14.2,
+  "true_peak": -0.7,
+  "music": true,
+  "bed_low_rel_voice_db": -8.8,
+  "bed_rel_db_median": -13.6,
+  "tempo": 118.0,
+  "whoosh_per_min": 5.1,
+  "whoosh_level_rel_voice_db": -4.2,
+  "hit_share_of_cuts": 0.15,
+  "hit_level_rel_voice_db": -1.6,
+  "sfx_on_cut_share": 0.68,
+  "speech_wpm": 243.0,
+  "speech_max_pause": 0.34
+ },
+ "grade_speaker": {
+  "L": 0.1715,
+  "C": 0.1416,
+  "black": 0.0268,
+  "white": 0.6175,
+  "S": 0.3012,
+  "warm_sh": -0.0044,
+  "warm_hi": 0.1011,
+  "vign": 0.57,
+  "grain": 1.0436,
+  "sharp": 92.9735,
+  "skin_L": 0.3299,
+  "skin_S": 0.4593,
+  "skin_warm": 0.2178
+ },
+ "grade_all": {
+  "L": 0.1823,
+  "C": 0.1453,
+  "black": 0.0269,
+  "white": 0.6401,
+  "S": 0.2984,
+  "warm_sh": -0.0041,
+  "warm_hi": 0.0774,
+  "vign": 0.6497,
+  "grain": 1.0682,
+  "sharp": 107.8557
+ },
+ "bw_share": 0.13,
+ "engine": {
+  "subtitle": {
+   "style": "SubTom",
+   "fontSize": 67,
+   "top": 1210,
+   "color": "#DCC8B6",
+   "case": "lower",
+   "words": 1,
+   "anim": "cut",
+   "leadMs": -92.0
+  },
+  "title": {
+   "anim": "blur",
+   "ms": 400,
+   "perMin": 30.13
+  },
+  "keywords": {
+   "scale": 2.27,
+   "perMin": 26.6
+  },
+  "crop": {
+   "base": 1.0,
+   "jump": 1.34,
+   "jumpShare": 0.77
+  },
+  "shots": {
+   "speakerMedian": 2.22,
+   "insertMedian": 1.48,
+   "speakerShare": 0.797,
+   "burstsPerMin": 0.51,
+   "burstShot": 0.4
+  },
+  "transitions": {
+   "hard": 1.0
+  },
+  "cutsOnWords": 0.86,
+  "sound": {
+   "lufs": -14.2,
+   "music": true,
+   "bedRelVoiceDb": -8.8,
+   "whooshPerMin": 5.1,
+   "whooshRelVoiceDb": -4.2,
+   "hitShare": 0.15,
+   "hitRelVoiceDb": -1.6
+  },
+  "grade": {
+   "L": 0.1715,
+   "C": 0.1416,
+   "black": 0.0268,
+   "white": 0.6175,
+   "S": 0.3012,
+   "warm_sh": -0.0044,
+   "warm_hi": 0.1011,
+   "vign": 0.57,
+   "grain": 1.0436,
+   "sharp": 92.9735
+  },
+  "bwShare": 0.13,
+  "insertCamera": {
+   "zoomPerS": 0.0084,
+   "pan": 0.008
+  }
+ },
+ "substitutes": {
+  "broll": "живой B-roll → 2D-сцена по смыслу во весь кадр с той же камерой (медленный наезд/дрейф как insert_zoom_per_s), в том же грейде и с зерном",
+  "person": "человек в кадре → 2D-персонаж/силуэт в сцене по смыслу",
+  "screenshot": "скриншот → PhoneFrame/PhoneScroll/наш интерфейс-блок с текстом по смыслу",
+  "graphic": "плоская графика → блок библиотеки той же подгруппы",
+  "card_white": "CardWords: светлый фон, одно слово за раз",
+  "card_black": "CardWords тёмный: чёрный фон, мелкое белое слово",
+  "flicker_bg": "фон за спикером мигает → мир-флик (смена 2D-миров каждые 2–3 кадра)",
+  "bw_series": "ч/б серия → FxGrade чб на вставках"
+ },
+ "manual_check": {
+  "subtitle.color": "кремовый #DCC8B6 у роликов 1–2 по кадрам (OCR путал с белыми карточками)",
+  "title.anim": "хук: проявление из размытия ~0,4 с (по кадрам ролика 1)",
+  "transitions": "склейки жёсткие (проверено по кадрам и детектором)",
+  "subtitle.size": "кегль по высоте строчных (OCR английских субтитров), Inter Tight x-height 0.545"
+ }
+}

@@ -117,8 +117,10 @@ def classify_transition(src, t, fps):
     base = np.median(d) + 1e-4; i = int(np.argmax(d))
     big = np.where(d > max(base * 3, d[i] * 0.35))[0]
     span = int(big.max() - big.min() + 1) if len(big) else 1
-    if lum.max() > 0.85 and lum.max() - np.median(lum) > 0.25: return {'type': 'flash', 'frames': int((lum > np.median(lum) + 0.15).sum())}
-    if lum.min() < 0.05 and np.median(lum) - lum.min() > 0.12: return {'type': 'dip_black', 'frames': int((lum < 0.08).sum())}
+    # вспышка/провал — это всплеск и возврат: ярче (темнее) ОБОИХ краёв окна; переход «белая карточка → тёмный кадр» — обычная склейка
+    lo, hi = lum[:3].mean(), lum[-3:].mean()
+    if lum.max() > 0.85 and lum.max() - max(lo, hi) > 0.25: return {'type': 'flash', 'frames': int((lum > max(lo, hi) + 0.15).sum())}
+    if lum.min() < 0.05 and min(lo, hi) - lum.min() > 0.12: return {'type': 'dip_black', 'frames': int((lum < 0.08).sum())}
     ds = np.sort(d)[::-1]
     if ds[0] > 2.2 * ds[1]:  # один кадр явно главный — жёсткая склейка (даже если в плане есть движение)
         sb, sa = np.median(sharp[:max(1, i - 1)]), np.median(sharp[i + 3:]) if i + 3 < len(sharp) else np.median(sharp)

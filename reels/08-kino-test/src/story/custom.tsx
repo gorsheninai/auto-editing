@@ -52,12 +52,12 @@ const Wave: React.FC<{t: Theme; k: number; y: number}> = ({t, k, y}) => {
 /* AiCard: появление карточки → «диктофон» → «+ ИИ». note: «AiCard» или «AiCard: запись» (режим записи) */
 export const AiCard: React.FC<SceneProps> = (p) => {
   const f = useCurrentFrame(); const t = th(p);
-  const rec = /запис|rec/i.test(p.row.note || ''); const clean = /чисто|clean/i.test(p.row.note || '');
+  const rec = /запис|rec/i.test(p.row.note || ''); const clean = !!(p.row as any).clean || /чисто|clean/i.test(p.row.note || '');
   const k = spring({frame: f, fps: 30, config: {damping: 15, stiffness: 120}});
   const tilt = interpolate(f, [0, p.dur], [-10, 6], clamp);
   const iAi = rec ? 0 : Math.max(0, at(p, 5));
   const ai = rec ? 0.6 : ramp(f, iAi, iAi + 10);
-  const labels = rec ? [{s: 0, txt: '● запись'}, {s: 8, txt: `00:${String(12 + Math.floor(f / 30)).padStart(2, '0')}`}] : [{s: 4, txt: 'диктофон'}, {s: iAi, txt: '+ искусственный интеллект'}];
+  const labels = clean ? [] : rec ? [{s: 0, txt: '● запись'}, {s: 8, txt: `00:${String(12 + Math.floor(f / 30)).padStart(2, '0')}`}] : [{s: 4, txt: 'диктофон'}, {s: iAi, txt: '+ искусственный интеллект'}];
   return <AbsoluteFill style={{overflow: 'hidden'}}>
     <Glow t={t} />
     {rec ? <Wave t={t} k={ramp(f, 4, 14)} y={clean ? 1300 : 1110} /> : null}
