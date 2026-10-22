@@ -1,0 +1,80 @@
+
+<header>
+  <div class="wrap bar">
+    <div class="brand"><h1>Пульт монтажа</h1><span class="tc">auto-editing · 00:00:46:00</span></div>
+    <nav role="tablist" aria-label="Разделы">
+      <button class="tab" role="tab" id="tab-reels" data-view="reels">Ролики</button>
+      <button class="tab" role="tab" id="tab-templates" data-view="templates">Шаблоны</button>
+      <button class="tab" role="tab" id="tab-library" data-view="library">Библиотека</button>
+      <button class="tab" role="tab" id="tab-assets" data-view="assets">Ассеты</button>
+      <button class="tab" role="tab" id="tab-presets" data-view="presets" hidden>Пресеты</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="status" id="status">Подключаю данные пульта…</div>
+
+  <!-- РОЛИКИ -->
+  <section id="view-reels" hidden>
+    <div class="head">
+      <div><h2>Ролики</h2><p>Стиль → текст → картинки → материалы → настройки → раскадровка → монтаж. Монтаж идёт в чате с Claude: нажми «Скопировать задание» и вставь его туда.</p></div>
+      <button class="btn primary" id="newReel">Новый ролик</button>
+    </div>
+    <div id="reelEditor" hidden></div>
+    <div id="reelList"></div>
+  </section>
+
+  <!-- ШАБЛОНЫ -->
+  <section id="view-templates" hidden>
+    <div class="head">
+      <div><h2>Шаблоны монтажа</h2><p>Готовые наборы: стиль, доли кадра, субтитры, звук и блоки. Выбери шаблон, и новый ролик начнётся с его настроек.</p></div>
+      <div class="row" style="gap:8px"><button class="btn primary" id="newPremont" hidden>Новый премонтаж из референсов</button><button class="btn" id="newTpl" hidden>Добавить шаблон</button></div>
+    </div>
+    <div id="tplEditor" hidden></div>
+    <div id="tplList"></div>
+  </section>
+
+  <!-- БИБЛИОТЕКА -->
+  <section id="view-library" hidden>
+    <div class="head">
+      <div><h2>Библиотека блоков</h2><p>Анимации, 3D-сцены, фоны, вставки и звуки. В раскадровке блок называют по коду, например <span class="code">MCycle</span>.</p></div>
+      <button class="btn" id="newBlock" hidden>Добавить блок</button>
+    </div>
+    <div class="filters" id="kindFilters" role="group" aria-label="Тип блока"></div>
+    <div class="filters sub" id="groupFilters" role="group" aria-label="Подгруппа" hidden></div>
+    <div id="blockEditor" hidden></div>
+    <div id="blockList"></div>
+    <div class="head" style="margin-top:36px"><div><h2>Анимации текста</h2><p>Как появляются субтитры и заголовки. Берутся из видео-референсов: в ролике, в шаге «Стиль», кнопка «Анимация текста» под видео.</p></div></div>
+    <div id="animList"></div>
+  </section>
+
+  <!-- АССЕТЫ -->
+  <section id="view-assets" hidden>
+    <div class="head">
+      <div><h2>Ассеты</h2><p>Готовые файлы для монтажа: оверлеи, видео-вставки, фото и фоны, графика, звук, шрифты, LUT. Оригиналы лежат на Диске в папке <a href="https://drive.google.com/drive/folders/1msXBtJaeY4AnzL5Y7bN6KQ2es2lCPpbm" target="_blank" rel="noopener">«Библиотека ассетов»</a>, здесь — карточка с превью. В раскадровке ассет называют по коду, например <span class="code">sfx_whoosh_01</span>.</p></div>
+      <div class="row" style="gap:8px"><button class="btn" id="syncDrive" hidden>Обновить с Диска</button><button class="btn" id="newAsset" hidden>Добавить ассет</button></div>
+    </div>
+    <div class="filters" id="assetFilters" role="group" aria-label="Раздел"></div>
+    <div class="filters sub" id="assetGroups" role="group" aria-label="Подгруппа" hidden></div>
+    <p class="hint" id="driveNote" style="margin:0 0 12px" hidden></p>
+    <div id="assetEditor" hidden></div>
+    <div id="assetList"></div>
+  </section>
+
+  <!-- ПРЕСЕТЫ -->
+  <section id="view-presets" hidden>
+    <div class="head">
+      <div><h2>Пресеты долей кадра</h2><p>Сколько времени ролика идёт в каждом режиме.</p></div>
+    </div>
+    <div class="legend" style="margin-bottom:16px">
+      <span><i style="background:var(--mode-a)"></i>A — спикер на весь экран</span>
+      <span><i style="background:var(--mode-b)"></i>B — сцена сверху, спикер в окне</span>
+      <span><i style="background:var(--mode-c)"></i>C — вставка на весь экран</span>
+    </div>
+    <div class="panel" id="presetForm"></div>
+    <div id="presetList"></div>
+  </section>
+</main>
+<div class="toast" id="toast" hidden></div>
+

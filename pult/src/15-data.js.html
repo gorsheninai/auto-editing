@@ -1,0 +1,24 @@
+/* ---------- data ---------- */
+(async () => {
+  if(!window.claude || !window.claude.use){ status('Пульт работает внутри Claude: открой его по ссылке артефакта.', true); return; }
+  db = await window.claude.use('db');
+  if(!db){ status('Данные пульта недоступны в этом просмотре. Открой пульт, войдя в свой аккаунт Claude.', true); return; }
+  user = await window.claude.use('user');
+  if(user){
+    try{ canEdit = !!(await user.canEdit()); }catch(e){}
+    try{ const w = await user.can('data.write'); if(w===false) canWrite=false; }catch(e){}
+  }
+  assets = canEdit ? await window.claude.use('assets') : null;
+  sample = await window.claude.use('sample');
+  mcp = canEdit ? await window.claude.use('mcp') : null;
+  status('');
+  let loaded = 0;
+  for(const col of ['projects','templates','blocks','presets','textanims','assets']){
+    db.collection(col).onSnapshot(snap=>{
+      S[col] = snap.docs.filter(d=>d.exists).map(d=>({id:d.id, ...d.data()}));
+      if(++loaded>=0) renderAll();
+    }, err=>{ status('Связь с данными пульта прервалась. Обнови страницу.', true); });
+  }
+})();
+})();
+</script>

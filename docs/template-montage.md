@@ -1,0 +1,6 @@
+# Монтаж по шаблону и стилевой паспорт
+
+Читать, когда в задании указан шаблон (templateId) или пишешь новые блоки.
+
+## Монтаж по шаблону
+Документ templates может иметь rules {style, win, bg, subAnim, titleAnim, target {a,b,c} или null, punch, progress, assets — папка Диска с базовыми ассетами стиля, assetsList — «имя — о чём», allowed — коды разрешённых блоков, [] = все}. Кнопка «Создать монтаж» на карточке создаёт проект с templateId, quick:true, mode auto|own и полями из rules (styleAnalysis = rules.style). Раскадровку пульт собирает сам только из allowed. rules.passport — стилевой паспорт {colors {bg,ink,muted,accent,accent2,card,soft}, fonts {sans,serif,hand} — id из template/src/blocks/style.ts FONT_LIB, radius 0.3–1.6, motion soft|spring|snappy, texture dots|clean|paper|grain, shadow}; копируется в projects.passport → pult_to_story.py → story.json settings.passport. Все блоки берут из него цвета (themeFrom), шрифты (CSS-переменные --f-sans/--f-serif/--f-hand), скругления (rad), тени (shd) и характер движения (spring/ramp из kit). Новые блоки писать так же: цвета из theme, шрифты SANS/SERIF/HAND, borderRadius: rad(n), boxShadow: shd(…), spring из ./kit. Если в задании указан шаблон: блоки брать только из allowed, ассеты из rules.assets скачать в public/media/ вместе с картинками ролика.

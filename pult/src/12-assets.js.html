@@ -1,0 +1,53 @@
+/* ---------- АССЕТЫ ---------- */
+const fmtSize = b => !b ? '' : b>1048576 ? (b/1048576).toFixed(1)+' МБ' : Math.max(1,Math.round(b/1024))+' КБ';
+function assetMedia(a){
+  if(a.previewId) return media(a.previewId, a.previewKind);
+  if(a.fileId && a.fileKind==='image') return `<div class="media"><img src="${blob(a.fileId)}" alt="" loading="lazy" style="object-fit:contain"></div>`;
+  if(a.fileId && a.fileKind==='video') return media(a.fileId,'video');
+  if(driveBusy.has(a.id)) return `<div class="media short"><span class="hint">Делаю превью…</span></div>`;
+  const ext=(a.fileName||'').split('.').pop();
+  return `<div class="media short"><span class="ext">${esc(ext && ext!==a.fileName ? ext : secOf(a.section)?.[2]||'файл')}</span></div>`;
+}
+function renderAssets(){
+  $('#newAsset').hidden = !canEdit;
+  const count = k => S.assets.filter(a=>!a.hidden && (k==='all'||a.section===k)).length;
+  $('#assetFilters').innerHTML = [['all','Все'], ...ASSET_SECS.map(x=>[x[0],x[1]])].map(([k,l])=>`<button type="button" data-asec="${k}" aria-pressed="${k===assetSec}">${esc(l)} <span class="code" style="font-weight:400">${count(k)}</span></button>`).join('');
+  $('#assetFilters').querySelectorAll('button').forEach(b=>b.onclick=()=>{ assetSec=b.dataset.asec; assetGroup='all'; renderAssets(); });
+  const sec=secOf(assetSec), G=$('#assetGroups');
+  $('#syncDrive').hidden = !canEdit || !mcp;
+  const vis = S.assets.filter(a=>!a.hidden);
+  let items = vis.filter(a=>assetSec==='all'||a.section===assetSec);
+  G.hidden = !sec;
+  G.innerHTML = sec ? [['all','Все подгруппы'], ...sec[3].map(g=>[g,g])].map(([v,l])=>`<button type="button" data-agr="${esc(v)}" aria-pressed="${v===assetGroup}">${esc(l)} <span class="code" style="font-weight:400">${v==='all'?items.length:items.filter(a=>a.group===v).length}</span></button>`).join('') + `<a class="btn ghost" style="margin-left:auto" href="${esc(sec[4])}" target="_blank" rel="noopener">Папка на Диске</a>` : '';
+  G.querySelectorAll('button').forEach(b=>b.onclick=()=>{ assetGroup=b.dataset.agr; renderAssets(); });
+  if(assetGroup!=='all') items = items.filter(a=>a.group===assetGroup);
+  items.sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+  const L=$('#assetList');
+  if(!items.length){ L.innerHTML=`<div class="empty"><strong>${S.assets.length?'Здесь пока пусто':'Ассетов пока нет'}</strong>Добавляй по одному файлу кнопкой «Добавить ассет». Видео, картинки и шрифты до 20 МБ хранятся прямо на пульте. Звук и крупные файлы клади в <a href="${ASSET_ROOT}" target="_blank" rel="noopener">папку на Диске</a> и вставляй ссылку.</div>`; return; }
+  L.innerHTML = `<div class="grid">${items.map(a=>`<article class="card">
+    ${assetMedia(a)}
+    <div class="body">
+      <div class="row" style="justify-content:space-between"><span class="code">${esc(a.code||a.id)}</span>${canEdit&&secOf(a.section)?`<select data-asgrp="${esc(a.id)}" aria-label="Подгруппа" style="width:auto;font-size:12.5px;padding:3px 6px">${opts(secOf(a.section)[3], a.group)}</select>`:`<span class="chip">${esc(a.group||secOf(a.section)?.[1]||'')}</span>`}</div>
+      <h3>${esc(a.name)}</h3>
+      ${a.previewState==='big'?'<p class="hint">Файл больше 20 МБ — превью не сделать, он есть на Диске.</p>':a.previewState==='nodecode'?'<p class="hint">Браузер не смог открыть видео для превью — файл есть на Диске.</p>':''}
+      ${a.when?`<p class="desc">${esc(a.when)}</p>`:''}
+      <dl class="kv">${a.fileName?`<dt>Файл</dt><dd>${esc(a.fileName)}${a.size?` · ${fmtSize(a.size)}`:''}</dd>`:''}${a.tags?`<dt>Теги</dt><dd>${esc(a.tags)}</dd>`:''}${a.license?`<dt>Лицензия</dt><dd>${esc(a.license)}</dd>`:''}${a.source?`<dt>Источник</dt><dd>${esc(a.source)}</dd>`:''}</dl>
+      <div class="actions">
+        ${a.drive?`<a class="btn ghost" href="${esc(a.drive)}" target="_blank" rel="noopener">На Диске</a>`:''}
+        ${canEdit?`<button class="btn ghost danger" type="button" data-asdel="${esc(a.id)}">Удалить</button>`:''}
+      </div>
+    </div></article>`).join('')}</div>`;
+  wireVideos(L);
+  L.querySelectorAll('[data-asdel]').forEach(b=>b.onclick=()=>{
+    b.outerHTML=`<button class="btn danger" type="button" data-asyes="${esc(b.dataset.asdel)}">Точно удалить</button>`;
+    L.querySelector(`[data-asyes="${CSS.escape(b.dataset.asdel)}"]`).onclick=async e=>{
+      const a=S.assets.find(x=>x.id===e.target.dataset.asyes); if(!a) return;
+      const ref=db.collection('assets').doc(a.id);
+      /* файл с Диска: карточку прячем, а не удаляем — иначе следующая синхронизация вернёт её */
+      const ok = a.driveId ? await write(()=>ref.update({hidden:true}),'Ассет убран с пульта (файл на Диске остался)') : await write(()=>ref.delete(),'Ассет удалён');
+      if(ok && assets) for(const id of [a.fileId,a.previewId].filter(Boolean)){ try{ await assets.delete(id); }catch(err){} }
+    };
+  });
+  L.querySelectorAll('[data-asgrp]').forEach(sel=>sel.onchange=()=>write(()=>db.collection('assets').doc(sel.dataset.asgrp).update({group:sel.value}),'Подгруппа сохранена'));
+}
+

@@ -1,0 +1,59 @@
+/* ---------- ПРЕСЕТЫ ---------- */
+function renderPresets(){
+  const F=$('#presetForm');
+  F.hidden = !canWrite || !db;
+  if(!F.dataset.ready){
+    F.dataset.ready='1';
+    F.innerHTML = `<h3>Свой пресет</h3><p>Задай доли в процентах. Пресет появится в брифе ролика.</p>
+      <form id="pForm" class="fields" novalidate>
+        <div class="f"><label for="p-name">Название</label><input type="text" id="p-name" placeholder="Динамичный"></div>
+        <div class="f"><label>A / B / C, %</label><div class="trio"><input type="number" id="p-a" value="10" min="0" max="100" aria-label="Доля A"><input type="number" id="p-b" value="50" min="0" max="100" aria-label="Доля B"><input type="number" id="p-c" value="40" min="0" max="100" aria-label="Доля C"></div></div>
+        <div class="f wide" id="p-strip"></div>
+        <div class="f wide"><div class="row"><button class="btn primary" type="submit">Сохранить пресет</button><span class="sum" id="p-sum"></span></div></div>
+      </form>`;
+    const sync=()=>{ const a=+$('#p-a').value||0,b=+$('#p-b').value||0,c=+$('#p-c').value||0,s=a+b+c;
+      $('#p-strip').innerHTML=strip(a,b,c,true); const el=$('#p-sum'); el.textContent=s===100?'Сумма 100%':`Сумма ${s}%, нужно 100%`; el.classList.toggle('bad',s!==100); };
+    $('#pForm').addEventListener('input',sync); sync();
+    $('#pForm').addEventListener('submit', async e=>{
+      e.preventDefault(); const name=$('#p-name').value.trim(), a=+$('#p-a').value||0,b=+$('#p-b').value||0,c=+$('#p-c').value||0;
+      if(!name){ toast('Заполни название'); return; } if(a+b+c!==100){ toast('Доли должны давать 100%'); return; }
+      if(await write(()=>db.collection('presets').add({name,a,b,c,note:'',builtin:false,order:50}),'Пресет сохранён')) $('#p-name').value='';
+    });
+  }
+  const L=$('#presetList');
+  if(!S.presets.length){ L.innerHTML=`<div class="empty"><strong>Пресетов пока нет</strong>Создай первый в форме выше.</div>`; return; }
+  L.innerHTML = `<div class="projlist">${[...S.presets].sort((x,y)=>(x.order??99)-(y.order??99)).map(p=>`<div class="projrow" style="cursor:default;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) auto">
+    <div style="min-width:0"><h3>${esc(p.name)}</h3><div class="sub">${esc(p.note||'')}</div></div>
+    ${strip(p.a,p.b,p.c,true)}
+    ${!p.builtin&&canWrite?`<button class="btn ghost danger" data-pdel="${esc(p.id)}">Удалить</button>`:'<span class="chip">базовый</span>'}</div>`).join('')}</div>`;
+  L.querySelectorAll('[data-pdel]').forEach(b=>b.onclick=()=>{
+    b.outerHTML=`<span class="confirm"><button class="btn danger" data-pyes="${esc(b.dataset.pdel)}">Удалить</button></span>`;
+    L.querySelector(`[data-pyes="${CSS.escape(b.dataset.pdel)}"]`).onclick=async e=>{ await write(()=>db.collection('presets').doc(e.target.dataset.pyes).delete(),'Пресет удалён'); };
+  });
+}
+
+function renderAnims(){
+  const L=$('#animList'); if(!L) return;
+  if(!S.textanims.length){ L.innerHTML=`<div class="empty"><strong>Анимаций пока нет</strong>Открой ролик, загрузи видео-референс и под ним нажми «Анимация текста»: отметь момент, где появляется надпись.</div>`; return; }
+  const own=S.textanims.filter(a=>!a.style);
+  if(!own.length){ L.innerHTML=`<div class="empty"><strong>Своих анимаций пока нет</strong>Готовые стили субтитров — во вкладке «Субтитры» выше. Свою анимацию можно снять с видео-референса: в ролике, шаг «Стиль», кнопка «Анимация текста» под видео.</div>`; return; }
+  L.innerHTML=`<div class="grid">${[...own].sort((a,b)=>(!!b.style-!!a.style)||(a.order??99)-(b.order??99)||(b.createdAt||'').localeCompare(a.createdAt||'')).map(a=>`<article class="card">
+    ${a.previewId?(a.previewKind==='video'?media(a.previewId,'video'):`<div class="media short"><img src="${blob(a.previewId)}" alt="Кадры анимации ${esc(a.name)}" loading="lazy" style="object-fit:contain;background:var(--sunken)"></div>`):''}
+    <div class="body"><div class="row" style="justify-content:space-between"><span class="chip">${a.role==='title'?'Заголовки':'Субтитры'}</span><span class="hint">${esc(a.source||'')}</span></div>
+    <h3>${esc(a.name)}</h3><p class="desc">${esc(a.summary||'')}</p>
+    ${canWrite?`<div class="actions"><button class="btn ghost danger" data-adel="${esc(a.id)}">Удалить</button></div>`:''}</div></article>`).join('')}</div>`;
+  wireVideos(L);
+  L.querySelectorAll('[data-adel]').forEach(b=>b.onclick=()=>{ b.outerHTML=`<button class="btn danger" data-ayes="${esc(b.dataset.adel)}">Точно удалить</button>`; L.querySelector(`[data-ayes="${CSS.escape(b.dataset.adel)}"]`).onclick=e=>write(()=>db.collection('textanims').doc(e.target.dataset.ayes).delete(),'Анимация удалена'); });
+}
+function renderAll(){ renderReels(); renderTemplates(); renderLibrary(); renderAssets(); renderPresets(); renderAnims(); refreshAnimSelects(); }
+function animOptions(role, projectId){
+  const list=[...S.textanims].sort((a,b)=>((b.projectId===projectId)-(a.projectId===projectId))||(b.createdAt||'').localeCompare(a.createdAt||''));
+  const lib=list.filter(a=>a.style&&a.role===role).sort((a,b)=>(a.order??99)-(b.order??99)), mine=list.filter(a=>!a.style&&a.role===role), other=list.filter(a=>!a.style&&a.role!==role);
+  return [['static', role==='title'?'Наша: заголовок с подчёркиванием':'Наша: статичные'], ['__auto','Как в видео-референсе — снять автоматически'], ...lib.map(a=>[a.id, `Стиль: ${a.name}`]), ...[...mine,...other].map(a=>[a.id, `${a.projectId===projectId?'Из референса: ':'Библиотека: '}${a.name}${a.role!==role?(a.role==='title'?' (заголовок)':' (субтитры)'):''}`])];
+}
+function refreshAnimSelects(){
+  ['#r-subAnim','#r-titleAnim'].forEach(id=>{ const el=$(id); if(!el) return; const v=el.value||el.dataset.v||'static'; el.innerHTML=opts(animOptions(id==='#r-titleAnim'?'title':'subtitle', el.dataset.pid), v); });
+}
+const animName = id => id && id!=='static' ? (S.textanims.find(a=>a.id===id)?.name || 'анимация из библиотеки') : 'наша (статичная)';
+renderAll();
+

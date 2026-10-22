@@ -1,0 +1,142 @@
+/* ---------- ДИСК → АССЕТЫ ---------- */
+const DRIVE = 'Google Drive', driveBusy = new Set();
+let driveSyncing = false, driveAuto = false;
+function driveMsg(t){ const n=$('#driveNote'); n.textContent=t||''; n.hidden=!t; }
+function driveErr(e){
+  const c=e&&e.code;
+  return c==='server_not_connected'||c==='selection_required' ? 'Google Диск не подключён: добавь его в claude.ai → Настройки → Коннекторы.'
+    : c==='needs_reauth' ? 'Google Диск просит войти заново: claude.ai → Настройки → Коннекторы.'
+    : c==='not_in_manifest'||c==='approval_required'||c==='not_granted' ? 'Пульту не разрешён доступ к Диску. Нажми «Обновить с Диска» и разреши.'
+    : c==='server_unavailable' ? 'Диск сейчас не отвечает, попробуй ещё раз через минуту.'
+    : 'Не получилось прочитать Диск'+(e&&e.message?': '+e.message:'.');
+}
+async function syncDrive(manual){
+  if(!mcp || !canEdit || !db || driveSyncing) return;
+  driveSyncing=true; $('#syncDrive').disabled=true; driveMsg('Смотрю папки «Библиотеки ассетов» на Диске…');
+  let found=0, added=0;
+  try{
+    for(const sec of ASSET_SECS){
+      const folder=sec[4].split('/').pop();
+      const res=await mcp.callTool(DRIVE,'search_files',{query:`parentId = '${folder}'`, excludeContentSnippets:true, pageSize:100},{cache:false});
+      const files=(res.payload?.files||[]).filter(f=>f.mimeType!=='application/vnd.google-apps.folder');
+      found+=files.length;
+      for(const f of files){
+        if(S.assets.some(a=>a.driveId===f.id)) continue;
+        const code=nextAssetCode(sec[0]);
+        const body={code, name:(f.title||'файл').replace(/\.[^.]+$/,'').replace(/[_-]+/g,' '), section:sec[0], group:sec[3][0], when:'', tags:'', license:'', source:'Google Диск',
+          drive:f.viewUrl||'', driveId:f.id, fileName:f.title||'', size:+f.fileSize||null, mime:f.mimeType||'', fileId:null, fileKind:null, previewId:null, previewKind:null,
+          previewState:'pending', createdAt:new Date().toISOString()};
+        if(await write(()=>db.collection('assets').doc(code).set(body))){ S.assets.push({...body,id:code}); added++; }
+      }
+    }
+    const todo=S.assets.filter(a=>a.driveId && a.previewState==='pending' && !a.hidden);
+    driveMsg(added ? `Новых файлов: ${added}. ${todo.length?'Делаю превью…':''}` : `На Диске ${found} файл(ов), новых нет.${todo.length?' Доделываю превью…':''}`);
+    for(const a of todo) await drivePreview(a);
+    driveMsg(added||todo.length ? `Готово: новых ${added}, превью ${todo.length}. Поправь подгруппу и название, если нужно.` : (manual?`На Диске ${found} файл(ов), всё уже на пульте.`:''));
+  }catch(e){ driveMsg(driveErr(e)); }
+  finally{ driveSyncing=false; $('#syncDrive').disabled=false; }
+}
+async function drivePreview(a){
+  const ref=db.collection('assets').doc(a.id), mime=a.mime||'';
+  const visual=/^(image|video)\//.test(mime), font=/font|\.(ttf|otf|woff2?)$/i.test(mime+' '+a.fileName);
+  if(!visual && !font){ await write(()=>ref.update({previewState:'none'})); return; }
+  if((a.size||0) > 20*1024*1024){ await write(()=>ref.update({previewState:'big'})); return; }
+  driveBusy.add(a.id); renderAssets();
+  try{
+    const res=await mcp.callTool(DRIVE,'download_file_content',{fileId:a.driveId},{cache:false});
+    const b64=res.payload?.content; if(!b64) throw new Error('пустой ответ');
+    const file=await (await fetch(`data:${mime||'application/octet-stream'};base64,${b64}`)).blob();
+    const up=f=>assets ? assets.upload(f, {type:f.type}).catch(()=>null) : null;
+    const upd={previewState:'done'};
+    if(font || mime.startsWith('image/')){
+      const r=await up(file); if(r){ upd.fileId=r.id; upd.fileKind=font?'file':'image'; }
+      if(!r && mime.startsWith('image/')){ const pv=await imagePreview(file); const r2=pv&&await up(pv); if(r2){ upd.previewId=r2.id; upd.previewKind='image'; } }
+    } else {
+      const r=await up(file); if(r){ upd.fileId=r.id; upd.fileKind='video'; }
+      const pv=await videoPreview(file);
+      if(pv){ const r2=await up(pv); if(r2){ upd.previewId=r2.id; upd.previewKind='video'; } }
+      else if(!r) upd.previewState='nodecode';
+    }
+    await write(()=>ref.update(upd));
+  }catch(e){ await write(()=>ref.update({previewState:'error'})); driveMsg(`Превью «${a.name}» не получилось: ${e&&e.code?driveErr(e):(e&&e.message||'ошибка')}`); }
+  finally{ driveBusy.delete(a.id); renderAssets(); }
+}
+async function imagePreview(file){
+  try{ const bmp=await createImageBitmap(file), k=Math.min(1,1080/Math.max(bmp.width,bmp.height));
+    const c=document.createElement('canvas'); c.width=Math.round(bmp.width*k); c.height=Math.round(bmp.height*k);
+    c.getContext('2d').drawImage(bmp,0,0,c.width,c.height); return await new Promise(r=>c.toBlob(r,'image/jpeg',0.86)); }catch(e){ return null; }
+}
+/* превью видео: 4 секунды, 432×768, без звука — пишем кадры с canvas в webm */
+async function videoPreview(file){
+  if(typeof MediaRecorder==='undefined') return null;
+  const url=URL.createObjectURL(file), v=document.createElement('video');
+  v.muted=true; v.playsInline=true; v.preload='auto'; v.src=url;
+  try{
+    await new Promise((ok,bad)=>{ const t=setTimeout(()=>bad(new Error('timeout')),12000); v.onloadeddata=()=>{clearTimeout(t);ok();}; v.onerror=()=>{clearTimeout(t);bad(new Error('decode'));}; });
+    if(!v.videoWidth) return null;
+    const W=432,H=768,c=document.createElement('canvas'); c.width=W; c.height=H; const g=c.getContext('2d');
+    const k=Math.max(W/v.videoWidth,H/v.videoHeight), dw=v.videoWidth*k, dh=v.videoHeight*k;
+    const draw=()=>g.drawImage(v,(W-dw)/2,(H-dh)/2,dw,dh);
+    const type=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].find(t=>MediaRecorder.isTypeSupported(t));
+    if(!type) return null;
+    const rec=new MediaRecorder(c.captureStream(30),{mimeType:type, videoBitsPerSecond:2_500_000}), chunks=[];
+    rec.ondataavailable=e=>e.data.size&&chunks.push(e.data);
+    const len=Math.min(4, (v.duration||4)-0.05);
+    draw(); rec.start(); await v.play();
+    await new Promise(done=>{ const tick=()=>{ draw(); if(v.currentTime>=len||v.ended){ done(); return; } requestAnimationFrame(tick); }; requestAnimationFrame(tick); });
+    v.pause(); rec.stop(); await new Promise(r=>rec.onstop=r);
+    const out=new Blob(chunks,{type:'video/webm'}); return out.size>2000 ? out : null;
+  }catch(e){ return null; }
+  finally{ URL.revokeObjectURL(url); v.removeAttribute('src'); }
+}
+$('#syncDrive').addEventListener('click', ()=>syncDrive(true));
+document.getElementById('tab-assets').addEventListener('click', ()=>{ if(!driveAuto && mcp){ driveAuto=true; syncDrive(false); } });
+function nextAssetCode(sec){
+  const pre=secOf(sec)?.[2]||'as'; let n=1;
+  while(S.assets.some(a=>a.code===`${pre}_${String(n).padStart(2,'0')}`)) n++;
+  return `${pre}_${String(n).padStart(2,'0')}`;
+}
+$('#newAsset').addEventListener('click', ()=>{
+  const E=$('#assetEditor'); E.hidden=false;
+  const sec0 = assetSec==='all' ? 'overlay' : assetSec;
+  E.innerHTML = `<form class="panel" id="assetForm" novalidate><h3>Новый ассет</h3><p>Один файл — одна карточка. Видео, картинки и шрифты до 20 МБ сохраняются на пульте. Звук и всё крупнее клади на Диск в папку раздела и вставь ссылку.</p>
+    <div class="fields">
+      <div class="f wide"><label for="as-file">Файл</label><input type="file" id="as-file"><span class="hint" id="as-fileInfo"></span></div>
+      <div class="f"><label for="as-sec">Раздел</label><select id="as-sec">${opts(ASSET_SECS.map(x=>[x[0],x[1]]), sec0)}</select></div>
+      <div class="f"><label for="as-group">Подгруппа</label><select id="as-group"></select></div>
+      <div class="f"><label for="as-name">Название</label><input type="text" id="as-name" placeholder="Тёплый засвет плёнки"></div>
+      <div class="f"><label for="as-code">Код для раскадровки</label><input type="text" id="as-code"><span class="hint">Латиница, цифры, _ и -</span></div>
+      <div class="f wide"><label for="as-when">Когда использовать</label><input type="text" id="as-when" placeholder="Поверх смены темы, на переходах, в тёплых роликах"></div>
+      <div class="f"><label for="as-tags">Теги</label><input type="text" id="as-tags" placeholder="тёплый, плёнка, мягкий"></div>
+      <div class="f"><label for="as-lic">Лицензия</label><input type="text" id="as-lic" placeholder="Pexels License / CC0 / свой"></div>
+      <div class="f"><label for="as-src">Источник</label><input type="text" id="as-src" placeholder="pexels.com/…, сделано в коде"></div>
+      <div class="f"><label for="as-drive">Ссылка на Диск</label><input type="url" id="as-drive" placeholder="https://drive.google.com/…"><a class="hint" id="as-folder" target="_blank" rel="noopener">Открыть папку раздела</a></div>
+    </div>
+    <div class="row" style="margin-top:14px"><button class="btn primary" type="submit" id="as-save">Добавить ассет</button><button class="btn ghost" type="button" id="as-close">Закрыть</button><span class="hint" id="as-note"></span></div></form>`;
+  const syncSec=()=>{ const s=secOf($('#as-sec').value); $('#as-group').innerHTML=opts(s[3], assetGroup!=='all'&&s[3].includes(assetGroup)?assetGroup:s[3][0]); $('#as-folder').href=s[4]; if(!$('#as-code').dataset.touched) $('#as-code').value=nextAssetCode(s[0]); };
+  $('#as-sec').onchange=syncSec; syncSec();
+  $('#as-code').oninput=()=>{ $('#as-code').dataset.touched='1'; };
+  $('#as-file').onchange=()=>{ const f=$('#as-file').files[0]; if(!f){ $('#as-fileInfo').textContent=''; return; }
+    if(!$('#as-name').value) $('#as-name').value=f.name.replace(/\.[^.]+$/,'').replace(/[_-]+/g,' ');
+    const audio=/^audio\//.test(f.type)||/\.(mp3|wav|m4a|aac|ogg|flac)$/i.test(f.name);
+    if(audio && $('#as-sec').value!=='sound'){ $('#as-sec').value='sound'; syncSec(); }
+    $('#as-fileInfo').textContent = `${f.name} · ${fmtSize(f.size)}` + (audio ? ' · звук пульт не хранит: положи файл в папку «05 Звук» на Диске и вставь ссылку ниже' : f.size>20*1024*1024 ? ' · больше 20 МБ: положи на Диск и вставь ссылку' : ''); };
+  $('#as-close').onclick=()=>{E.hidden=true;E.innerHTML='';};
+  $('#assetForm').addEventListener('submit', async e=>{
+    e.preventDefault();
+    const f=$('#as-file').files[0], name=$('#as-name').value.trim(), code=$('#as-code').value.trim(), drive=$('#as-drive').value.trim();
+    if(!f && !drive){ toast('Выбери файл или вставь ссылку на Диск'); return; }
+    if(!name){ toast('Заполни название'); return; }
+    if(!/^[A-Za-z0-9_-]+$/.test(code)){ toast('Код — латиница, цифры, _ и -'); return; }
+    if(S.assets.some(a=>a.code===code)){ toast('Такой код уже есть'); return; }
+    const audio=f && (/^audio\//.test(f.type)||/\.(mp3|wav|m4a|aac|ogg|flac)$/i.test(f.name));
+    let up=null;
+    if(f && !audio && f.size<=20*1024*1024){ $('#as-save').disabled=true; $('#as-note').textContent='Загружаю файл…'; up=await upload(f); $('#as-save').disabled=false; $('#as-note').textContent=''; if(!up && !drive) return; }
+    else if(f && !drive){ toast(audio?'Звук положи на Диск и вставь ссылку':'Файл больше 20 МБ: положи на Диск и вставь ссылку'); return; }
+    const body={code, name, section:$('#as-sec').value, group:$('#as-group').value, when:$('#as-when').value.trim(), tags:$('#as-tags').value.trim(),
+      license:$('#as-lic').value.trim(), source:$('#as-src').value.trim(), drive, fileId:up?.id||null, fileKind:up?.kind||(audio?'audio':null),
+      fileName:f?.name||'', size:f?.size||null, createdAt:new Date().toISOString()};
+    if(await write(()=>db.collection('assets').doc(code).set(body),'Ассет добавлен')){ E.hidden=true; E.innerHTML=''; assetSec=body.section; assetGroup='all'; renderAssets(); }
+  });
+});
+

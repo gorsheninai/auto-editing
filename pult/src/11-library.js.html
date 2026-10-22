@@ -1,0 +1,86 @@
+/* ---------- БИБЛИОТЕКА ---------- */
+const subStyles = () => S.textanims.filter(a=>a.style);
+function renderFilters(){
+  const counts = k => k==='all'?S.blocks.length+subStyles().length : k==='subs'?subStyles().length : S.blocks.filter(b=>b.kind===k).length;
+  $('#kindFilters').innerHTML = KINDS.filter(([k])=>k==='all'||counts(k)>0).map(([k,l])=>`<button type="button" data-kind="${k}" aria-pressed="${k===kindFilter}">${esc(l)} <span class="code" style="font-weight:400">${counts(k)}</span></button>`).join('');
+  $('#kindFilters').querySelectorAll('button').forEach(b=>b.onclick=()=>{ kindFilter=b.dataset.kind; groupFilter='all'; renderLibrary(); });
+  const G=$('#groupFilters'), items = kindFilter==='subs' ? subStyles() : S.blocks.filter(b=>b.kind===kindFilter);
+  const gs = kindFilter==='all' ? [] : orderGroups(kindFilter, items);
+  G.hidden = gs.length<2;
+  G.innerHTML = gs.length<2 ? '' : [['all','Все подгруппы',items.length], ...gs.map(g=>[g,g,items.filter(x=>(x.group||'Без подгруппы')===g).length])]
+    .map(([v,l,n])=>`<button type="button" data-group="${esc(v)}" aria-pressed="${v===groupFilter}">${esc(l)} <span class="code" style="font-weight:400">${n}</span></button>`).join('');
+  G.querySelectorAll('button').forEach(b=>b.onclick=()=>{ groupFilter=b.dataset.group; renderLibrary(); });
+}
+function orderGroups(kind, items){
+  const have=[...new Set(items.map(x=>x.group||'Без подгруппы'))], ord=GROUPS[kind]||[];
+  return [...ord.filter(g=>have.includes(g)), ...have.filter(g=>!ord.includes(g))];
+}
+function blockCard(b){
+  return `<article class="card">
+    ${media(b.previewId, b.previewKind)}
+    <div class="body">
+      <div class="row" style="justify-content:space-between"><span class="code">${esc(b.code||b.id)}</span><span class="chip">${esc(b.group||kindName(b.kind))}</span></div>
+      <h3>${esc(b.name)}</h3>
+      <p class="desc">${esc(b.description)}</p>
+      ${b.fits?`<dl class="kv"><dt>Для</dt><dd>${esc(b.fits)}</dd>${b.params?`<dt>Параметры</dt><dd>${esc(b.params)}</dd>`:''}${b.source?`<dt>Ролик</dt><dd>${esc(b.source)}</dd>`:''}</dl>`:''}
+      ${canEdit?`<div class="actions"><label class="btn ghost" style="cursor:pointer">${b.previewId?'Заменить превью':'Добавить превью'}<input type="file" accept="image/*,video/mp4,video/webm" data-bprev="${esc(b.id)}" hidden></label></div>`:''}
+    </div></article>`;
+}
+function subCard(a){
+  return `<article class="card">${a.previewId?media(a.previewId,a.previewKind||'video'):media(null)}
+    <div class="body"><div class="row" style="justify-content:space-between"><span class="code">${esc(a.style)}</span><span class="chip">${esc(a.group||'Субтитры')}</span></div>
+    <h3>${esc(a.name)}</h3><p class="desc">${esc(a.summary||'')}</p>
+    <dl class="kv"><dt>Как включить</dt><dd>В ролике, «Настройки» → «Анимация субтитров»</dd>${a.source?`<dt>Источник</dt><dd>${esc(a.source)}</dd>`:''}</dl></div></article>`;
+}
+function renderLibrary(){
+  $('#newBlock').hidden = !canEdit; renderFilters();
+  const L=$('#blockList');
+  if(!S.blocks.length && !subStyles().length){ L.innerHTML=`<div class="empty"><strong>Библиотека пуста</strong>Здесь будут блоки анимаций с превью: моушн-схемы, 3D-сцены, фоны, вставки и звуки.</div>`; return; }
+  const byOrder=(a,b)=>(a.order??99)-(b.order??99);
+  const isSubs = kindFilter==='subs';
+  let items = isSubs ? subStyles() : S.blocks.filter(b=>kindFilter==='all'||b.kind===kindFilter);
+  if(groupFilter!=='all') items = items.filter(x=>(x.group||'Без подгруппы')===groupFilter);
+  items = [...items].sort(byOrder);
+  const card = isSubs ? subCard : blockCard;
+  if(!items.length){ L.innerHTML=`<div class="empty"><strong>Здесь пока пусто</strong>Добавь первый блок кнопкой «Добавить блок».</div>`; return; }
+  let html;
+  if(kindFilter==='all'){
+    html = KINDS.filter(([k])=>k!=='all').map(([k,l])=>{ const list = k==='subs' ? [...subStyles()].sort(byOrder) : items.filter(b=>b.kind===k);
+      return list.length ? `<h3 class="grouphead">${esc(l)} <span class="code hint">${list.length}</span></h3><div class="grid">${list.map(k==='subs'?subCard:blockCard).join('')}</div>` : ''; }).join('');
+  } else if(groupFilter==='all'){
+    html = orderGroups(kindFilter, items).map(g=>{ const list=items.filter(x=>(x.group||'Без подгруппы')===g);
+      return `<h3 class="grouphead">${esc(g)} <span class="code hint">${list.length}</span></h3><div class="grid">${list.map(card).join('')}</div>`; }).join('');
+  } else html = `<div class="grid">${items.map(card).join('')}</div>`;
+  L.innerHTML = html;
+  wireVideos(L);
+  L.querySelectorAll('[data-bprev]').forEach(inp=>inp.addEventListener('change', async ()=>{
+    const f=inp.files[0]; if(!f) return; toast('Загружаю…'); const r=await upload(f); if(!r) return;
+    await write(()=>db.collection('blocks').doc(inp.dataset.bprev).update({previewId:r.id, previewKind:r.kind}),'Превью обновлено');
+  }));
+}
+$('#newBlock').addEventListener('click', ()=>{
+  const E=$('#blockEditor'); E.hidden=false;
+  E.innerHTML = `<form class="panel" id="blockForm" novalidate><h3>Новый блок</h3><p>Код блока — короткое имя для раскадровки, латиницей.</p>
+    <div class="fields">
+      <div class="f"><label for="b-code">Код</label><input type="text" id="b-code" placeholder="MCounter"></div>
+      <div class="f"><label for="b-kind">Тип</label><select id="b-kind">${opts(KINDS.filter(k=>k[0]!=='all'&&k[0]!=='subs'),['all','subs'].includes(kindFilter)?'motion':kindFilter)}</select></div>
+      <div class="f"><label for="b-group">Подгруппа</label><input type="text" id="b-group" list="b-groups" value="${esc(groupFilter!=='all'?groupFilter:'')}"><datalist id="b-groups">${Object.values(GROUPS).flat().map(g=>`<option value="${esc(g)}">`).join('')}</datalist></div>
+      <div class="f"><label for="b-name">Название</label><input type="text" id="b-name" placeholder="Счётчик до большого числа"></div>
+      <div class="f wide"><label for="b-desc">Что на экране</label><input type="text" id="b-desc"></div>
+      <div class="f wide"><label for="b-fits">Подходит для</label><input type="text" id="b-fits" placeholder="Цифры, масштаб, рост"></div>
+      <div class="f wide"><label for="b-params">Параметры</label><input type="text" id="b-params" placeholder="Число, подпись, слово-триггер"></div>
+      <div class="f wide"><label for="b-file">Превью</label><input type="file" id="b-file" accept="image/*,video/mp4,video/webm"></div>
+    </div>
+    <div class="row" style="margin-top:14px"><button class="btn primary" type="submit">Добавить блок</button><button class="btn ghost" type="button" id="b-close">Закрыть</button></div></form>`;
+  $('#b-close').onclick=()=>{E.hidden=true;E.innerHTML='';};
+  $('#blockForm').addEventListener('submit', async e=>{
+    e.preventDefault(); const code=$('#b-code').value.trim(), name=$('#b-name').value.trim();
+    if(!code||!name){ toast('Заполни код и название'); return; }
+    if(!/^[A-Za-z0-9_-]+$/.test(code)){ toast('Код — латиница, цифры, _ и -'); return; }
+    let prev=null; const f=$('#b-file').files[0]; if(f){ toast('Загружаю превью…'); prev=await upload(f); }
+    const body={code, kind:$('#b-kind').value, group:$('#b-group').value.trim(), name, description:$('#b-desc').value.trim(), fits:$('#b-fits').value.trim(), params:$('#b-params').value.trim(),
+      previewId:prev?.id||null, previewKind:prev?.kind||null, order:50, createdAt:new Date().toISOString()};
+    if(await write(()=>db.collection('blocks').doc(code).set(body),'Блок добавлен')){ E.hidden=true; E.innerHTML=''; }
+  });
+});
+

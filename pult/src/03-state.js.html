@@ -1,0 +1,51 @@
+<script>
+(() => {
+const $ = (s, r=document) => r.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const blob = id => id ? '/_blob/' + id : '';
+let db = null, assets = null, user = null, sample = null, mcp = null, canWrite = true, canEdit = false;
+const S = {projects:[], templates:[], blocks:[], presets:[], textanims:[], assets:[]};
+let kindFilter = 'all', groupFilter = 'all', assetSec = 'all', assetGroup = 'all';
+
+const GOALS = ['слово в директ','охват','подписка','продажа'];
+const TONES = ['разбор','эксперт','история','провокация'];
+const WHO = ['аватар','живая запись','только голос'];
+const AMOUNT = ['нет','1–2','2–3','много'];
+const SOUND = ['тихие эффекты','музыка','без звуков'];
+const STATUSES = [['draft','Черновик'],['story','Раскадровка'],['images','Картинки'],['edit','Монтаж'],['done','Готово']];
+const KINDS = [['all','Все'],['motion','Моушн'],['phone','Телефон и интерфейсы'],['text','Текст'],['subs','Субтитры'],['3d','3D'],['2d','2D-сцена'],['transition','Переход'],['overlay','Пометки'],['fx','Эффект'],['bg','Фон'],['insert','Вставка'],['sound','Звук']];
+const kindName = k => (KINDS.find(x=>x[0]===k)||[k,k])[1];
+const GROUPS = {
+  motion:['Графики и диаграммы','Цифры и показатели','Сравнения','Списки и топы','Время и процессы','Карточки и галереи'],
+  phone:['Мессенджеры и ИИ','Соцсети','Деньги','Скриншоты'],
+  text:['Появление фразы','Акцент на слове','Цифры и смена слова','Текст с видео'],
+  subs:['Пословные','С подложкой','Акцентные'],
+  transition:['Мягкие','Динамичные','Стилизованные'],
+  overlay:['От руки','Указатели','Плашки','Скрыть'],
+  fx:['Камера','Атмосфера','Интерфейс ролика'],
+  bg:['Подложки']};
+const ASSET_ROOT = 'https://drive.google.com/drive/folders/1msXBtJaeY4AnzL5Y7bN6KQ2es2lCPpbm';
+const ASSET_SECS = [
+  ['overlay','Видео-оверлеи','ov', ['Плёнка и засветы','Частицы и дым','Хромакей'], 'https://drive.google.com/drive/folders/18DEtmaamP04xcwBxWB4dKwup9_A4xIJm'],
+  ['broll','Видео-вставки','br', ['Деньги','Офис и ноутбук','Город','Соцсети и телефон','Люди','Природа','Другое'], 'https://drive.google.com/drive/folders/1PnbDRCTICBSKS2CrjStiAzUQ5Hpnvc1A'],
+  ['photo','Фото и фоны','ph', ['Текстуры','Фоны и градиенты','Фото по темам'], 'https://drive.google.com/drive/folders/18oZlvsr511Ylm7OYY3era-SV7iMOeHTm'],
+  ['graphic','Графика','gr', ['Стикеры','Стрелки и мазки','Рамки и плашки','Иконки и эмодзи','Логотипы'], 'https://drive.google.com/drive/folders/1RRGpqBYLpE3RooypvrkJyGYwNPCnr-x4'],
+  ['sound','Звук','sfx', ['Переходы','Интерфейс','Акценты','Музыка'], 'https://drive.google.com/drive/folders/12K7G260bQ09V8VjYVqglKH0oRCaTzGQo'],
+  ['font','Шрифты','font', ['Без засечек','С засечками','Рукописные','Акцидентные'], 'https://drive.google.com/drive/folders/1sFIe-lQ5bAKfwyn8-QVxMuYOSwygFShO'],
+  ['lut','Цвет и LUT','lut', ['Тёплые','Холодные','Плёнка'], 'https://drive.google.com/drive/folders/1sCGnomRlNJDiBlhCphTFI2_Gtv3B3kwW'],
+  ['ref','Референсы','ref', ['Рилсы','Реклама','Другое'], 'https://drive.google.com/drive/folders/16P-rZ4i463QmCrvvsRqQmlD2PCp2nFO8']];
+const secOf = k => ASSET_SECS.find(x=>x[0]===k);
+/* Стилевой паспорт: шрифты = blocks/style.ts FONT_LIB в шаблоне монтажа */
+const PP_FONTS = {
+  sans:[['inter-tight','Inter Tight'],['manrope','Manrope'],['montserrat','Montserrat'],['rubik','Rubik'],['golos','Golos Text'],['unbounded','Unbounded — широкий'],['oswald','Oswald — узкий'],['comfortaa','Comfortaa — округлый'],['russo-one','Russo One — техно'],['pixelify','Pixelify — пиксельный'],['press-start','Press Start — 8-бит']],
+  serif:[['noto-display','Noto Serif Display курсив'],['playfair','Playfair Display'],['lora','Lora'],['pt-serif','PT Serif']],
+  hand:[['caveat','Caveat'],['marck-script','Marck Script'],['bad-script','Bad Script'],['neucha','Neucha']]};
+const PP_COLORS = [['bg','Фон'],['ink','Текст'],['muted','Вторичный текст'],['accent','Акцент'],['accent2','Акцент 2'],['card','Карточки'],['soft','Мягкий']];
+const PP_DEF = {colors:{bg:'#F4F1EA',ink:'#1C1B22',muted:'#6B6A75',accent:'#7B61FF',accent2:'#FF6A2B',card:'#FFFFFF',soft:'#CFC6FF'}, fonts:{sans:'inter-tight',serif:'noto-display',hand:'caveat'}, radius:1, motion:'spring', texture:'dots', shadow:true};
+const PP_RADIUS=[[0.3,'Острые'],[0.6,'Чуть скруглённые'],[1,'Средние'],[1.6,'Круглые']], PP_MOTION=[['soft','Мягко и плавно'],['spring','Пружинисто'],['snappy','Резко и быстро']], PP_TEX=[['dots','Точки'],['clean','Чистый цвет'],['paper','Бумага'],['grain','Живой градиент с зерном']];
+const ppName = (list,v) => (list.find(x=>String(x[0])===String(v))||[v,v])[1];
+const ppSummary = pp => pp ? [`${ppName(PP_FONTS.sans,pp.fonts?.sans)} + ${ppName(PP_FONTS.serif,pp.fonts?.serif)}`, ppName(PP_MOTION,pp.motion), ppName(PP_TEX,pp.texture), ppName(PP_RADIUS,pp.radius)+' углы'].join(' · ') : '';
+
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.hidden=false; clearTimeout(toast.t); toast.t=setTimeout(()=>t.hidden=true,2600); }
+function status(msg, err){ const s=$('#status'); s.textContent=msg||''; s.hidden=!msg; s.classList.toggle('err',!!err); }
+

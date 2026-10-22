@@ -1,0 +1,324 @@
+/* ---------- материалы и хронометраж ---------- */
+function readTarget(){ const g=id=>Math.max(0,Math.round(+($(id)?.value)||0)); return {a:g('#r-ta'), b:g('#r-tb'), c:g('#r-tc')}; }
+let curRows = [], curAvatar = null, curWords = [];
+const curWordsLen = () => curWords.length;
+let reelHooks = {updateSteps(){}, renderSummary(){}};
+const SEG_KINDS = {
+  A:[['speaker','Спикер']],
+  B:[['l2d','2D-сцена'],['gen','Картинка по смыслу'],['motion','Моушн-схема'],['d3','3D'],['media','Мои вставки']],
+  C:[['l2d','2D-сцена'],['motion','Смысловой моушн'],['gen','Картинка по смыслу'],['d3','3D-метафора'],['kinetic','Кинетический текст'],['media','Мои вставки']]};
+const WINS = [['popout','Вырезка','голова выходит за окно'],['window','Окно','скруглённый прямоугольник без вырезки'],['circle','Кружок','как видеосообщение'],['strip','Полоса','спикер на всю ширину внизу']];
+const SUB_DEF = {B:{l2d:40, gen:15, motion:25, d3:20, media:0}, C:{l2d:20, motion:25, gen:15, d3:20, kinetic:20, media:0}};
+const winName = v => (WINS.find(w=>w[0]===v)||WINS[0])[1];
+const kindLabel = (m,k) => ((SEG_KINDS[m]||[]).find(x=>x[0]===k)||[k,k])[1];
+function readWin(){ return document.querySelector('input[name="r-win"]:checked')?.value || 'popout'; }
+function readSub(){ const g=id=>Math.max(0,Math.round(+($(id)?.value)||0)); const o={B:{},C:{}}; ['B','C'].forEach(m=>SEG_KINDS[m].forEach(([k])=>o[m][k]=g(`#r-sub-${m}-${k}`))); return o; }
+function parseMedia(txt){ return String(txt||'').split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{ const m=l.split(/\s+[—–-]\s+/); return {name:m[0].trim(), desc:m.slice(1).join(' — ').trim()}; }); }
+function kindShares(rows){ const o={B:{},C:{}}; ['B','C'].forEach(m=>{ const rs=(rows||[]).filter(r=>r.mode===m), T=rs.reduce((x,r)=>x+(r.e-r.s),0); SEG_KINDS[m].forEach(([k])=>{ o[m][k]= T? Math.round(rs.filter(r=>(r.kind||SEG_KINDS[m][0][0])===k).reduce((x,r)=>x+(r.e-r.s),0)/T*100) : 0; }); }); return o; }
+function kindStrips(sb){ return ['B','C'].map(m=>`<div class="kstrip"><span class="code klab">${m}</span><div class="strip">${SEG_KINDS[m].map(([k,l])=>sb[m][k]?`<span class="k-${k}" style="width:${sb[m][k]}%" title="${esc(l)} ${sb[m][k]}%"></span>`:'').join('')}</div><span class="klegend">${SEG_KINDS[m].filter(([k])=>sb[m][k]).map(([k,l])=>`<i class="kdot k-${k}"></i>${esc(l)} ${sb[m][k]}%`).join(' · ')||'—'}</span></div>`).join(''); }
+function kindCounts(rows){ const c={}; (rows||[]).forEach(r=>{ if(!r.mode) return; const key=r.mode==='A'?'спикер':(r.mode+' '+kindLabel(r.mode,r.kind||SEG_KINDS[r.mode][0][0])); c[key]=(c[key]||0)+1; }); return Object.entries(c).map(([k,v])=>`${k} ×${v}`).join(', '); }
+
+const fmtT = t => { t=Math.max(0,t||0); const m=Math.floor(t/60), s=t-m*60; return String(m).padStart(2,'0')+':'+s.toFixed(1).padStart(4,'0'); };
+function rowShares(rows){
+  if(!Array.isArray(rows)||!rows.length) return null;
+  const tot={A:0,B:0,C:0}; let all=0;
+  rows.forEach(r=>{ const d=Math.max(0,(r.e||0)-(r.s||0)); if(tot[r.mode]!=null){ tot[r.mode]+=d; all+=d; } });
+  if(!all) return null;
+  const a=Math.round(tot.A/all*100), c=Math.round(tot.C/all*100); return {a, b:100-a-c, c};
+}
+function rowsText(rows){
+  if(!Array.isArray(rows)||!rows.length) return '';
+  return rows.map((r,i)=>{ const k=r.mode==='A'?'спикер':kindLabel(r.mode,r.kind); const extra=[r.mode==='B'&&r.win?`окно: ${winName(r.win)}`:'', r.kind==='media'&&r.media?`файл: ${r.media}`:''].filter(Boolean).join(', ');
+    return `${i+1}. ${fmtT(r.s)}–${fmtT(r.e)} [${r.mode||'?'} · ${k||'—'}${extra?' · '+extra:''}] «${r.text}»${r.note?`\n   Визуал: ${r.note}`:''}`; }).join('\n');
+}
+/* поиск пауз — как ffmpeg silencedetect noise=-38dB:d=0.12, паддинг 0.05, куски короче 0.18 с выкидываем */
+async function speechSegments(buf){
+  const AC = window.AudioContext||window.webkitAudioContext; const ac=new AC();
+  let audio; try{ audio = await ac.decodeAudioData(buf); } finally { try{ ac.close(); }catch(e){} }
+  const sr=audio.sampleRate, n=audio.length, ch=[...Array(audio.numberOfChannels)].map((_,i)=>audio.getChannelData(i));
+  const win=Math.round(sr*0.01), thr=Math.pow(10,-38/20), frames=Math.ceil(n/win), quiet=new Uint8Array(frames);
+  for(let f=0;f<frames;f++){ let m=0; const a=f*win, b=Math.min(n,a+win); for(const c of ch) for(let i=a;i<b;i++){ const v=Math.abs(c[i]); if(v>m) m=v; } quiet[f]= m<thr ? 1:0; }
+  const dur=n/sr, sil=[]; let st=-1;
+  for(let f=0;f<=frames;f++){ const q=f<frames&&quiet[f]; if(q&&st<0) st=f; if(!q&&st>=0){ if((f-st)*0.01>=0.12) sil.push([st*0.01, Math.min(dur,f*0.01)]); st=-1; } }
+  const segs=[]; let t=0; const PAD=0.05;
+  for(const [a,b] of sil){ if(a>t) segs.push([Math.max(0, t? t-PAD : 0), Math.min(dur, a+PAD)]); t=b; }
+  if(t<dur) segs.push([Math.max(0,t-PAD), dur]);
+  return {dur, segs: segs.filter(s=>s[1]-s[0]>0.18)};
+}
+function syl(w){
+  const b=w.replace(/[.,:;?!«»"()…—–-]/g,'');
+  if(/^\d+$/.test(b)) return Math.max(2, Math.round(b.length*2.3));
+  if(/^[А-ЯЁA-Z]{2,4}$/.test(b)) return b.length;
+  return Math.max(1,(b.toLowerCase().match(/[аеёиоуыэюяaeiou]/g)||[]).length);
+}
+/* раскладка слов по времени: вес слова по слогам, якоря на паузах, затем ускорение */
+function alignWords(script, segs, speed){
+  const words=script.split(/\s+/).filter(w=>w&&w!=='—'&&w!=='–');
+  if(!words.length||!segs.length) return [];
+  const P=w=>/[.,:;?!»…]$/.test(w);
+  const weights=words.map(w=>syl(w)+0.35+(P(w)?0.3:0));
+  const out=[]; let t=0; for(const [a,b] of segs){ const d=(b-a)/speed; out.push([t,t+d]); t+=d; }
+  const T=t, tot=weights.reduce((x,y)=>x+y,0), bounds=[0]; let c=0; for(const w of weights){ c+=w; bounds.push(c/tot*T); }
+  const anchors=[[0,0],[words.length,T]];
+  for(let i=0;i<segs.length-1;i++){
+    const gap=segs[i+1][0]-segs[i][1];
+    if(Math.min(segs[i][1]-segs[i][0], segs[i+1][1]-segs[i+1][0])<0.4 || gap<0.25) continue;
+    const at=out[i][1]; let best=null;
+    for(let k=1;k<words.length;k++) if(P(words[k-1])){ const d=Math.abs(bounds[k]-at); if(!best||d<best[0]) best=[d,k]; }
+    if(best&&best[0]<1.2) anchors.push([best[1],at]);
+  }
+  anchors.sort((x,y)=>x[0]-y[0]); const a2=[anchors[0]];
+  for(const [k,tt] of anchors.slice(1)) if(k>a2[a2.length-1][0] && tt>a2[a2.length-1][1]) a2.push([k,tt]);
+  const warp=k=>{ for(let i=0;i<a2.length-1;i++){ const [k0,t0]=a2[i],[k1,t1]=a2[i+1]; if(k>=k0&&k<=k1) return t0+(bounds[k]-bounds[k0])/((bounds[k1]-bounds[k0])||1)*(t1-t0); } return T; };
+  return words.map((w,i)=>({w, s:+warp(i).toFixed(3), e:+warp(i+1).toFixed(3)}));
+}
+function phrasesFrom(words){
+  const rows=[]; let cur=[], from=0;
+  const flush=i=>{ if(cur.length) rows.push({text:cur.map(x=>x.w).join(' '), s:cur[0].s, e:cur[cur.length-1].e, wi:[from,i]}); cur=[]; from=i+1; };
+  words.forEach((w,i)=>{ cur.push(w); if(/[.!?…:;]$/.test(w.w) || (cur.length>=12 && /,$/.test(w.w))) flush(i); });
+  flush(words.length-1); return rows;
+}
+/* отрезок слов → строка раскадровки */
+function rowFromWords(words, a, b, mode, note){
+  return {text:words.slice(a,b+1).map(x=>x.w).join(' '), s:words[a].s, e:words[b].e, wi:[a,b], mode:mode||'', note:note||''};
+}
+const SB_PROMPT = `Ты — монтажёр вертикальных рилсов. Сделай раскадровку: реши, какой визуал идёт под какие слова.
+
+Режимы кадра: A — спикер на весь экран; B — сцена сверху, спикер в окне снизу; C — вставка на весь экран (голос за кадром).
+Типы сцен (поле kind):
+- для A: speaker;
+- для B (сцена над окном спикера): l2d — 2D-сцена из картинок (фон + поза персонажа + предметы); gen — цельная картинка по смыслу от ChatGPT (картина, о которой речь, скриншот чата или приложения, документ, обложка, фото предмета или места); motion — моушн-схема (этапы, сравнение, процесс, цифры); d3 — 3D из предметов, собранных кодом; media — файл пользователя с Диска;
+- для C (на весь экран): l2d — 2D-сцена из слоёв на весь экран (фон + поза + предметы крупно, без окна спикера); motion — смысловой моушн; gen — цельная картинка по смыслу на весь экран; d3 — 3D-метафора; kinetic — кинетический текст (крупные слова в ритм речи, без картинок); media — файл пользователя на весь экран.
+Окно спикера в B (поле win): popout — вырезка, голова выходит за окно; window — скруглённое окно без вырезки; circle — кружок; strip — полоса снизу. По умолчанию: {WIN}. Меняй окно, только если это усиливает момент (например, кружок на лёгкой реплике, вырезка на эмоции); не меняй его на каждом сегменте.
+{SHARES}
+{CTA}
+
+Как резать: текст НЕ обязан резаться по предложениям. Сегмент — любой непрерывный кусок слов: он может начинаться и заканчиваться посреди предложения, если визуал меняется на этом слове. Подбирай визуал под смысл слов: что именно говорится — то и показываем. Сегмент обычно 1.5–6 секунд. Сегменты идут подряд и покрывают ВСЕ слова без пропусков и наложений.
+В "visual" одной-двумя фразами: что видно на экране и что меняется на каком слове, в стиле ролика. Если подходит готовый блок библиотеки (моушн M… или текст Txt…) — НАЧНИ visual с его кода и данных в формате блока, например «MBars: я — 3 | они — 30 | заголовок: клиентов в месяц», дальше можно пояснение; бери цифры и слова прямо из текста. Цифры, сравнения, рейтинги, годы, проценты, списки шагов — повод для моушн-блока, а не для картинки. Переход Tr… на склейку можно вписать в visual сегмента, НА который переходим (не чаще одного на 3–4 склейки, на смене темы); эффект Fx… — в visual сегмента, где он нужен; пометку Ink… или PaperSticker — тоже в visual, со словом, к которому она относится. Для A пиши, что делает спикер. Для gen опиши, что ровно на картинке; если это скриншот или документ — точный короткий текст на нём в кавычках. Ставь gen на КАЖДОЕ конкретное упоминание, которое можно показать картинкой: бренд или товар (Nike — кроссовок), картина или художник, известный человек или роль (клиент, начальник, конкурент), место, событие, документ, новость. Ролик не должен держаться только на герое: под 2D-сценами с героем и под картинками с ним — не больше трети ролика, и не ставь две сцены с героем подряд — чередуй с картинками по смыслу, другими персонажами, моушном и кинетическим текстом.
+
+Картинки, которые уже заказаны в ChatGPT (план по смысловым блокам). 2D-сцены (l2d) и картинки по смыслу (gen) ставь в первую очередь на слова из этих цитат, чтобы каждая картинка попала в ролик; если картинок под место нет — используй motion, d3, kinetic или media:
+{PLAN}
+
+Файлы пользователя на Диске (для kind=media, поле media — точное имя файла):
+{MEDIA}
+
+Блоки библиотеки:
+{BLOCKS}
+
+Стиль ролика (кратко):
+{STYLE}
+
+Слова ролика с номерами и временем начала (секунды готового ролика). Всего слов: {NW}, длительность: {DUR} с.
+{WORDS}
+
+Ответь только JSON-массивом сегментов по порядку: [{"from":0,"to":7,"mode":"B","kind":"l2d","win":"popout","media":"","visual":"..."}, ...], где from и to — номера первого и последнего слова сегмента включительно.`;
+
+function wireTiming(p){
+  curRows = Array.isArray(p.sbRows) ? p.sbRows.map(r=>({...r})) : [];
+  curWords = Array.isArray(p.words) ? p.words : [];
+  curAvatar = p.avatar || null;
+  let avFile = null;
+  const docRef = db.collection('projects').doc(p.id);
+  const info=$('#r-avInfo'), note=$('#r-sendNote'), box=$('#r-timing');
+  const mb=b=>(b/1048576).toFixed(1)+' МБ';
+  const showAv=()=>{ info.textContent = avFile ? `${avFile.name} · ${mb(avFile.size)} · нажми «Отправить»` : curAvatar ? `${curAvatar.name}${curAvatar.size?` · ${mb(curAvatar.size)}`:''} · ${curAvatar.id?'сохранено на пульте':'больше 20 МБ, не загружено: положи его в папку на Диске'}` : 'Видео ещё не выбрано'; };
+  const showTiming=t=>{ box.innerHTML = t ? `<dl class="kv" style="margin-top:10px">
+      <dt>Исходник</dt><dd class="code">${fmtT(t.srcDur)}</dd>
+      <dt>Без пауз</dt><dd class="code">${fmtT(t.speechDur)} · вырезано пауз: ${t.cuts}</dd>
+      <dt>Итог ×${t.speed}</dt><dd class="code">${fmtT(t.finalDur)}</dd>
+      <dt>Слов</dt><dd class="code">${curWords.length}</dd></dl>` : ''; };
+  showAv(); showTiming(p.timing);
+  $('#r-avFile').addEventListener('change', e=>{ avFile=e.target.files[0]||null; e.target.value=''; showAv(); });
+
+  let useTarget = !!p.useTarget;
+  const mediaFiles = () => parseMedia($('#r-media').value);
+  function showShares(){
+    const t=readTarget(), sum=t.a+t.b+t.c, el=$('#r-tsum');
+    el.textContent = sum===100 ? '' : `Сумма ${sum}%, нужно 100%`; el.classList.toggle('bad', sum!==100);
+    const sb=readSub();
+    ['B','C'].forEach(m=>{ const s=Object.values(sb[m]).reduce((x,y)=>x+y,0), e2=$('#r-subsum-'+m); e2.textContent = s===100?'':`Сумма ${s}%, нужно 100%`; e2.classList.toggle('bad', s!==100); });
+    $('#r-tgtStrip').innerHTML = sum===100 ? strip(t.a,t.b,t.c,true)+kindStrips(sb) : '';
+    const sh=rowShares(curRows);
+    $('#r-sbStrip').innerHTML = sh ? strip(sh.a,sh.b,sh.c,true)+kindStrips(kindShares(curRows)) : '<span class="hint">Пока пусто: нажми «Предложить раскадровку» или «Выбрать самому».</span>';
+    const dev=$('#r-dev');
+    if(sh && sum===100 && useTarget){ const d=Math.max(Math.abs(sh.a-t.a),Math.abs(sh.b-t.b),Math.abs(sh.c-t.c));
+      dev.textContent = d<=5 ? 'Режимы совпадают с целью.' : `Отклонение до ${d}%: A ${sh.a-t.a>=0?'+':''}${sh.a-t.a}, B ${sh.b-t.b>=0?'+':''}${sh.b-t.b}, C ${sh.c-t.c>=0?'+':''}${sh.c-t.c}.`;
+      dev.style.color = d<=5 ? 'var(--ok)' : 'var(--warn)'; }
+    else dev.textContent='';
+  }
+  const PRESETS=()=>[...S.presets].sort((x,y)=>(x.order??99)-(y.order??99));
+  function renderPresets(){
+    const t=readTarget();
+    $('#r-tgtPresets').innerHTML = PRESETS().map(x=>`<button type="button" class="chipbtn" data-pa="${x.a}" data-pb="${x.b}" data-pc="${x.c}" aria-pressed="${x.a===t.a&&x.b===t.b&&x.c===t.c}">${esc(x.name)} <span class="code">${x.a}/${x.b}/${x.c}</span></button>`).join('');
+    $('#r-tgtPresets').querySelectorAll('button').forEach(b=>b.onclick=()=>{ $('#r-ta').value=b.dataset.pa; $('#r-tb').value=b.dataset.pb; $('#r-tc').value=b.dataset.pc; renderPresets(); showShares(); });
+  }
+  $('#r-manual').addEventListener('input', ()=>{ renderPresets(); showShares(); });
+  renderPresets();
+  function renderSb(){
+    showShares();
+    const el=$('#r-sb');
+    if(!curRows.length){ el.innerHTML=`<div class="empty" style="padding:16px">Таблица появится после «Отправить» в шаге «Материалы»: пульт разобьёт текст на слова с таймкодами из видео.</div>`; reelHooks.updateSteps(); reelHooks.renderSummary(); return; }
+    const files = mediaFiles(), defWin = readWin();
+    el.innerHTML = `<div class="sbt" role="table">${curRows.map((r,i)=>{
+      const kinds = SEG_KINDS[r.mode]||[];
+      return `<div class="sbr m-${esc(r.mode||'')}" role="row">
+      <div class="code sbtime">${fmtT(r.s)}<br><span style="color:var(--muted);font-weight:400">${(r.e-r.s).toFixed(1)} с</span></div>
+      <div class="sbtext">${esc(r.text)}</div>
+      <div class="sbctl">
+        <div class="sbsel">
+          <select data-i="${i}" data-k="mode" aria-label="Режим сегмента ${i+1}"${canWrite?'':' disabled'}>${opts([['','— режим —'],['A','A · спикер'],['B','B · сцена + окно'],['C','C · вставка']], r.mode||'')}</select>
+          ${r.mode&&r.mode!=='A'?`<select data-i="${i}" data-k="kind" aria-label="Тип сцены ${i+1}"${canWrite?'':' disabled'}>${opts(kinds, r.kind||kinds[0][0])}</select>`:''}
+          ${r.mode==='B'?`<select data-i="${i}" data-k="win" aria-label="Окно спикера ${i+1}"${canWrite?'':' disabled'}>${opts(WINS.map(w=>[w[0],'Окно: '+w[1]]), r.win||defWin)}</select>`:''}
+          ${r.kind==='media'?`<select data-i="${i}" data-k="media" aria-label="Файл вставки ${i+1}"${canWrite?'':' disabled'}>${opts([['','— файл —'],...files.map(f=>[f.name, f.desc?`${f.name} — ${f.desc}`:f.name])], r.media||'')}</select>`:''}
+        </div>
+        <textarea data-i="${i}" data-k="note" rows="2" placeholder="Что на экране и на каком слове меняется" aria-label="Визуал сегмента ${i+1}"${canWrite?'':' disabled'}>${esc(r.note||'')}</textarea>
+      </div></div>`; }).join('')}</div>`;
+    el.querySelectorAll('[data-k]').forEach(c=>c.addEventListener('change',()=>{
+      const r=curRows[+c.dataset.i], k=c.dataset.k; r[k]=c.value;
+      if(k==='mode'){ const ks=(SEG_KINDS[r.mode]||[]).map(x=>x[0]); if(!ks.includes(r.kind)) r.kind=ks[0]||''; if(r.mode==='B' && !r.win) r.win=readWin(); }
+      if(k==='mode'||k==='kind') renderSb(); else { showShares(); reelHooks.renderSummary(); }
+    }));
+    reelHooks.updateSteps(); reelHooks.renderSummary();
+  }
+  renderSb();
+
+  async function sendMaterials(){
+    const script=$('#r-script').value.trim(); const drive=$('#r-drive').value.trim();
+    if(!script){ toast('Сначала вставь текст ролика'); $('#r-script').focus(); return false; }
+    if(!avFile && !curAvatar){ toast('Выбери видео аватара'); return false; }
+    const btn=$('#r-send'); btn.disabled=true;
+    try{
+      let buf;
+      if(avFile){
+        if(avFile.size<=20*1024*1024 && assets){ note.textContent='Загружаю видео на пульт…'; const up=await upload(avFile); curAvatar={id:up?.id||null, name:avFile.name, size:avFile.size}; }
+        else curAvatar={id:null, name:avFile.name, size:avFile.size};
+        buf=await avFile.arrayBuffer();
+      } else {
+        if(!curAvatar.id){ toast('Выбери видео заново: прошлое не сохранено на пульте'); return false; }
+        note.textContent='Беру видео с пульта…'; buf=await (await fetch(blob(curAvatar.id))).arrayBuffer();
+      }
+      note.textContent='Считаю паузы и хронометраж…';
+      const speed=+$('#r-speed').value||1.2;
+      const {dur, segs} = await speechSegments(buf);
+      const speech=segs.reduce((x,[a,b])=>x+b-a,0);
+      curWords = alignWords(script, segs, speed);
+      curRows = phrasesFrom(curWords).map(r=>({...r, mode:'', kind:'', note:''}));
+      const timing={srcDur:+dur.toFixed(2), speechDur:+speech.toFixed(2), finalDur:+(speech/speed).toFixed(2), cuts:Math.max(0,segs.length-1), speed};
+      p.timing=timing; avFile=null; showAv(); showTiming(timing); renderSb();
+      const ok = await write(()=>docRef.update({avatar:curAvatar, drive, mediaList:$('#r-media').value, timing, words:curWords, segs, script, title:titleFrom(script), sbRows:curRows, storyboard:rowsText(curRows), status:'story', updatedAt:new Date().toISOString()}));
+      note.textContent = ok ? 'Материалы сохранены, хронометраж готов. Дальше — настройки и раскадровка.' : 'Хронометраж посчитан, но не сохранился.';
+      sentScript = script; return true;
+    }catch(e){ note.textContent='Не получилось прочитать звук из видео. Лучше mp4 (H.264 + AAC).'; return false; }
+    finally{ btn.disabled=false; }
+  }
+  let sentScript = curWords.length ? (p.script||'').trim() : null;
+  $('#r-send').onclick = ()=>sendMaterials();
+
+  /* подгонка: 1) режимы — сдвиг границ по словам, затем смена режима сегмента; 2) типы внутри B и C */
+  function fitShares(){
+    const t=readTarget(); if(t.a+t.b+t.c!==100 || !curRows.length) return;
+    const want={A:t.a,B:t.b,C:t.c}, ctaOn=$('#r-ctaOn').checked;
+    curRows.forEach(r=>{ if(!r.mode) r.mode = t.b>0?'B':(t.c>0?'C':'A'); });
+    const lockI = i => (t.a>0 && i===0) || (t.a>0 && ctaOn && i===curRows.length-1);
+    if(t.a>0 && curRows.length>2){ curRows[0].mode='A'; if(ctaOn) curRows[curRows.length-1].mode='A'; }
+    const W=curWords, hasWi=W.length && curRows.every(r=>Array.isArray(r.wi));
+    const keep=(r,a,b)=>({...rowFromWords(W,a,b,r.mode,r.note), kind:r.kind, win:r.win, media:r.media});
+    const total=()=>curRows.reduce((x,r)=>x+(r.e-r.s),0);
+    const gaps=()=>{ const sec={A:0,B:0,C:0}, T=total(); curRows.forEach(r=>sec[r.mode]+=r.e-r.s); return m=>sec[m]/T*100-want[m]; };
+    if(hasWi) for(let it=0; it<400; it++){
+      const g=gaps(); const over=['A','B','C'].sort((x,y)=>g(y)-g(x))[0], under=['A','B','C'].sort((x,y)=>g(x)-g(y))[0];
+      if(g(over)<=2 && g(under)>=-2) break;
+      let moved=false;
+      for(let i=0;i<curRows.length-1 && !moved;i++){
+        const L=curRows[i], R=curRows[i+1];
+        if(L.mode===over && R.mode===under && L.wi[1]-L.wi[0]>=2 && W[L.wi[1]].s-L.s>=1.2){ curRows[i]=keep(L,L.wi[0],L.wi[1]-1); curRows[i+1]=keep(R,L.wi[1],R.wi[1]); moved=true; }
+        else if(L.mode===under && R.mode===over && R.wi[1]-R.wi[0]>=2 && R.e-W[R.wi[0]+1].s>=1.2){ curRows[i]=keep(L,L.wi[0],R.wi[0]); curRows[i+1]=keep(R,R.wi[0]+1,R.wi[1]); moved=true; }
+      }
+      if(!moved) break;
+    }
+    for(let it=0; it<60; it++){
+      const g=gaps(), T=total(); const over=['A','B','C'].sort((x,y)=>g(y)-g(x))[0], under=['A','B','C'].sort((x,y)=>g(x)-g(y))[0];
+      if(g(over)<=3 && g(under)>=-3) break;
+      const need=Math.min(g(over),-g(under))/100*T; let best=null;
+      curRows.forEach((r,i)=>{ if(r.mode!==over || lockI(i)) return; const d=r.e-r.s, sc=Math.abs(d-need); if(d<=need*1.6+0.5 && (!best||sc<best[0])) best=[sc,i]; });
+      if(!best) break; const r=curRows[best[1]]; r.mode=under; r.kind=(SEG_KINDS[under][0]||[''])[0]; if(under==='B'&&!r.win) r.win=readWin();
+    }
+    const sb=readSub();
+    ['B','C'].forEach(m=>{
+      const rows=curRows.filter(r=>r.mode===m); if(!rows.length) return;
+      const ks=SEG_KINDS[m].map(x=>x[0]); rows.forEach(r=>{ if(!ks.includes(r.kind)) r.kind=ks[0]; });
+      const tot=rows.reduce((x,r)=>x+(r.e-r.s),0);
+      for(let it=0; it<40; it++){
+        const sec={}; ks.forEach(k=>sec[k]=0); rows.forEach(r=>sec[r.kind]+=r.e-r.s);
+        const g=k=>sec[k]/tot*100-(sb[m][k]||0);
+        const over=[...ks].sort((x,y)=>g(y)-g(x))[0], under=[...ks].sort((x,y)=>g(x)-g(y))[0];
+        if(g(over)<=8 && g(under)>=-8) break;
+        if(under==='media' && !mediaFiles().length) break;
+        const need=Math.min(g(over),-g(under))/100*tot; let best=null;
+        rows.forEach(r=>{ if(r.kind!==over) return; const d=r.e-r.s, sc=Math.abs(d-need); if(d<=need*1.6+0.5 && (!best||sc<best[0])) best=[sc,r]; });
+        if(!best) break; best[1].kind=under;
+      }
+    });
+  }
+  $('#r-sbManual').onclick = ()=>{ const m=$('#r-manual'); m.hidden=!m.hidden; $('#r-sbManual').setAttribute('aria-expanded', String(!m.hidden)); if(!m.hidden) m.scrollIntoView({behavior:'smooth',block:'nearest'}); };
+  let ctl=null;
+  $('#r-sbStop').onclick=()=>ctl?.abort();
+  async function propose(withTarget){
+    if(!sample){ toast('Claude недоступен в этом просмотре'); return; }
+    if(!curWords.length){ toast('Сначала нажми «Отправить» в шаге «Материалы»'); return; }
+    const tg=readTarget(), sb=readSub();
+    if(withTarget){
+      if(tg.a+tg.b+tg.c!==100){ toast('Режимы должны давать 100%'); return; }
+      for(const m of ['B','C']) if(Object.values(sb[m]).reduce((x,y)=>x+y,0)!==100){ toast(`Доли внутри ${m} должны давать 100%`); return; }
+    }
+    const btns=['#r-sbGo','#r-sbSend','#r-quickGo'].map(x=>$(x)).filter(Boolean), stop=$('#r-sbStop'), n=$('#r-sbNote');
+    const tpl=tplOf(p.templateId), allow=tplAllowed(tpl), lib=allow ? S.blocks.filter(b=>allow.includes(b.code||b.id)) : S.blocks, spec=p.spec||tpl?.spec, dna=p.dna||tpl?.rules?.dna;
+    const bySpec = (!!spec || !!dna) && !(p.mode==='own' && withTarget);
+    btns.forEach(b=>b.disabled=true); stop.hidden=false; n.textContent='Claude подбирает сцены по тексту и хронометражу… обычно до минуты.';
+    const d=collect(), files=mediaFiles();
+    const kindsTxt = m => SEG_KINDS[m].map(([k,l])=>`${k} — ${l} ${sb[m][k]}%`).join(', ');
+    const shares = bySpec ? (dna ? dnaPrompt(dna) : specShares(spec)) : withTarget
+      ? `ЦЕЛЕВЫЕ ДОЛИ ПО ВРЕМЕНИ (выбрал пользователь): A ${tg.a}%, B ${tg.b}%, C ${tg.c}%. Внутри B: ${kindsTxt('B')}. Внутри C: ${kindsTxt('C')}. Время каждого слова дано — режь сегменты и подбирай режимы и типы так, чтобы суммы секунд были как можно ближе к этим долям (режимы ±5 п.п., типы ±10 п.п.). Это главное требование: ради него смело режь посреди предложений. Режим или тип с долей 0% не используй.`
+      : `ДОЛИ И ТИПЫ ВЫБЕРИ САМ по смыслу текста и ритму. Ориентир: A около 10%, B 50–65%, C 25–35% на самых сильных местах; внутри B больше 2D-сцен и моушна, 3D — где яркая метафора; внутри C — смысловой моушн, 3D и кинетический текст.`;
+    const prompt=SB_PROMPT.replace('{SHARES}',shares)
+      .replace('{CTA}', d.ctaOn ? `В конце призыв: «${d.ctaText||'призыв'}» — последний сегмент про него, обычно A.` : 'Призыва в конце НЕТ: не придумывай призыв, кодовое слово или «подписывайся»; конец ролика — по смыслу текста.')
+      .replace('{WIN}', winName(d.win))
+      .replace('{PLAN}', (planText(p.assetPlan)||'картинки ещё не заказаны — ставь l2d и gen по смыслу, их закажут после').slice(0,6000))
+      .replace('{MEDIA}', files.length ? files.map(f=>`${f.name} — ${f.desc||'без описания'}`).join('\n') : 'нет — тип media не используй')
+      .replace('{BLOCKS}', (allow?`Монтаж по шаблону «${tpl.name}»: бери блоки ТОЛЬКО из этого списка.\n`:'')+(S.assets.length?`АССЕТЫ (файлы, код можно писать в описании сегмента): `+S.assets.map(a=>`${a.code} — ${a.name} (${secOf(a.section)?.[1]||''}${a.group?', '+a.group:''})${a.when?': '+a.when:''}`).join('; ')+`\nБЛОКИ:\n`:'')+lib.map(b=>`${b.code||b.id} (${kindName(b.kind)}) — ${b.name}. Для: ${b.fits||''}${b.params?`. Данные: ${b.params}`:''}`).join('\n'))
+      .replace('{STYLE}', (d.styleAnalysis||'стиль ещё не создан').slice(0,3000))
+      .replace('{NW}', curWords.length).replace('{DUR}', (curWords.at(-1)?.e||0).toFixed(1))
+      .replace('{WORDS}', curWords.map((w,i)=>`${i}:${w.w}@${w.s.toFixed(1)}`).join(' '));
+    let done=false;
+    try{
+      ctl=new AbortController();
+      const res = await sample.json(prompt, {signal:ctl.signal, cache:false});
+      if(!Array.isArray(res)) throw {code:'invalid_json'};
+      const W=curWords, N=W.length, names=new Set(files.map(f=>f.name));
+      const segs=res.map(x=>({a:Math.round(Number(x.from)), b:Math.round(Number(x.to)), mode:String(x.mode||''), kind:String(x.kind||''), win:String(x.win||''), media:String(x.media||''), note:String(x.visual||x.note||''), tech:(Array.isArray(x.tech)?x.tech:[]).map(c=>String(c).toUpperCase()).filter(c=>/^[A-Z0-9_]{2,12}$/.test(c))}))
+        .filter(x=>Number.isFinite(x.a)&&Number.isFinite(x.b)).map(x=>({...x, a:Math.max(0,Math.min(N-1,x.a)), b:Math.max(0,Math.min(N-1,x.b))})).filter(x=>x.b>=x.a).sort((x,y)=>x.a-y.a);
+      if(!segs.length) throw {code:'invalid_json'};
+      const rows=[]; let next=0;
+      for(const g of segs){ if(g.b<next) continue;
+        const mode=['A','B','C'].includes(g.mode)?g.mode:'B', ks=(SEG_KINDS[mode]||[]).map(x=>x[0]);
+        let kind = ks.includes(g.kind)?g.kind:ks[0]; if(kind==='media' && !names.has(g.media)) kind = ks.find(k=>k!=='media')||kind;
+        rows.push({...rowFromWords(W, next, g.b, mode, (g.tech.length?`[${g.tech.join(',')}] `:'')+g.note.replace(/^\[[A-Z0-9_,\s]+\]\s*/,'')), tech:g.tech, kind, win: mode==='B' ? (WINS.some(w=>w[0]===g.win)?g.win:readWin()) : '', media: kind==='media'?g.media:''});
+        next=g.b+1; }
+      if(next<N && rows.length){ const last=rows.pop(); rows.push({...rowFromWords(W,last.wi[0],N-1,last.mode,last.note), tech:last.tech||[], kind:last.kind, win:last.win, media:last.media}); }
+      curRows=rows; useTarget=withTarget;
+      if(withTarget && !bySpec) fitShares();
+      renderSb();
+      const ok=await write(()=>docRef.update({sbRows:curRows, storyboard:rowsText(curRows), target:tg, sub:sb, useTarget, ...(spec&&!p.spec?{spec}:{}), ...(dna&&!p.dna?{dna}:{}), updatedAt:new Date().toISOString()}));
+      done=true;
+      n.textContent = ok ? 'Готово. Меняй режим, тип, окно и визуал в таблице и нажми «Сохранить».' : 'Раскадровка готова, но не сохранилась.';
+    }catch(e){ n.textContent = e&&e.code==='cancelled' ? 'Остановлено.' : e&&e.code==='invalid_json' ? 'Claude ответил не в том формате. Нажми ещё раз.' : sampleErr(e); }
+    finally{ btns.forEach(b=>b.disabled=false); stop.hidden=true; }
+    return done;
+  }
+  $('#r-sbGo').onclick = ()=>propose(false);
+  wireQuick(p, {sendMaterials, propose, needSend:()=>!curWords.length || sentScript!==$('#r-script').value.trim() || !!avFile});
+  $('#r-sbSend').onclick = ()=>propose(true);
+  $('#r-media').addEventListener('change', ()=>renderSb());
+  document.querySelectorAll('input[name="r-win"]').forEach(x=>x.addEventListener('change', ()=>{ reelHooks.renderSummary(); }));
+}
+

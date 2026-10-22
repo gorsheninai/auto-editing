@@ -1,0 +1,56 @@
+/* ---------- routing ---------- */
+const VIEWS = ['reels','templates','library','assets','presets'];
+function show(v){
+  if(!VIEWS.includes(v)) v='reels';
+  VIEWS.forEach(x=>{ $('#view-'+x).hidden = x!==v; $('#tab-'+x).setAttribute('aria-selected', String(x===v)); });
+  try{ history.replaceState(null,'','#'+v); }catch(e){}
+}
+document.querySelectorAll('.tab[data-view]').forEach(b=>b.addEventListener('click',()=>show(b.dataset.view)));
+show((location.hash||'').slice(1));
+
+/* ---------- helpers ---------- */
+const presetOf = id => S.presets.find(p=>p.id===id);
+const tplOf = id => S.templates.find(t=>t.id===id);
+function strip(a,b,c,big){
+  const lab = (k,v)=> big && v>=8 ? `${k} ${v}%` : '';
+  return `<div class="strip${big?' big':''}" role="img" aria-label="A ${a}%, B ${b}%, C ${c}%">`+
+    `<span class="a" style="width:${a}%">${lab('A',a)}</span><span class="b" style="width:${b}%">${lab('B',b)}</span><span class="c" style="width:${c}%">${lab('C',c)}</span></div>`;
+}
+function sharesOf(p){
+  if(p.presetId==='custom' && p.custom) return p.custom;
+  const pr = presetOf(p.presetId); return pr ? {a:pr.a,b:pr.b,c:pr.c} : null;
+}
+function opts(list, val){ return list.map(o=>{ const [v,l] = Array.isArray(o)?o:[o,o]; return `<option value="${esc(v)}"${String(v)===String(val)?' selected':''}>${esc(l)}</option>`; }).join(''); }
+function media(id, kind, poster){
+  if(!id) return `<div class="media"><div class="ph">Превью пока нет</div></div>`;
+  const isVid = kind==='video';
+  return `<div class="media">${isVid
+    ? `<video src="${blob(id)}" ${poster?`poster="${blob(poster)}"`:''} muted loop playsinline preload="metadata" data-hover></video>`
+    : `<img src="${blob(id)}" alt="" loading="lazy">`}</div>`;
+}
+function wireVideos(root){
+  root.querySelectorAll('video[data-hover]').forEach(v=>{
+    const play=()=>v.play().catch(()=>{}), stop=()=>{v.pause();};
+    v.addEventListener('mouseenter',play); v.addEventListener('mouseleave',stop);
+    v.addEventListener('click',()=> v.paused?play():stop());
+  });
+}
+async function write(fn, okMsg){
+  try{ await fn(); if(okMsg) toast(okMsg); return true; }
+  catch(e){
+    if(e && e.code==='invalid_argument'){ canWrite=false; renderAll(); toast('У тебя доступ только на просмотр'); }
+    else if(e && e.code==='quota_exceeded') toast('Место на пульте закончилось: удали старые записи');
+    else toast('Не сохранилось: '+(e&&e.message||'ошибка'));
+    return false;
+  }
+}
+async function upload(file){
+  if(!assets){ toast('Загрузка файлов доступна только редактору'); return null; }
+  const type = file.type || (/\.mp4$/i.test(file.name)?'video/mp4':/\.webm$/i.test(file.name)?'video/webm':'');
+  try{ const r = await assets.upload(file, type?{type}:undefined); const ct=r.contentType||type||''; return {id:r.id, kind: ct.startsWith('video')?'video':ct.startsWith('image')?'image':'file', contentType:ct, size:r.sizeBytes??file.size}; }
+  catch(e){
+    const m={too_large:'Файл больше 20 МБ',unsupported_type:'Такой тип файла не поддерживается',quota_or_state:'Хранилище пульта заполнено',rate_limited:'Слишком часто, попробуй через минуту'};
+    toast(m[e&&e.code]||'Не загрузилось'); return null;
+  }
+}
+

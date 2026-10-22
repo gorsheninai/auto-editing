@@ -1,0 +1,148 @@
+/* ---------- МОНТАЖ ПО ШАБЛОНУ ---------- */
+function quickPanel(p, ro){
+  const t=tplOf(p.templateId); if(!p.quick || !t) return '';
+  const m=p.mode==='own'?'own':'auto';
+  return `<div class="quick" id="r-quick">
+    <div class="row" style="justify-content:space-between;gap:10px"><b>Монтаж по шаблону «${esc(t.name)}»</b>
+      <div class="row" role="group" aria-label="Режим" style="gap:6px">
+        <button type="button" class="chipbtn" data-qmode="auto" aria-pressed="${m==='auto'}">Авто</button>
+        <button type="button" class="chipbtn" data-qmode="own" aria-pressed="${m==='own'}">Свои настройки</button></div></div>
+    <ol>
+      <li>Вставь текст ролика и выбери видео аватара в «Материалах».</li>
+      <li>Нажми «Собрать раскадровку»: пульт посчитает паузы и подберёт сцены по правилам шаблона${tplAllowed(t)?` (блоков в шаблоне: ${tplAllowed(t).length})`:''}.</li>
+      <li>Проверь таблицу раскадровки и поправь, что не нравится.</li>
+      <li>«Составить промпт» в «Картинках» → вставь его в ChatGPT.</li>
+      <li>«Скопировать задание для чата» → в чате соберётся готовый ролик.</li>
+    </ol>
+    <div class="row"><button class="btn primary" type="button" id="r-quickGo"${ro}>Собрать раскадровку</button><span class="hint" id="r-quickNote">${m==='auto'?(t.rules?.dna?'Авто: раскадровка по смыслу текста из приёмов стиля; ядро стиля держится во всём ролике.':t.spec?'Авто: ритм, субтитры, звук и грейд — по спецификации референсов.':'Авто: стиль, окно, субтитры и доли берутся из шаблона.'):'Свои настройки: стиль и настройки открыты, их можно поменять.'}</span></div>
+  </div>`;
+}
+function wireQuick(p, api){
+  const box=$('#r-quick'); if(!box) return;
+  const t=tplOf(p.templateId), docRef=db.collection('projects').doc(p.id), note=$('#r-quickNote');
+  $('#r-sec-6').after($('#r-sec-3'));
+  const apply=()=>{
+    const auto=p.mode!=='own';
+    $('#r-sec-1').hidden=auto; $('#r-sec-5').hidden=auto;
+    box.querySelectorAll('[data-qmode]').forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.qmode===(auto?'auto':'own'))));
+    let i=0; document.querySelectorAll('#reelForm section.step').forEach(sec=>{ if(sec.hidden) return; const h=sec.querySelector('h4'); h.textContent=`${++i} · ${h.textContent.replace(/^\d+\s·\s/,'')}`; });
+    reelHooks.updateSteps();
+  };
+  box.querySelectorAll('[data-qmode]').forEach(b=>b.onclick=async ()=>{
+    p.mode=b.dataset.qmode; apply();
+    note.textContent = p.mode==='auto' ? 'Авто: стиль, окно, субтитры и доли берутся из шаблона.' : 'Свои настройки: шаги «Стиль» и «Настройки» открыты.';
+    if(canWrite) await write(()=>docRef.update({mode:p.mode, updatedAt:new Date().toISOString()}));
+  });
+  apply();
+  $('#r-quickGo').onclick = async ()=>{
+    if(!$('#r-script').value.trim()){ toast('Сначала вставь текст ролика'); $('#r-script').focus(); return; }
+    const go=$('#r-quickGo'); go.disabled=true;
+    try{
+      if(api.needSend()){ note.textContent='Шаг 1 из 2: считаю паузы и хронометраж…'; if(!await api.sendMaterials()){ note.textContent='Не хватает материалов: проверь текст и видео в «Материалах».'; return; } }
+      note.textContent='Шаг 2 из 2: Claude подбирает сцены по правилам шаблона… обычно до минуты.';
+      const withTarget = (!!t?.rules?.target && !t?.spec && !t?.rules?.dna) || (p.mode==='own' && !$('#r-manual').hidden);
+      const ok = await api.propose(withTarget);
+      if(ok){ note.textContent='Раскадровка готова — проверь таблицу ниже, затем «Составить промпт» для картинок.'; $('#r-sec-6').scrollIntoView({behavior:'smooth',block:'start'}); }
+      else note.textContent='Раскадровка не собралась — подробности в шаге «Раскадровка». Нажми ещё раз.';
+    } finally{ go.disabled=false; }
+  };
+}
+function openTplRules(t){
+  if(!t) return;
+  const E=$('#tplEditor'); E.hidden=false;
+  const r=t.rules||{}, allow=new Set(tplAllowed(t)||S.blocks.map(b=>b.code||b.id));
+  const kinds=KINDS.filter(([k])=>k!=='all' && S.blocks.some(b=>b.kind===k));
+  const anim=role=>animOptions(role,'').filter(x=>x[0]!=='__auto');
+  const tg=r.target||{a:10,b:60,c:30};
+  const pp={...PP_DEF, ...(r.passport||{}), colors:{...PP_DEF.colors, ...(r.passport?.colors||{})}, fonts:{...PP_DEF.fonts, ...(r.passport?.fonts||{})}};
+  E.innerHTML=`<form class="panel" id="tplRules" novalidate><h3>Правила шаблона «${esc(t.name)}»</h3>
+    <p>По этим правилам «Создать монтаж» собирает раскадровку сам: стиль, окно спикера, субтитры, доли кадра и какие блоки библиотеки можно брать.</p>
+    <div class="fields">
+      <div class="f wide"><label for="tr-dna">Стиль тремя слоями: ядро, приёмы, структура</label><textarea id="tr-dna" spellcheck="false" style="min-height:340px;font-family:var(--mono);font-size:13px;line-height:1.45" placeholder="${esc(DNA_FORMAT)}">${esc(r.dna?dnaToText(r.dna):'')}</textarea><span class="hint">По строке на пункт, поля через « | ». Ядро держится в каждом ролике; приёмы Claude ставит по смыслу текста, по правилу «когда»; структура — как устроен ролик во времени. Коды приёмов, которые сборка знает: ${Object.keys(DNA_CODES).join(', ')}; новый код — опиши, сделаю блок в чате.</span></div>
+      <div class="f wide"><label for="tr-style">${r.dna?'Дополнительно к стилю (свободный текст)':'Стиль монтажа'}</label><textarea id="tr-style" style="min-height:${r.dna?90:180}px">${esc(r.dna?(r.style||''):(r.style||tplStyle(t)))}</textarea><span class="hint">${r.dna?'Необязательно: то, что не легло в три слоя.':'Уходит в поле «Стиль ролика». Лучше описать стиль тремя слоями выше.'}</span></div>
+      <div class="f"><label for="tr-win">Окно спикера</label><select id="tr-win">${opts(WINS.map(w=>[w[0],w[1]]), r.win||'popout')}</select></div>
+      <div class="f"><label for="tr-bg">Подложка</label><select id="tr-bg">${opts(['светлая','тёмная','светлая, живой градиент','тёмная, живой градиент'], r.bg||t.bg||'светлая')}</select></div>
+      <div class="f"><label for="tr-sub">Анимация субтитров</label><select id="tr-sub">${opts(anim('subtitle'), r.subAnim||'static')}</select></div>
+      <div class="f"><label for="tr-title">Анимация заголовков</label><select id="tr-title">${opts(anim('title'), r.titleAnim||'static')}</select></div>
+      <div class="f wide"><label class="row" style="gap:8px;cursor:pointer"><input type="checkbox" id="tr-tgOn"${r.target?' checked':''}> Задать доли кадра</label>
+        <div class="trio" id="tr-tg"${r.target?'':' hidden'}>
+          <label class="f"><span class="hint">A · спикер, %</span><input type="number" id="tr-a" min="0" max="100" value="${tg.a}"></label>
+          <label class="f"><span class="hint">B · сцена + окно, %</span><input type="number" id="tr-b" min="0" max="100" value="${tg.b}"></label>
+          <label class="f"><span class="hint">C · на весь экран, %</span><input type="number" id="tr-c" min="0" max="100" value="${tg.c}"></label></div>
+        <span class="hint">Выключено — Claude выбирает доли сам по смыслу текста.</span></div>
+      <div class="f"><label class="row" style="gap:8px;cursor:pointer"><input type="checkbox" id="tr-punch"${(r.punch??true)?' checked':''}> Наезды камеры</label></div>
+      <div class="f"><label class="row" style="gap:8px;cursor:pointer"><input type="checkbox" id="tr-prog"${r.progress?' checked':''}> Полоса прогресса</label></div>
+      <div class="f wide"><label for="tr-assets">Базовые ассеты шаблона на Диске</label><input type="url" id="tr-assets" value="${esc(r.assets||'')}" placeholder="https://drive.google.com/drive/folders/…"><span class="hint">Фоны, стикеры, текстуры, звуки этого стиля — общие для всех роликов по шаблону.</span></div>
+      <div class="f wide"><label for="tr-alist">Что лежит в папке ассетов</label><textarea id="tr-alist" style="min-height:80px" placeholder="По строке на файл: имя — о чём&#10;paper_bg.png — бумажный фон">${esc(r.assetsList||'')}</textarea><span class="hint">Попадёт в «Мои вставки» нового ролика — Claude сможет ставить эти файлы в сцены.</span></div>
+    </div>
+    <h4 style="margin:18px 0 4px">Стилевой паспорт</h4>
+    <p class="hint" style="margin:0 0 8px">Его читают все блоки библиотеки: код у блока один, а цвета, шрифты, форма и движение — от шаблона.</p>
+    <div class="row" style="gap:8px;margin-bottom:10px"><button type="button" class="btn" id="tr-ppGo">Собрать паспорт из стиля</button><button type="button" class="btn ghost" id="tr-ppStop" hidden>Остановить</button><span class="hint" id="tr-ppNote">Claude прочитает стиль монтажа и палитру и заполнит поля.</span></div>
+    <div class="fields" id="tr-pp">
+      ${PP_COLORS.map(([k,l])=>`<div class="f"><label for="pp-c-${k}">${l}</label><div class="row" style="gap:6px;flex-wrap:nowrap"><input type="color" id="pp-c-${k}" value="${esc(pp.colors[k])}" style="width:44px;height:38px;padding:2px"><input type="text" data-hex="${k}" value="${esc(pp.colors[k])}" style="font-family:var(--mono)"></div></div>`).join('')}
+      <div class="f"><label for="pp-sans">Шрифт основной</label><select id="pp-sans">${opts(PP_FONTS.sans, pp.fonts.sans)}</select></div>
+      <div class="f"><label for="pp-serif">Шрифт акцентный</label><select id="pp-serif">${opts(PP_FONTS.serif, pp.fonts.serif)}</select></div>
+      <div class="f"><label for="pp-hand">Рукописный</label><select id="pp-hand">${opts(PP_FONTS.hand, pp.fonts.hand)}</select></div>
+      <div class="f"><label for="pp-radius">Углы</label><select id="pp-radius">${opts(PP_RADIUS, pp.radius)}</select></div>
+      <div class="f"><label for="pp-motion">Движение</label><select id="pp-motion">${opts(PP_MOTION, pp.motion)}</select></div>
+      <div class="f"><label for="pp-tex">Фактура фона</label><select id="pp-tex">${opts(PP_TEX, pp.texture)}</select></div>
+      <div class="f"><label class="row" style="gap:8px;cursor:pointer"><input type="checkbox" id="pp-shadow"${pp.shadow?' checked':''}> Тени у карточек</label></div>
+    </div>
+    <h4 style="margin:16px 0 4px">Блоки, которые можно брать</h4>
+    <div class="row" style="gap:6px"><button type="button" class="chipbtn" id="tr-all">Все</button><button type="button" class="chipbtn" id="tr-none">Ничего</button><span class="hint" id="tr-cnt"></span></div>
+    ${kinds.map(([k,l])=>`<p style="margin:12px 0 0;font-weight:600">${esc(l)}</p><div class="blkgrid">${S.blocks.filter(b=>b.kind===k).map(b=>{ const c=b.code||b.id; return `<label><input type="checkbox" data-blk="${esc(c)}"${allow.has(c)?' checked':''}><span class="code">${esc(c)}</span> ${esc(b.name)}</label>`; }).join('')}</div>`).join('')}
+    <div class="row" style="margin-top:14px"><button class="btn primary" type="submit">Сохранить правила</button><button class="btn ghost" type="button" id="tr-close">Закрыть</button></div></form>`;
+  const F=$('#tplRules'), boxes=()=>[...F.querySelectorAll('[data-blk]')];
+  const cnt=()=>{ $('#tr-cnt').textContent=`Выбрано ${boxes().filter(x=>x.checked).length} из ${boxes().length}`; };
+  F.addEventListener('change', cnt); cnt();
+  $('#tr-all').onclick=()=>{ boxes().forEach(x=>x.checked=true); cnt(); };
+  $('#tr-none').onclick=()=>{ boxes().forEach(x=>x.checked=false); cnt(); };
+  $('#tr-tgOn').onchange=e=>{ $('#tr-tg').hidden=!e.target.checked; };
+  /* паспорт: цвет ↔ hex */
+  const setPP=q=>{
+    PP_COLORS.forEach(([k])=>{ const v=q.colors?.[k]; if(/^#[0-9a-f]{6}$/i.test(v||'')){ $('#pp-c-'+k).value=v; F.querySelector(`[data-hex="${k}"]`).value=v; } });
+    for(const [id,v,list] of [['#pp-sans',q.fonts?.sans,PP_FONTS.sans],['#pp-serif',q.fonts?.serif,PP_FONTS.serif],['#pp-hand',q.fonts?.hand,PP_FONTS.hand],['#pp-radius',q.radius,PP_RADIUS],['#pp-motion',q.motion,PP_MOTION],['#pp-tex',q.texture,PP_TEX]])
+      if(v!=null && list.some(x=>String(x[0])===String(v))) $(id).value=String(v);
+    if(typeof q.shadow==='boolean') $('#pp-shadow').checked=q.shadow;
+  };
+  PP_COLORS.forEach(([k])=>{ $('#pp-c-'+k).oninput=e=>{ F.querySelector(`[data-hex="${k}"]`).value=e.target.value; };
+    F.querySelector(`[data-hex="${k}"]`).oninput=e=>{ if(/^#[0-9a-f]{6}$/i.test(e.target.value)) $('#pp-c-'+k).value=e.target.value; }; });
+  const readPP=()=>({colors:Object.fromEntries(PP_COLORS.map(([k])=>[k,$('#pp-c-'+k).value])), fonts:{sans:$('#pp-sans').value, serif:$('#pp-serif').value, hand:$('#pp-hand').value},
+    radius:+$('#pp-radius').value, motion:$('#pp-motion').value, texture:$('#pp-tex').value, shadow:$('#pp-shadow').checked});
+  let ppCtl=null; $('#tr-ppStop').onclick=()=>ppCtl?.abort();
+  $('#tr-ppGo').onclick=async ()=>{
+    if(!sample){ toast('Claude недоступен в этом просмотре'); return; }
+    const go=$('#tr-ppGo'), note=$('#tr-ppNote'); go.disabled=true; $('#tr-ppStop').hidden=false; note.textContent='Claude подбирает паспорт по стилю… до минуты.';
+    const ids=l=>l.map(x=>`${x[0]} (${x[1]})`).join(', ');
+    const prompt=`Ты арт-директор вертикальных рилсов. По описанию стиля монтажа собери «стилевой паспорт» — настройки, по которым все моушн-блоки ролика (графики, карточки, телефоны, списки, текст) перекрашиваются и двигаются в одном стиле.
+СТИЛЬ ШАБЛОНА «${t.name}»:
+${$('#tr-style').value.slice(0,6000)}
+${t.palette?.length?'Палитра из карточки: '+t.palette.join(', '):''}
+${t.fonts?'Шрифты из карточки: '+t.fonts:''}
+Подложка: ${$('#tr-bg').value}.
+Правила: цвета — hex #RRGGBB; текст хорошо читается на фоне и на карточках (контраст не ниже 4.5:1); акцент заметен на фоне; accent2 — второй контрастный акцент; soft — мягкий тон для второстепенных заливок; card — фон карточек, близкий к фону, но отличимый.
+Шрифты — только id из списков. sans (основной, заголовки и цифры): ${ids(PP_FONTS.sans)}. serif (акцентные слова): ${ids(PP_FONTS.serif)}. hand (рукописные пометки): ${ids(PP_FONTS.hand)}.
+radius — одно из 0.3, 0.6, 1, 1.6. motion — soft | spring | snappy. texture — dots | clean | paper | grain. shadow — true/false.
+Ответь только JSON: {"colors":{"bg","ink","muted","accent","accent2","card","soft"},"fonts":{"sans","serif","hand"},"radius","motion","texture","shadow","why":"одно предложение, почему так"}`;
+    try{ ppCtl=new AbortController(); const res=await sample.json(prompt,{signal:ppCtl.signal, cache:false});
+      if(!res||typeof res!=='object') throw {code:'invalid_json'}; setPP(res); note.textContent=(res.why?res.why+' ':'')+'Проверь и нажми «Сохранить правила».'; }
+    catch(e){ note.textContent = e&&e.code==='cancelled' ? 'Остановлено.' : 'Не получилось собрать паспорт, нажми ещё раз.'; }
+    finally{ go.disabled=false; $('#tr-ppStop').hidden=true; }
+  };
+  $('#tr-close').onclick=()=>{ E.hidden=true; E.innerHTML=''; };
+  E.scrollIntoView({behavior:'smooth',block:'start'});
+  F.addEventListener('submit', async e=>{
+    e.preventDefault();
+    const n=id=>Math.max(0,Math.round(+$(id).value||0));
+    const target=$('#tr-tgOn').checked ? {a:n('#tr-a'), b:n('#tr-b'), c:n('#tr-c')} : null;
+    if(target && target.a+target.b+target.c!==100){ toast('Доли должны давать 100%'); return; }
+    const on=boxes().filter(x=>x.checked).map(x=>x.dataset.blk);
+    if(!on.length){ toast('Выбери хотя бы один блок'); return; }
+    const dnaTxt=$('#tr-dna').value.trim(), dna=dnaTxt?dnaFromText(dnaTxt):null;
+    if(dna && (!dna.core.length || !dna.techniques.length)){ toast('В стиле нужны разделы ЯДРО и ПРИЁМЫ'); return; }
+    const rules={dna, style:$('#tr-style').value.trim(), win:$('#tr-win').value, bg:$('#tr-bg').value, subAnim:$('#tr-sub').value, titleAnim:$('#tr-title').value,
+      target, punch:$('#tr-punch').checked, progress:$('#tr-prog').checked, assets:$('#tr-assets').value.trim(), assetsList:$('#tr-alist').value,
+      allowed: on.length===boxes().length ? [] : on, passport: readPP()};
+    if(await write(()=>db.collection('templates').doc(t.id).update({rules, bg:rules.bg, updatedAt:new Date().toISOString()}),'Правила сохранены')){ E.hidden=true; E.innerHTML=''; }
+  });
+}

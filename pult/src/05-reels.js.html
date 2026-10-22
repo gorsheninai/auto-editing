@@ -1,0 +1,322 @@
+/* ---------- РОЛИКИ ---------- */
+function renderReels(){
+  $('#newReel').disabled = !canWrite || !db;
+  const L = $('#reelList');
+  if(!S.projects.length){
+    L.innerHTML = `<div class="empty"><strong>Роликов пока нет</strong>Нажми «Новый ролик» или выбери шаблон во вкладке «Шаблоны». Здесь появится список с этапами: черновик, раскадровка, картинки, монтаж, готово.</div>`;
+    return;
+  }
+  const rows = [...S.projects].sort((x,y)=>(y.updatedAt||'').localeCompare(x.updatedAt||'')).map(p=>{
+    const st = STATUSES.find(s=>s[0]===p.status)||STATUSES[0];
+    const sh = rowShares(p.sbRows); const t = tplOf(p.templateId);
+    return `<div class="projrow" tabindex="0" data-open="${esc(p.id)}">
+      <div style="min-width:0"><h3>${esc(p.title||'Без названия')}</h3>
+      <div class="sub">${esc(t?t.name:'без шаблона')} · обновлён ${esc((p.updatedAt||'').slice(0,10))}</div></div>
+      ${sh?strip(sh.a,sh.b,sh.c):'<span></span>'}
+      <span class="pill s-${esc(st[0])}">${esc(st[1])}</span></div>`;
+  }).join('');
+  L.innerHTML = `<div class="projlist">${rows}</div>`;
+  L.querySelectorAll('[data-open]').forEach(r=>{
+    const go=()=>openReel(S.projects.find(p=>p.id===r.dataset.open));
+    r.addEventListener('click',go); r.addEventListener('keydown',e=>{ if(e.key==='Enter') go(); });
+  });
+}
+function blankReel(tplId){
+  const t = tplOf(tplId), r = t?.rules || {};
+  const base = {title:'', ctaOn:false, ctaText:'', win:'popout', mediaList:'',
+    templateId: t?t.id:'', presetId: t&&t.presetId ? t.presetId : (S.presets[0]?.id||''), custom:{a:10,b:60,c:30},
+    bg: t?.bg || 'светлая', punch:true, progress:false, n3d:'2–3', nMotion:'2–3', ownMedia:'', speed:1.2, subWords:2, subColor:'по подложке',
+    sound: t?.sound || SOUND[0], drive:'', script:'', status:'draft'};
+  if(!t) return base;
+  return {...base, quick:true, mode:'auto', win:r.win||base.win, subAnim:r.subAnim||'static', titleAnim:r.titleAnim||'static',
+    punch: r.punch ?? base.punch, progress: r.progress ?? base.progress, bg: r.bg || base.bg, speed: r.speed || base.speed,
+    ...(r.target ? {target:{...r.target}, useTarget:true} : {}),
+    styleAnalysis: tplStyle(t), mediaList: r.assetsList || '', passport: r.passport || null,
+    /* глубокий разбор: цифровая спецификация референсов едет в проект целиком и задаёт ритм, субтитры, звук и грейд */
+    ...(r.dna ? {dna: r.dna} : {}),
+    ...(t.spec ? {spec: t.spec, speed: 1.0, punch: false, subWords: t.spec.engine?.subtitle?.words || 1} : {})};
+}
+/* ритм раскадровки по спецификации шаблона — для промпта Claude */
+function specShares(sp){
+  const e=sp.engine||{}, sh=e.shots||{}, a=Math.round((sh.speakerShare||0.7)*100), ins=sh.insertMedian||1.5;
+  const subs=Object.values(sp.substitutes||{});
+  return [`РИТМ ПО СПЕЦИФИКАЦИИ ШАБЛОНА (замерено по референсам — главное требование):`,
+    `спикер во весь кадр (A) — ${a}% времени, вставки во весь кадр (C) — ${100-a}%; режим B (окно спикера) не используй — у референсов его нет.`,
+    `Каждая вставка короткая: ${ins.toFixed(1)} с, не дольше ${(ins*1.6).toFixed(1)} с — 1–4 слова про конкретный предмет или действие из текста.`,
+    `Планы спикера ≈${(sh.speakerMedian||2.2).toFixed(1)} с: длинный кусок речи режь на несколько сегментов A подряд — на склейке сменится крупность.`,
+    `Склейки только жёсткие, на начале слова; коды переходов Tr… не ставь.`,
+    subs.length?`Чего у нас нет, заменяй так: ${subs.join('; ')}.`:''].filter(Boolean).join(' ');
+}
+/* стиль тремя слоями: ядро (держать всегда), приёмы (по смыслу, правило «когда»), структура; текст ⇄ объект — как tools/dna_text.py */
+const DNA_CODES={HOOK:'хук-заголовок из размытия', WORD:'вставка-слово: буквальный кадр того, что названо, слово крупно', NUM:'число крупно', KEY:'ключевое слово крупнее', CROP:'смена крупности спикера', BURST:'серия коротких вставок', LIST:'пункт списка «1:» поверх вставки', BW:'ч/б', CARD:'карточка-пауза с одним словом'};
+const DNA_FORMAT=`ЯДРО (держать в каждом ролике)
+Название | правило
+ПРИЁМЫ (брать по смыслу текста)
+КОД · Название | что это | когда: … | как часто | длина | звук: whoosh, hit или нет
+СТРУКТУРА
+Часть (где) | правило
+ДИАПАЗОНЫ
+спикер 1,5–4 с; вставка 0,7–2 с; серия 0,2–0,6 с`;
+function dnaToText(d){
+  if(!d) return '';
+  const S2=' | ', r=d.ranges||{}, f=k=>(r[k]||[]).map(x=>String(x).replace('.',',')).join('–');
+  return [`Стиль «${d.name||''}»`,'','ЯДРО (держать в каждом ролике)', ...(d.core||[]).map(c=>c.name+S2+c.rule),
+    '','ПРИЁМЫ (брать по смыслу текста, не все сразу)', ...(d.techniques||[]).map(t=>`${t.code} · ${t.name}${S2}${t.what}${S2}когда: ${t.when}${S2}${t.freq}${S2}${t.len||''}${S2}звук: ${t.sfx||'нет'}`),
+    '','СТРУКТУРА', ...(d.structure||[]).map(x=>`${x.part} (${x.span})${S2}${x.rule}`),
+    '','ДИАПАЗОНЫ', [r.speaker&&`спикер ${f('speaker')} с`, r.insert&&`вставка ${f('insert')} с`, r.burst&&`серия ${f('burst')} с`].filter(Boolean).join('; '),
+    ...(d.choices?['','ВЫБОР ШАБЛОНА', Object.entries(d.choices).map(([k,v])=>`${k}: ${v}`).join('; ')]:[]),
+    ...(d.varies?['','МЕНЯЕТСЯ ОТ РОЛИКА К РОЛИКУ', d.varies]:[])].join('\n');
+}
+function dnaFromText(txt){
+  const d={core:[],techniques:[],structure:[],ranges:{}}; let sec=null;
+  const HEADS=['ЯДРО','ПРИЁМЫ','СТРУКТУРА','ДИАПАЗОНЫ','ВЫБОР ШАБЛОНА','МЕНЯЕТСЯ ОТ РОЛИКА К РОЛИКУ'];
+  for(const line of String(txt||'').split('\n')){
+    const s=line.trim(); if(!s) continue;
+    const m0=s.match(/^Стиль «(.*)»$/); if(m0){ d.name=m0[1]; continue; }
+    const head=s.split(' (')[0]; if(HEADS.includes(head.toUpperCase()) && head===head.toUpperCase()){ sec=head.toUpperCase(); continue; }
+    const p=s.split('|').map(x=>x.trim()), g=i=>p[i]||'';
+    if(sec==='ЯДРО') d.core.push({name:p[0], rule:p.slice(1).join(' | ')});
+    else if(sec==='ПРИЁМЫ'){ const [code,...nm]=p[0].split('·'); d.techniques.push({code:code.trim().toUpperCase(), name:nm.join('·').trim(), what:g(1), when:g(2).replace(/^когда:\s*/,''), freq:g(3), len:g(4), sfx:g(5).replace(/^звук:\s*/,'').replace('нет','')}); }
+    else if(sec==='СТРУКТУРА'){ const m=p[0].match(/^(.*?)\s*\((.*)\)$/); d.structure.push({part:m?m[1]:p[0], span:m?m[2]:'', rule:p.slice(1).join(' | ')}); }
+    else if(sec==='ДИАПАЗОНЫ'){ for(const [k,w] of [['speaker','спикер'],['insert','вставка'],['burst','серия']]){ const m=s.match(new RegExp(w+'\\s*([\\d.,]+)\\s*[–-]\\s*([\\d.,]+)')); if(m) d.ranges[k]=[+m[1].replace(',','.'), +m[2].replace(',','.')]; } }
+    else if(sec==='ВЫБОР ШАБЛОНА') d.choices=Object.fromEntries(s.split('; ').filter(x=>x.includes(': ')).map(x=>[x.slice(0,x.indexOf(': ')), x.slice(x.indexOf(': ')+2)]));
+    else if(sec==='МЕНЯЕТСЯ ОТ РОЛИКА К РОЛИКУ') d.varies=((d.varies||'')+' '+s).trim();
+  }
+  return d;
+}
+function dnaSummary(d){ return d ? `ядро ${d.core?.length||0} · приёмов ${d.techniques?.length||0} (${(d.techniques||[]).map(t=>t.code).join(', ')}) · частей ${d.structure?.length||0}` : ''; }
+/* раскадровка по трём слоям: смысловые моменты текста → приёмы из словаря */
+function dnaPrompt(d){
+  const r=d.ranges||{}, f=k=>(r[k]||[]).join('–');
+  return [`СТИЛЬ ШАБЛОНА ТРЕМЯ СЛОЯМИ — главное требование раскадровки.`,
+    `ЯДРО (соблюдай во всём ролике):`, ...(d.core||[]).map(c=>`- ${c.name}: ${c.rule}`),
+    `ПРИЁМЫ — словарь стиля. Бери ТОЛЬКО их, по правилу «когда» и с указанной частотой; все сразу не нужны. Один и тот же приём не ставь в два сегмента подряд (кроме KEY и CROP). Не повторяй одну и ту же схему — ролик должен быть в стиле, а не копией:`,
+    ...(d.techniques||[]).map(t=>`- ${t.code} (${t.name}): ${t.what}. Когда: ${t.when}. Частота: ${t.freq}.${t.len?' Длина: '+t.len+'.':''}`),
+    `СТРУКТУРА — размечай текст по смыслу на эти части и веди каждую так:`, ...(d.structure||[]).map(x=>`- ${x.part} (${x.span}): ${x.rule}`),
+    (r.speaker||r.insert)?`ДЛИНЫ: план спикера ${f('speaker')} с, вставка ${f('insert')} с${r.burst?`, кадр серии ${f('burst')} с`:''}. Длину внутри диапазона выбирай по смыслу фразы, не одинаково. Склейка — на начале слова.`:'',
+    `ПОРЯДОК: 1) найди смысловые моменты текста: первая фраза-хук, новые мысли, конкретные предметы, места, люди, бренды и действия, числа, перечисления, нумерованные пункты, прошлое или контраст, вывод; 2) на каждый момент поставь приём из словаря по его правилу «когда»; 3) нарежь сегменты по словам. Приёмы-вставки (WORD, BURST, LIST, CARD) — режим C на весь экран; остальные — режим A. Режим B не используй, если ядро требует спикера во весь кадр.`,
+    `В каждом сегменте добавь поле "tech" — массив кодов приёмов сегмента (может быть пустым). Для WORD в "visual" напиши, какой именно кадр показать (предмет или действие из этих слов) и какое слово крупно; для BURST — 4–6 кадров через «;»; для LIST — номер и заголовок пункта; для KEY и NUM — какое слово крупно. Если берёшь блок библиотеки — начни visual с его кода.`].filter(Boolean).join('\n');
+}
+function specSummary(sp){
+  const e=sp.engine||{}, sh=e.shots||{}, su=e.subtitle||{}, so=e.sound||{};
+  return [`спикер ${Math.round((sh.speakerShare||0)*100)}%`, `планы ${(sh.speakerMedian||0).toFixed(1)} / ${(sh.insertMedian||0).toFixed(1)} с`,
+    `склеек ${sp.rhythm?.cuts_per_min??'—'}/мин`, `субтитр ${su.fontSize||'—'} px, ${su.words||1} сл.`, `${so.lufs??'—'} LUFS${so.music?', подложка':''}`].join(' · ');
+}
+/* стиль шаблона → поле «Стиль ролика»: свой текст правил или сборка из полей карточки */
+function tplStyle(t){
+  const r=t.rules||{};
+  if(r.dna) return dnaToText(r.dna)+(r.style?.trim()?'\n\nДОПОЛНИТЕЛЬНО:\n'+r.style.trim():'');
+  if(r.style?.trim()) return r.style.trim();
+  return [`Шаблон «${t.name}».`, t.aesthetic&&`Эстетика: ${t.aesthetic}`, t.palette?.length&&`Палитра: ${t.palette.join(', ')}`,
+    t.fonts&&`Шрифты: ${t.fonts}`, t.motion&&`Движение и переходы: ${t.motion}`, t.bg&&`Подложка: ${t.bg}`].filter(Boolean).join('\n');
+}
+function tplAllowed(t){
+  if(!t) return null;
+  if(t.rules) return t.rules.allowed?.length ? t.rules.allowed : null;
+  const have=new Set(S.blocks.map(b=>b.code||b.id)), l=(t.blocks||[]).filter(c=>have.has(c));
+  return l.length ? l : null;
+}
+function titleFrom(script){
+  const t=(script||'').trim().split(/(?<=[.!?…])\s/)[0].replace(/\s+/g,' ');
+  if(!t) return 'Ролик от '+new Date().toLocaleDateString('ru-RU');
+  return t.length>60 ? t.slice(0,57).replace(/\s\S*$/,'')+'…' : t;
+}
+async function createReel(tplId){
+  if(!db||!canWrite) return;
+  const now=new Date().toISOString(), ref=db.collection('projects').doc();
+  const t=tplOf(tplId);
+  const body={...blankReel(tplId), title: t ? `${t.name} · ${new Date().toLocaleDateString('ru-RU')}` : titleFrom(''), refs:[], createdAt:now, updatedAt:now};
+  if(await write(()=>ref.set(body),'Ролик создан')) openReel({...body, id:ref.id});
+}
+function openReel(p){
+  const E = $('#reelEditor'); E.hidden = false;
+  const ro = !canWrite ? ' disabled' : '';
+  const sub = {B:{...SUB_DEF.B, ...(p.sub?.B||{})}, C:{...SUB_DEF.C, ...(p.sub?.C||{})}};
+  const winCards = WINS.map(([v,l,h])=>`<label class="wincard"><input type="radio" name="r-win" value="${v}"${(p.win||'popout')===v?' checked':''}${ro}><span class="winpic wp-${v}" aria-hidden="true"><i></i></span><b>${esc(l)}</b><span class="hint">${esc(h)}</span></label>`).join('');
+  const subInputs = m => SEG_KINDS[m].map(([k,l])=>`<label class="f"><span class="hint"><i class="kdot k-${k}"></i>${esc(l)}, %</span><input type="number" id="r-sub-${m}-${k}" min="0" max="100" value="${sub[m][k]??0}"${ro}></label>`).join('');
+  E.innerHTML = `<form class="panel" id="reelForm" novalidate>
+    <h3>${esc(p.title||'Новый ролик')}</h3>
+    <nav class="steps" id="r-steps" aria-label="Шаги ролика"></nav>
+    ${quickPanel(p, ro)}
+
+    <section class="step" id="r-sec-1"><h4>1 · Стиль</h4>
+      <div class="refs" id="r-refs"></div>
+      <div class="manual" id="r-animPanel" hidden></div>
+      <div class="row" style="margin-top:10px">
+        <label class="btn" id="r-vidAdd" style="cursor:pointer">Загрузить видео<input type="file" id="r-vidFile" accept="video/mp4,video/webm,video/quicktime" multiple hidden></label>
+        <label class="btn" id="r-imgAdd" style="cursor:pointer">Загрузить картинки<input type="file" id="r-imgFile" accept="image/jpeg,image/png,image/webp" multiple hidden></label>
+        <span class="hint" id="r-refCount">До 5 видео и до 5 картинок, каждый файл до 20 МБ.</span>
+      </div>
+      <div class="f wide" style="margin-top:14px">
+        <label for="r-style">Стиль ролика</label>
+        <textarea id="r-style" style="min-height:200px" placeholder="Здесь появится стиль: эстетика, палитра, шрифты, раскладки кадра, ритм, переходы, графика и стилевой паспорт для промптов."${ro}>${esc(p.styleAnalysis)}</textarea>
+        <div class="row"><button class="btn primary" type="button" id="r-styleGo">Создать стиль</button><button class="btn ghost" type="button" id="r-styleStop" hidden>Остановить</button><span class="hint" id="r-styleNote">Claude посмотрит кадры видео и картинки и сведёт их в один стиль.</span></div>
+      </div>
+    </section>
+
+    <section class="step" id="r-sec-2"><h4>2 · Текст</h4>
+      <textarea id="r-script" style="min-height:220px" aria-label="Текст сценария" placeholder="Вставь сюда текст ролика целиком"${ro}>${esc(p.script)}</textarea><span class="hint" id="r-count"></span>
+    </section>
+
+    <section class="step" id="r-sec-3"><h4>3 · Картинки</h4>
+      <span class="hint" id="r-gptScope">Claude разберёт текст на смысловые блоки и решит, где нужна 2D-сцена (позы, предметы, фоны), а где картинка по смыслу (картина, скриншот, документ). Отправь промпт в ChatGPT и, пока он генерирует, переходи к материалам. Готовые картинки — в папку ролика на Диске.</span>
+      <textarea id="r-gpt" style="min-height:200px;font-family:var(--mono);font-size:13px;margin-top:8px" placeholder="Здесь появится один большой запрос на все картинки ролика."${ro}>${esc(p.gptPrompt)}</textarea>
+      <div class="row"><button class="btn primary" type="button" id="r-gptGo">Составить промпт</button><button class="btn" type="button" id="r-gptCopy">Скопировать промпт</button><button class="btn ghost" type="button" id="r-gptStop" hidden>Остановить</button><span class="hint" id="r-gptNote">Отправь его в ChatGPT (режим work) со своим фото и референсами. Готовые картинки — в ту же папку на Диске.</span></div>
+      <details id="r-planWrap"${p.assetPlan?'':' hidden'} style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Смысловой план картинок</summary>
+        <textarea id="r-plan" readonly style="min-height:200px;margin-top:8px" aria-label="Смысловой план картинок">${esc(planText(p.assetPlan))}</textarea>
+      </details>
+    </section>
+
+    <section class="step" id="r-sec-4"><h4>4 · Материалы</h4><div class="fields">
+      <div class="f wide"><label for="r-drive">Папка на Диске</label><input type="url" id="r-drive" value="${esc(p.drive)}" placeholder="https://drive.google.com/drive/folders/…"${ro}><span class="hint">Одна папка на ролик: сюда твои вставки (фото, видео, скриншоты) и потом картинки из ChatGPT. Открой доступ по ссылке.</span></div>
+      <div class="f wide"><label for="r-media">Мои вставки в этой папке</label><textarea id="r-media" style="min-height:90px" placeholder="По строке на файл: имя файла — о чём он&#10;news.png — скрин новости про сокращения&#10;capcut.mp4 — запись экрана монтажа"${ro}>${esc(p.mediaList||'')}</textarea><span class="hint">Раскадровка поставит их туда, где они подходят по смыслу. Можно оставить пустым.</span></div>
+      <div class="f wide"><label>Видео аватара с озвучкой</label>
+        <div class="row"><label class="btn" style="cursor:pointer">Выбрать видео<input type="file" id="r-avFile" accept="video/mp4,video/webm,video/quicktime" hidden></label><span class="hint" id="r-avInfo"></span></div></div>
+      <div class="f wide"><div class="row"><button class="btn primary" type="button" id="r-send">Отправить</button><span class="hint" id="r-sendNote">Пульт сохранит материалы и посчитает хронометраж: паузы, длину после ускорения и время каждого слова.</span></div>
+        <div id="r-timing"></div></div>
+    </div></section>
+
+    <section class="step" id="r-sec-5"><h4>5 · Настройки</h4>
+      <div class="f wide"><label>Окно спикера в режиме B</label><span class="hint">По умолчанию на весь ролик. В раскадровке можно поменять у любого сегмента.</span>
+        <div class="wins" role="radiogroup" aria-label="Окно спикера">${winCards}</div></div>
+      <div class="fields" style="margin-top:14px">
+        <div class="f"><label for="r-bg">Подложка</label><select id="r-bg"${ro}>${opts(['светлая','тёмная','светлая, живой градиент','тёмная, живой градиент'],p.bg)}</select></div>
+        <div class="f"><label for="r-sound">Звук</label><select id="r-sound"${ro}>${opts(SOUND,p.sound)}</select></div>
+        <div class="f"><label for="r-speed">Ускорение: <span class="code" id="r-speedV"></span></label><input type="range" id="r-speed" min="1" max="1.3" step="0.05" value="${p.speed??1.2}"${ro}></div>
+        <div class="f"><label for="r-words">Слов в субтитре</label><select id="r-words"${ro}>${opts([1,2,3],p.subWords??2)}</select></div>
+        <div class="f"><label for="r-subAnim">Анимация субтитров</label><select id="r-subAnim" data-pid="${esc(p.id)}" data-v="${esc(p.subAnim||'static')}"${ro}>${opts(animOptions('subtitle',p.id), p.subAnim||'static')}</select><span class="hint" id="r-subAnimNote"></span></div>
+        <div class="f"><label for="r-titleAnim">Анимация заголовков и кинетического текста</label><select id="r-titleAnim" data-pid="${esc(p.id)}" data-v="${esc(p.titleAnim||'static')}"${ro}>${opts(animOptions('title',p.id), p.titleAnim||'static')}</select><span class="hint" id="r-titleAnimNote"></span></div>
+        <div class="f"><label for="r-subc">Цвет субтитров</label><select id="r-subc"${ro}>${opts(['по подложке','чёрный','белый'],p.subColor)}</select></div>
+        <div class="f"><label class="row" style="gap:8px;cursor:pointer"><input type="checkbox" id="r-punch"${p.punch?' checked':''}${ro}> Наезды камеры на ударных словах</label><span class="hint">В кадрах со спикером на весь экран (A): резкий зум на ключевом слове фразы.</span></div>
+        <div class="f"><label class="row" style="gap:8px;cursor:pointer"><input type="checkbox" id="r-progress"${p.progress?' checked':''}${ro}> Полоса прогресса вверху</label><span class="hint">Тонкая полоса показывает, сколько ролика осталось.</span></div>
+        <div class="f wide"><label class="row" style="gap:8px;cursor:pointer"><input type="checkbox" id="r-ctaOn"${p.ctaOn?' checked':''}${ro}> Призыв в конце</label>
+          <input type="text" id="r-ctaText" value="${esc(p.ctaText||'')}" placeholder="Например: подпишись, чтобы не пропустить разбор"${p.ctaOn?'':' hidden'}${ro}>
+          <span class="hint">Выключено — конец ролика определяется только текстом.</span></div>
+      </div>
+    </section>
+
+    <section class="step" id="r-sec-6"><h4>6 · Раскадровка</h4>
+      <div class="row" style="margin-bottom:12px">
+        <button class="btn primary" type="button" id="r-sbGo">Предложить раскадровку</button>
+        <button class="btn" type="button" id="r-sbManual" aria-expanded="false">Выбрать самому</button>
+        <button class="btn ghost" type="button" id="r-sbStop" hidden>Остановить</button>
+        <span class="hint" id="r-sbNote">Claude сам выберет режимы, типы сцен и доли — или задай доли сам.</span>
+      </div>
+      <div class="f wide manual" id="r-manual" hidden>
+        <label>Режимы кадра, % времени</label>
+        <div class="row" id="r-tgtPresets" role="group" aria-label="Пресеты долей"></div>
+        <div class="trio" style="margin-top:8px">
+          <label class="f"><span class="hint"><i class="kdot" style="background:var(--mode-a)"></i>A · спикер на весь экран</span><input type="number" id="r-ta" min="0" max="100" value="${p.target?.a??10}"${ro}></label>
+          <label class="f"><span class="hint"><i class="kdot" style="background:var(--mode-b)"></i>B · сцена + окно спикера</span><input type="number" id="r-tb" min="0" max="100" value="${p.target?.b??60}"${ro}></label>
+          <label class="f"><span class="hint"><i class="kdot" style="background:var(--mode-c)"></i>C · вставка на весь экран</span><input type="number" id="r-tc" min="0" max="100" value="${p.target?.c??30}"${ro}></label>
+        </div>
+        <span class="sum" id="r-tsum"></span>
+        <div class="subgrid">
+          <div><label>Что внутри B, %</label><div class="quad">${subInputs('B')}</div><span class="sum" id="r-subsum-B"></span></div>
+          <div><label>Что внутри C, %</label><div class="quad">${subInputs('C')}</div><span class="sum" id="r-subsum-C"></span></div>
+        </div>
+        <span class="hint" style="margin-top:8px">Цель</span><div id="r-tgtStrip"></div>
+        <div class="row" style="margin-top:12px"><button class="btn primary" type="button" id="r-sbSend">Отправить</button><span class="hint">Claude по тексту и хронометражу подберёт, где что будет, в этих долях.</span></div>
+      </div>
+      <div class="f wide" style="margin-bottom:10px"><span class="hint">Сейчас в таблице</span><div id="r-sbStrip"></div><span class="hint" id="r-dev"></span></div>
+      <div id="r-sb"></div>
+    </section>
+
+    <section class="step" id="r-sec-7"><h4>7 · Монтаж</h4>
+      <div id="r-summary"></div>
+      <div class="row" style="margin-top:10px">
+        <label for="r-status" style="font-size:13px;font-weight:500">Этап</label>
+        <select id="r-status" style="width:auto"${ro}>${opts(STATUSES,p.status)}</select>
+      </div>
+      <div class="row" style="margin-top:14px">
+        <button class="btn primary" type="submit"${ro}>Сохранить</button>
+        <button class="btn" type="button" id="r-copy">Скопировать задание для чата</button>
+        <button class="btn ghost" type="button" id="r-close">Закрыть</button>
+        ${canWrite?'<span style="margin-left:auto" id="r-delBox"><button class="btn ghost danger" type="button" id="r-del">Удалить</button></span>':''}
+      </div>
+    </section>
+
+  </form>`;
+  const F = $('#reelForm');
+  const sync = () => {
+    $('#r-speedV').textContent = '×'+Number($('#r-speed').value).toFixed(2);
+    const w = $('#r-script').value.trim().split(/\s+/).filter(Boolean).length;
+    $('#r-count').textContent = w ? `${w} слов · около ${Math.round(w/2.6)} с до ускорения` : '';
+    $('#r-ctaText').hidden = !$('#r-ctaOn').checked;
+    updateSteps(); renderSummary();
+  };
+  F.addEventListener('input', sync);
+  $('#r-close').addEventListener('click', ()=>{ E.hidden=true; E.innerHTML=''; });
+  F.addEventListener('submit', async e=>{
+    e.preventDefault(); if(!db||!canWrite) return;
+    const body = {...collect(), updatedAt: new Date().toISOString()};
+    if(await write(()=>db.collection('projects').doc(p.id).update(body), 'Сохранено')){ Object.assign(p, body); updateSteps(); renderSummary(); }
+  });
+  const del = $('#r-del');
+  if(del) del.addEventListener('click', ()=>{
+    $('#r-delBox').innerHTML = `<span class="confirm">Удалить ролик? <button class="btn danger" type="button" id="r-delYes">Удалить</button><button class="btn ghost" type="button" id="r-delNo">Отмена</button></span>`;
+    $('#r-delNo').onclick = ()=>openReel(p);
+    $('#r-delYes').onclick = async ()=>{ if(await write(()=>db.collection('projects').doc(p.id).delete(),'Ролик удалён')){ E.hidden=true; E.innerHTML=''; } };
+  });
+  reelHooks = {updateSteps, renderSummary};
+  wireStyle(p);
+  wireTiming(p);
+  sync(); renderSummary();
+  $('#r-gptCopy').addEventListener('click', ()=>{
+    const text = $('#r-gpt').value.trim();
+    if(!text){ toast('Промпта пока нет: нажми «Составить промпт»'); return; }
+    const done=()=>toast('Промпт скопирован: вставь его в ChatGPT');
+    const fb=()=>{ const ta=$('#r-gpt'); ta.focus(); ta.select(); toast('Скопируй выделенный текст вручную'); };
+    if(navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(done, fb); else fb();
+  });
+  $('#r-copy').addEventListener('click', ()=>{
+    const d = collect(), sh = rowShares(curRows), cnt = kindCounts(curRows);
+    const text = [
+      ...chatHead(`Новый ролик по проекту с пульта.`),
+      `Проект: «${d.title}» — projects/${p.id}. Текст, стиль, раскадровку и материалы бери оттуда.`,
+      ...(tplOf(p.templateId) ? (t=>[`Монтаж по шаблону «${t.name}» (templates/${t.id}), режим: ${p.mode==='own'?'свои настройки':'авто'}.`,
+        tplAllowed(t) ? `Блоки — только разрешённые шаблоном: ${tplAllowed(t).join(', ')}.` : '',
+        p.passport ? `Стилевой паспорт (цвета, шрифты, движение) лежит в проекте, поле passport: ${ppSummary(p.passport)}.` : '',
+        t.rules?.assets ? `Базовые ассеты шаблона на Диске: ${t.rules.assets} — скачать в public/media/ вместе с картинками ролика.` : '',
+        (p.dna||t.rules?.dna) ? `Стиль шаблона тремя слоями лежит в проекте (поле dna: ${dnaSummary(p.dna||t.rules.dna)}): ядро держать во всём ролике, приёмы — коды в поле tech у сегментов раскадровки.` : '',
+        (p.spec||t.spec) ? `У шаблона есть цифры ядра стиля (поле spec проекта: ${specSummary(p.spec||t.spec)}). После pult_to_story.py запусти tools/spec_build.py <ролик> --src <исходник> — реальные тайминги слов, ритм и крупность спикера, грейд, звуки и субтитры по референсам; после рендера — замкнутая проверка compare_spec.py.` : ''])(tplOf(p.templateId)) : []),
+      ``,
+      sh?`Раскадровка: ${curRows.length} сегментов, A ${sh.a}% / B ${sh.b}% / C ${sh.c}%. ${cnt}`:'Раскадровки ещё нет.',
+      `Окно спикера по умолчанию: ${winName(d.win)}. Подложка: ${d.bg}. Звук: ${d.sound}.`,
+      `Наезды камеры: ${d.punch?'да':'нет'}. Полоса прогресса: ${d.progress?'да':'нет'}.`,
+      `Ускорение ×${d.speed}. Субтитры: ${d.subWords} сл., цвет ${d.subColor}, анимация: ${animName(d.subAnim)}. Заголовки: ${animName(d.titleAnim)}.`,
+      d.ctaOn ? `Призыв в конце: ${d.ctaText||'да'}.` : `Призыва в конце нет — финал по тексту.`,
+      d.drive?`Папка на Диске (вставки и картинки): ${d.drive}`:'',
+      curAvatar?.id ? `Видео аватара загружено на пульт: ${curAvatar.name}.` : `Видео аватара пришлю файлом в чат.`
+    ].filter(x=>x!=='').join('\n');
+    const done=()=>toast('Задание скопировано: вставь его в чат');
+    if(navigator.clipboard?.writeText){ navigator.clipboard.writeText(text).then(done, ()=>fallbackCopy(text)); } else fallbackCopy(text);
+  });
+  function updateSteps(){
+    const d={style:$('#r-style').value.trim(), script:$('#r-script').value.trim(), gpt:$('#r-gpt').value.trim()};
+    const hasModes = curRows.length && curRows.every(r=>r.mode);
+    const need2d = curRows.some(r=>r.kind==='l2d'||r.kind==='gen');
+    const st=[['Стиль',!!d.style],['Текст',!!d.script],['Картинки',!!d.gpt],['Материалы',!!(p.timing||curWordsLen())],['Настройки',true],['Раскадровка',!!hasModes],['Монтаж',$('#r-status').value==='done']];
+    const order=[...document.querySelectorAll('#reelForm section.step')].filter(x=>!x.hidden).map(x=>+x.id.slice(6));
+    $('#r-steps').innerHTML = order.map((sec,j)=>{ const [n,ok]=st[sec-1]; return `<a href="#r-sec-${sec}" class="stepchip${ok?' ok':''}" data-sec="${sec}"><span class="code">${ok?'✓':j+1}</span>${esc(n)}</a>`; }).join('');
+    $('#r-steps').querySelectorAll('a').forEach(a=>a.onclick=e=>{ e.preventDefault(); $('#r-sec-'+a.dataset.sec).scrollIntoView({behavior:'smooth',block:'start'}); });
+  }
+  function renderSummary(){
+    const sh=rowShares(curRows), d=collect(), need2d=curRows.filter(r=>r.kind==='l2d'||r.kind==='gen').length, media=curRows.filter(r=>r.kind==='media');
+    const todo=[];
+    if(!d.styleAnalysis.trim()) todo.push('создать стиль');
+    if(!curWordsLen()) todo.push('отправить материалы: видео аватара');
+    if(!curRows.length || !curRows.every(r=>r.mode)) todo.push('сделать раскадровку');
+    if(need2d && !d.gptPrompt.trim()) todo.push(`составить промпт для картинок (${need2d} сегм.)`);
+    if(media.some(r=>!r.media)) todo.push('выбрать файлы для «Мои вставки»');
+    if(!d.drive) todo.push('указать папку на Диске');
+    $('#r-summary').innerHTML = `<dl class="kv">
+      <dt>Длина</dt><dd class="code">${p.timing?fmtT(p.timing.finalDur):'—'}</dd>
+      <dt>Доли</dt><dd>${sh?`A ${sh.a}% · B ${sh.b}% · C ${sh.c}%`:'—'}</dd>
+      <dt>Сегменты</dt><dd>${curRows.length?kindCounts(curRows):'—'}</dd>
+      <dt>Окно</dt><dd>${esc(winName(d.win))}</dd>
+      <dt>Текст</dt><dd>субтитры — ${esc(animName(d.subAnim))}; заголовки — ${esc(animName(d.titleAnim))}</dd>
+      <dt>Осталось</dt><dd>${todo.length?esc(todo.join(', ')):'<span style="color:var(--ok)">всё готово — копируй задание для чата</span>'}</dd></dl>`;
+  }
+  E.scrollIntoView({behavior:'smooth', block:'start'});
+}

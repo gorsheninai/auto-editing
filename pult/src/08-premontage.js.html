@@ -1,0 +1,228 @@
+/* ---------- ПРЕМОНТАЖ ИЗ РЕФЕРЕНСОВ ---------- */
+function copyText(text, msg){
+  const done=()=>toast(msg||'Скопировано');
+  if(navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(done, ()=>fallbackCopy(text)); else fallbackCopy(text);
+}
+/* шапка любого задания для чата: чат сразу знает, где репозиторий и пульт и чем их читать, и не ищет коннекторы */
+const PULT_URL='https://claude.ai/artifact/5hvEdgNfsfN5esbxToxz9r';
+function chatHead(first){
+  return [first,
+    `Репозиторий: GitHub gorsheninai/auto-editing — подключи инструментом add_repo, склонируй, работай по его CLAUDE.md.`,
+    `Пульт: ${PULT_URL} — данные читай и пиши инструментом ArtifactData (коллекции projects, templates, blocks), файлы пульта — Artifact read с path.`,
+    `Коннекторы не ищи и не предлагай (SearchMcpRegistry, SuggestConnectors не вызывай): всё нужное уже есть — GitHub, пульт, Google Диск.`];
+}
+function deepTask(t){
+  if(!t) return '';
+  return [...chatHead(`Глубокий разбор премонтажа «${t.name}» (templates/${t.id}).`),
+    `Референсы — видео на пульте: ${(t.refs||[]).map((r,i)=>`${i+1}) ${r.name} — id ${r.id}`).join('; ')}.`,
+    `Скачай их (Artifact read с path=id) и прогони конвейер из CLAUDE.md «Глубокий разбор»: tools/ref_analyze.py по каждому → tools/style_spec.py → проверь листы глазами (шрифт, анимации, переходы, вставки).`,
+    `Затем tools/style_dna.py по тем же отчётам (--timeline) → сравни референсы между собой и опиши стиль тремя слоями: ядро (одинаково у всех), приёмы с правилом «когда» по смыслу текста, структура и диапазоны; формат — tools/dna_text.py; запиши в rules.dna.`,
+    `Уточни и запиши обратно в templates/${t.id}: rules.dna, spec (style_spec.json целиком — цифры ядра), rules.style, recipe, sound, speech, rules.passport, rules.target, rules.subAnim, rules.allowed, blockMap, gaps; поставь deep: true. С полем spec «Создать монтаж» сам собирает раскадровку по ритму референсов, а tools/spec_build.py — тайминги, грейд, звук и субтитры.`,
+    `Чего нет в библиотеке (gaps) — предложи блоки, после согласования сделай их и добавь в allowed.`].join('\n');
+}
+/* замеры видео в браузере: склейки по кадрам, планы, палитра, ключевые кадры */
+async function refMeasure(src, onP){
+  const v=await loadVideo(src), d=v.duration||0, T=Math.min(d, 90), step=0.2, W=36, H=64;
+  const c=document.createElement('canvas'); c.width=W; c.height=H; const x=c.getContext('2d',{willReadFrequently:true});
+  let prev=null; const diffs=[], times=[], pix=[];
+  for(let t=0.05; t<T; t+=step){
+    await seek(v,t); x.drawImage(v,0,0,W,H); const px=x.getImageData(0,0,W,H).data, g=new Float32Array(W*H);
+    for(let i=0;i<g.length;i++) g[i]=px[i*4]*.3+px[i*4+1]*.59+px[i*4+2]*.11;
+    if(times.length%3===0) for(let i=0;i<px.length;i+=4*7) pix.push([px[i],px[i+1],px[i+2]]);
+    if(prev){ let s=0; for(let i=0;i<g.length;i++) s+=Math.abs(g[i]-prev[i]); diffs.push(s/g.length); } else diffs.push(0);
+    times.push(t); prev=g; if(onP && times.length%10===0) onP(t/T);
+  }
+  const sorted=[...diffs].sort((a,b)=>a-b), med=sorted[Math.floor(sorted.length/2)]||0;
+  const thr=Math.max(22, med*4); const cuts=[];
+  diffs.forEach((dv,i)=>{ if(i>0 && dv>thr && (!cuts.length || times[i]-cuts[cuts.length-1]>0.35)) cuts.push(+times[i].toFixed(2)); });
+  const bounds=[0,...cuts,+T.toFixed(2)], shots=[]; for(let i=0;i<bounds.length-1;i++) shots.push([bounds[i],bounds[i+1]]);
+  /* ключевые кадры: середина каждого плана, не больше 24 — длинные планы в приоритете не нужны, берём равномерно */
+  let pick=shots.map(s=>(s[0]+s[1])/2); if(pick.length>24){ const k=pick.length/24; pick=Array.from({length:24},(_,i)=>pick[Math.floor(i*k)]); }
+  const sheets=[], tw=240, th=427, cols=4, rows=3;
+  for(let si=0; si<Math.ceil(pick.length/12); si++){
+    const cv=document.createElement('canvas'); cv.width=cols*tw; cv.height=rows*th; const cx=cv.getContext('2d');
+    cx.fillStyle='#000'; cx.fillRect(0,0,cv.width,cv.height);
+    const part=pick.slice(si*12, si*12+12);
+    for(let i=0;i<part.length;i++){ await seek(v, part[i]); const X=(i%cols)*tw, Y=Math.floor(i/cols)*th; coverDraw(cx,v,v.videoWidth,v.videoHeight,X,Y,tw,th);
+      cx.fillStyle='rgba(0,0,0,.65)'; cx.fillRect(X,Y,86,30); cx.fillStyle='#fff'; cx.font='bold 18px sans-serif'; cx.fillText(`${si*12+i+1} · ${part[i].toFixed(1)}с`, X+6, Y+21); }
+    sheets.push(await new Promise(r=>cv.toBlob(r,'image/jpeg',0.82)));
+  }
+  /* палитра: k-means на 6 цветов */
+  const K=6; let cent=Array.from({length:K},(_,i)=>pix[Math.floor(i*pix.length/K)]||[128,128,128]); let lab=new Array(pix.length).fill(0);
+  for(let it=0; it<8 && pix.length; it++){
+    pix.forEach((p,i)=>{ let b=0,bd=1e9; cent.forEach((c,k)=>{ const dd=(p[0]-c[0])**2+(p[1]-c[1])**2+(p[2]-c[2])**2; if(dd<bd){bd=dd;b=k;} }); lab[i]=b; });
+    cent=cent.map((c,k)=>{ const m=pix.filter((_,i)=>lab[i]===k); if(!m.length) return c; return [0,1,2].map(j=>Math.round(m.reduce((a,p)=>a+p[j],0)/m.length)); });
+  }
+  const share=cent.map((_,k)=>lab.filter(l=>l===k).length/Math.max(1,pix.length));
+  const hex=c=>'#'+c.map(n=>n.toString(16).padStart(2,'0')).join('').toUpperCase();
+  const palette=cent.map((c,k)=>({hex:hex(c), share:+share[k].toFixed(2)})).sort((a,b)=>b.share-a.share);
+  const lens=shots.map(s=>s[1]-s[0]);
+  return {duration:+d.toFixed(1), analyzed:+T.toFixed(1), cuts, shots:shots.length, cutsPerMin:+(cuts.length/(T/60)).toFixed(1),
+    avgShot:+(T/shots.length).toFixed(2), minShot:+Math.min(...lens).toFixed(2), maxShot:+Math.max(...lens).toFixed(2), keyTimes:pick.map(t=>+t.toFixed(1)), palette, sheets, w:v.videoWidth, h:v.videoHeight};
+}
+/* звук: речь и паузы, музыка под паузами, удары на склейках, громкость */
+async function refSound(buf, cuts){
+  const AC=window.AudioContext||window.webkitAudioContext; const ac=new AC(); let a;
+  try{ a=await ac.decodeAudioData(buf.slice(0)); } finally{ try{ ac.close(); }catch(e){} }
+  const sr=a.sampleRate, ch=a.getChannelData(0), win=Math.round(sr*0.02), n=Math.floor(ch.length/win), rms=new Float32Array(n);
+  for(let f=0;f<n;f++){ let s=0; for(let i=f*win;i<(f+1)*win;i++) s+=ch[i]*ch[i]; rms[f]=Math.sqrt(s/win); }
+  const db=x=>20*Math.log10(Math.max(1e-6,x)), dur=ch.length/sr;
+  const {segs}=await speechSegments(buf.slice(0));
+  const speech=segs.reduce((x,[s,e])=>x+e-s,0);
+  const gaps=[]; for(let i=0;i<segs.length-1;i++) if(segs[i+1][0]-segs[i][1]>0.2) gaps.push([segs[i][1], segs[i+1][0]]);
+  const at=t=>rms[Math.min(n-1,Math.max(0,Math.floor(t/0.02)))];
+  const sortedDb=[...rms].map(db).sort((x,y)=>x-y), p=q=>sortedDb[Math.floor(q*(sortedDb.length-1))];
+  /* фон в самых тихих местах: если тишина не глубже −50 дБ, под голосом есть подложка */
+  const floorDb=p(0.08);
+  let hits=0; for(const c of cuts){ let pk=0; for(let t=c-0.08;t<=c+0.12;t+=0.02) pk=Math.max(pk,at(t)); let around=[]; for(let t=c-1;t<=c+1;t+=0.02) if(Math.abs(t-c)>0.2) around.push(at(t)); around.sort((x,y)=>x-y); const med=around[Math.floor(around.length/2)]||1e-6; if(pk/med>2.2) hits++; }
+  return {duration:+dur.toFixed(1), speechShare:+(speech/dur).toFixed(2), phrases:segs.length, avgPhrase:+(speech/Math.max(1,segs.length)).toFixed(2),
+    pausesPerMin:+(gaps.length/(dur/60)).toFixed(1), avgPause:+(gaps.reduce((x,[s,e])=>x+e-s,0)/Math.max(1,gaps.length)).toFixed(2),
+    loudDb:+p(0.9).toFixed(1), floorDb:+floorDb.toFixed(1), music: floorDb>-50 ? 'вероятно есть подложка (музыка или шум) под голосом' : 'в паузах тишина — музыки, похоже, нет',
+    hitsOnCuts:cuts.length?+(hits/cuts.length).toFixed(2):0};
+}
+const REF_PROMPT = `Ты — монтажёр вертикальных рилсов. Разбери один референс так подробно, чтобы его подачу можно было повторить с другим текстом и другим спикером.
+Наш монтаж собирается из: спикер (говорящая голова), режимы кадра A — спикер на весь экран, B — сцена сверху и спикер в окне снизу (окно: popout вырезка, window окно, circle кружок, strip полоса), C — вставка на весь экран. Типы вставок: l2d (2D-сцена из картинок), gen (картинка по смыслу: скриншот, документ, фото), motion (моушн-графика), d3 (3D), kinetic (кинетический текст), media (B-roll или файл).
+НАШИ БЛОКИ (код — что делает):
+{BLOCKS}
+СТИЛИ СУБТИТРОВ: {SUBS}
+РЕФЕРЕНС «{NAME}». Замеры: {MEASURE}
+На картинках — кадры из середины каждого плана по порядку, номер и секунда подписаны в углу. {KEYS}
+Ответь только JSON:
+{"summary":"2–3 предложения: что за ролик и как устроена подача",
+"hook":"что происходит в первые 3 секунды и чем цепляет",
+"ending":"как заканчивается",
+"shots":[{"n":1,"t":0.0,"mode":"A|B|C","kind":"speaker|l2d|gen|motion|d3|kinetic|media","win":"popout|window|circle|strip|none","what":"что на экране","text":"текст на экране, если есть","match":"код нашего блока, если похоже, иначе пусто"}],
+"subtitles":{"present":true,"position":"top|center|bottom","words_per_screen":2,"case":"upper|lower|as_is","font":"какой шрифт по виду","color":"цвет","box":"подложка или нет","highlight":"как выделены ключевые слова","animation":"как появляются (по кадрам — предположение)","closest":"код из стилей субтитров или static"},
+"titles":"заголовки и крупный текст: шрифт, цвет, где",
+"overlays":"стрелки, обводки, стикеры, эмодзи, плашки",
+"transitions":"какие переходы между планами (по резкости смены и кадрам)",
+"camera":"наезды, зумы, тряска, кадрирование спикера",
+"background":"фоны и фактура",
+"graphics_style":"как выглядит графика: плоская, 3D, скриншоты, коллаж, фото",
+"palette_notes":"цвета и настроение",
+"sound":"музыка, эффекты на склейках, громкость — по замерам звука",
+"speech":"подача речи: темп, паузы, длина фраз — по замерам",
+"unique":["приёмы, которым нет соответствия в наших блоках"]}`;
+const SYNTH_PROMPT = `Ты — арт-директор. Ниже разборы {N} референсов одного автора. Собери из них «премонтаж» — рецепт, по которому наш пульт автоматически смонтирует новый ролик в той же подаче с другим текстом. Бери только то, что повторяется хотя бы в двух роликах; разовое — не правило.
+РАЗБОРЫ:
+{ANALYSES}
+ЗАМЕРЫ (видео и звук по каждому):
+{METRICS}
+НАШИ БЛОКИ:
+{BLOCKS}
+СТИЛИ СУБТИТРОВ (id): {SUBS}
+ШРИФТЫ (id): основной {FSANS}; акцентный {FSERIF}; рукописный {FHAND}.
+Ответь только JSON:
+{"name":"короткое название премонтажа",
+"aesthetic":"одна строка — суть стиля",
+"style":"подробный стиль для раскадровки и картинок: эстетика, палитра, шрифты, раскладки кадра, какая графика, переходы, пометки, фон — 10–20 строк",
+"recipe":"структура ролика по времени: хук, развитие, ритм смены планов (секунды), когда спикер, когда графика, как подаются цифры и списки, концовка — по пунктам",
+"sound":"музыка (есть/нет, характер, громкость под голосом), звуковые эффекты (на склейках, на появлении графики), сведение",
+"speech":"подача речи: темп, паузы, длина фраз, резать ли паузы и насколько ускорять",
+"passport":{"colors":{"bg":"#","ink":"#","muted":"#","accent":"#","accent2":"#","card":"#","soft":"#"},"fonts":{"sans":"id","serif":"id","hand":"id"},"radius":0.3|0.6|1|1.6,"motion":"soft|spring|snappy","texture":"dots|clean|paper|grain","shadow":true},
+"rules":{"win":"popout|window|circle|strip","bg":"светлая|тёмная|светлая, живой градиент|тёмная, живой градиент","subAnim":"id стиля субтитров или static","target":{"a":0,"b":0,"c":0},"punch":true,"progress":false,"speed":1.1},
+"allowed":["коды наших блоков, которые подходят под эту подачу"],
+"blockMap":[{"technique":"приём из референсов","code":"наш блок"}],
+"gaps":[{"technique":"приём, которого у нас нет","seen":"где видели","proposal":"какой блок сделать"}],
+"dna":{"core":[{"name":"коротко","rule":"правило"}],"techniques":[{"code":"КОД латиницей","name":"название","what":"что это","when":"на каком смысловом моменте текста","freq":"как часто словами","len":"длина, с","sfx":"whoosh|hit|"}],"structure":[{"part":"Хук|Раскрытие|…|Финал","span":"где","rule":"как ведётся"}],"ranges":{"speaker":[1.5,4],"insert":[0.7,2]},"varies":"что меняется от ролика к ролику"}}
+DNA — главное: стиль тремя слоями. core — только то, что ОДИНАКОВО во всех роликах (по этому стиль узнаётся). techniques — приёмы, которые встречаются не везде или по-разному, у каждого правило «когда» через смысл текста (предмет, число, перечисление, прошлое, вывод), а не через секунды. Коды бери из стандартных, если подходит: ${Object.entries(DNA_CODES).map(([k,v])=>k+' — '+v).join('; ')}. structure — части ролика и как ведётся каждая. ranges — диапазоны длин планов, не одна точка.
+Доли target в сумме 100 и соответствуют разборам. Цвета — из палитры замеров и кадров, текст читается на фоне.`;
+
+$('#newPremont').addEventListener('click', ()=>openPremont());
+function openPremont(){
+  const E=$('#tplEditor'); E.hidden=false;
+  const files=[]; let result=null, ctl=null;
+  E.innerHTML=`<form class="panel" id="pmForm" novalidate><h3>Премонтаж из референсов</h3>
+    <p>Загрузи до 5 роликов в одной подаче. Пульт замерит склейки, звук и палитру, Claude разберёт кадры каждого ролика и соберёт общий рецепт: стиль, паспорт, правила, структуру и звук. Сохраняется как шаблон с кнопкой «Создать монтаж».</p>
+    <div class="row" style="gap:8px"><label class="btn" style="cursor:pointer">Выбрать видео<input type="file" id="pm-files" accept="video/mp4,video/webm,video/quicktime" multiple hidden></label><span class="hint">До 5 файлов, каждый до 20 МБ. Лучше mp4.</span></div>
+    <div id="pm-list" style="margin-top:12px"></div>
+    <div class="row" style="margin-top:12px;gap:8px"><button class="btn primary" type="button" id="pm-go" disabled>Разобрать</button><button class="btn ghost" type="button" id="pm-stop" hidden>Остановить</button><button class="btn ghost" type="button" id="pm-close">Закрыть</button><span class="hint" id="pm-note"></span></div>
+    <div id="pm-out"></div></form>`;
+  const list=$('#pm-list'), note=$('#pm-note');
+  const show=()=>{ list.innerHTML = files.length ? `<div class="projlist">${files.map((f,i)=>`<div class="projrow" style="cursor:default;grid-template-columns:minmax(0,1fr) auto">
+      <div style="min-width:0"><h3 style="font-size:15px">${i+1}. ${esc(f.file.name)}</h3><div class="sub">${fmtSize(f.file.size)}${f.m?` · ${f.m.duration} с · ${f.m.shots} планов · ${f.m.cutsPerMin} склеек/мин · план ≈ ${f.m.avgShot} с`:''}${f.snd?` · речь ${Math.round(f.snd.speechShare*100)}% · ${f.snd.music}`:''}</div></div>
+      <span class="chip">${esc(f.state||'ждёт')}</span></div>`).join('')}</div>` : ''; $('#pm-go').disabled=!files.length; };
+  $('#pm-files').onchange=e=>{ for(const f of e.target.files){ if(files.length>=5){ toast('Не больше 5 роликов'); break; } if(f.size>20*1024*1024){ toast(`«${f.name}» больше 20 МБ — сожми или обрежь`); continue; } files.push({file:f}); } e.target.value=''; show(); };
+  $('#pm-close').onclick=()=>{ ctl?.abort(); E.hidden=true; E.innerHTML=''; };
+  $('#pm-stop').onclick=()=>ctl?.abort();
+  $('#pm-go').onclick=async ()=>{
+    if(!sample){ toast('Claude недоступен в этом просмотре'); return; }
+    const lim=await sample.limits().catch(()=>null); if(!lim?.images){ note.textContent='В этом просмотре нельзя отправлять кадры Claude.'; return; }
+    const go=$('#pm-go'); go.disabled=true; $('#pm-stop').hidden=false; ctl=new AbortController();
+    const blocksTxt=S.blocks.map(b=>`${b.code||b.id} (${kindName(b.kind)}${b.group?' / '+b.group:''}) — ${b.name}. ${b.fits||''}`).join('\n');
+    const subsTxt=['static', ...S.textanims.filter(a=>a.style).map(a=>`${a.id} — ${a.name}`)].join('; ');
+    try{
+      for(const [i,f] of files.entries()){
+        if(f.analysis) continue;
+        if(!f.id){ f.state='загружаю'; show(); const up=await upload(f.file); if(!up){ f.state='не загрузилось'; show(); continue; } f.id=up.id; }
+        f.state='склейки и кадры'; show();
+        try{ const u=URL.createObjectURL(f.file); try{ f.m=await refMeasure(u, q=>{ f.state=`кадры ${Math.round(q*100)}%`; show(); }); } finally{ URL.revokeObjectURL(u); } }catch(e){ f.state='браузер не читает видео — нужен mp4'; show(); continue; }
+        f.state='звук'; show();
+        try{ f.snd=await refSound(await f.file.arrayBuffer(), f.m.cuts); }catch(e){ f.snd=null; }
+        f.state='Claude смотрит'; show(); note.textContent=`Разбираю ролик ${i+1} из ${files.length}…`;
+        const imgs=f.m.sheets.slice(0, Math.max(1,(lim.images.maxCount||2)));
+        const measure={duration:f.m.duration, планов:f.m.shots, склеекВМинуту:f.m.cutsPerMin, средняяДлинаПлана:f.m.avgShot, мин:f.m.minShot, макс:f.m.maxShot, склейки:f.m.cuts, палитра:f.m.palette, формат:`${f.m.w}×${f.m.h}`, звук:f.snd};
+        const prompt=REF_PROMPT.replace('{BLOCKS}',blocksTxt).replace('{SUBS}',subsTxt).replace('{NAME}',f.file.name).replace('{MEASURE}',JSON.stringify(measure))
+          .replace('{KEYS}', `Секунды кадров: ${f.m.keyTimes.join(', ')}. Картинок: ${imgs.length}.`);
+        f.analysis=await sample.json(prompt,{images:imgs, signal:ctl.signal, cache:false, modelTier:'complex'});
+        f.state='разобран'; show();
+      }
+      const done=files.filter(f=>f.analysis);
+      if(!done.length){ note.textContent='Ни один ролик не разобрался.'; return; }
+      note.textContent='Собираю общий рецепт по всем роликам… до пары минут.';
+      const prompt=SYNTH_PROMPT.replace('{N}',done.length)
+        .replace('{ANALYSES}', done.map((f,i)=>`#${i+1} «${f.file.name}»: ${JSON.stringify(f.analysis)}`).join('\n').slice(0,60000))
+        .replace('{METRICS}', done.map((f,i)=>`#${i+1}: видео ${JSON.stringify({dur:f.m.duration,cpm:f.m.cutsPerMin,avgShot:f.m.avgShot,palette:f.m.palette})}; звук ${JSON.stringify(f.snd)}`).join('\n'))
+        .replace('{BLOCKS}', blocksTxt).replace('{SUBS}', subsTxt)
+        .replace('{FSANS}', PP_FONTS.sans.map(x=>x[0]).join(', ')).replace('{FSERIF}', PP_FONTS.serif.map(x=>x[0]).join(', ')).replace('{FHAND}', PP_FONTS.hand.map(x=>x[0]).join(', '));
+      result=await sample.json(prompt,{signal:ctl.signal, cache:false, modelTier:'complex'});
+      if(!result||typeof result!=='object') throw {code:'invalid_json'};
+      note.textContent='Готово. Проверь и сохрани премонтаж.'; renderResult();
+    }catch(e){ note.textContent = e&&e.code==='cancelled' ? 'Остановлено. Разобранные ролики сохранятся при следующем запуске.' : e&&e.code==='invalid_json' ? 'Claude ответил не в том формате. Нажми «Разобрать» ещё раз — готовые ролики повторно не разбираются.' : sampleErr(e); }
+    finally{ go.disabled=false; $('#pm-stop').hidden=true; show(); }
+  };
+  function renderResult(){
+    const r=result, pp=r.passport||{}, ru=r.rules||{}, have=new Set(S.blocks.map(b=>b.code||b.id));
+    const allowed=(r.allowed||[]).filter(c=>have.has(c));
+    $('#pm-out').innerHTML=`<div class="fields" style="margin-top:18px">
+      <div class="f"><label for="pm-name">Название</label><input type="text" id="pm-name" value="${esc(r.name||'Премонтаж')}"></div>
+      <div class="f wide"><label for="pm-aest">Суть</label><input type="text" id="pm-aest" value="${esc(r.aesthetic||'')}"></div>
+      <div class="f wide"><label for="pm-dna">Стиль тремя слоями: ядро, приёмы, структура</label><textarea id="pm-dna" spellcheck="false" style="min-height:300px;font-family:var(--mono);font-size:13px;line-height:1.45">${esc(r.dna?dnaToText({name:r.name,...r.dna}):'')}</textarea><span class="hint">Ядро держится в каждом ролике, приёмы ставятся по смыслу текста. Можно править: строка на пункт, поля через « | ».</span></div>
+      <div class="f wide"><label for="pm-style">Стиль</label><textarea id="pm-style" style="min-height:200px">${esc(r.style||'')}</textarea></div>
+      <div class="f wide"><label for="pm-recipe">Рецепт структуры</label><textarea id="pm-recipe" style="min-height:160px">${esc(r.recipe||'')}</textarea></div>
+      <div class="f wide"><label for="pm-sound">Звук</label><textarea id="pm-sound" style="min-height:90px">${esc(r.sound||'')}</textarea></div>
+      <div class="f wide"><label for="pm-speech">Подача речи</label><textarea id="pm-speech" style="min-height:70px">${esc(r.speech||'')}</textarea></div>
+    </div>
+    <div class="swatches" style="margin-top:12px">${Object.values(pp.colors||{}).map(c=>`<i style="background:${esc(c)}" title="${esc(c)}"></i>`).join('')}</div>
+    <p class="hint">${esc(ppSummary({...PP_DEF,...pp,fonts:{...PP_DEF.fonts,...(pp.fonts||{})}}))} · окно: ${esc(winName(ru.win||'popout'))} · доли ${ru.target?`${ru.target.a}/${ru.target.b}/${ru.target.c}`:'по смыслу'} · субтитры: ${esc(ru.subAnim||'static')} · блоков: ${allowed.length||'все'}</p>
+    ${r.blockMap?.length?`<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Приёмы → наши блоки (${r.blockMap.length})</summary><ul>${r.blockMap.map(m=>`<li>${esc(m.technique)} → <span class="code">${esc(m.code)}</span></li>`).join('')}</ul></details>`:''}
+    ${r.gaps?.length?`<details open style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Нет в библиотеке (${r.gaps.length}) — сделаю в чате</summary><ul>${r.gaps.map(g=>`<li><b>${esc(g.technique)}</b>${g.seen?` — ${esc(g.seen)}`:''}${g.proposal?`. Предложение: ${esc(g.proposal)}`:''}</li>`).join('')}</ul></details>`:''}
+    <div class="row" style="margin-top:14px"><button class="btn primary" type="button" id="pm-save">Сохранить премонтаж</button><span class="hint">Палитра, шрифты и правила потом правятся в «Настроить».</span></div>`;
+    $('#pm-save').onclick=async ()=>{
+      const name=$('#pm-name').value.trim()||'Премонтаж', done=files.filter(f=>f.analysis);
+      const styleAll=[$('#pm-style').value.trim(), 'РЕЦЕПТ СТРУКТУРЫ:\n'+$('#pm-recipe').value.trim(), 'ЗВУК:\n'+$('#pm-sound').value.trim(), 'ПОДАЧА РЕЧИ:\n'+$('#pm-speech').value.trim()].join('\n\n');
+      const t0=ru.target, tgt = t0 && (+t0.a)+(+t0.b)+(+t0.c)===100 ? {a:+t0.a,b:+t0.b,c:+t0.c} : null;
+      const subOk = ru.subAnim && (ru.subAnim==='static' || S.textanims.some(a=>a.id===ru.subAnim));
+      const hx=(pp.colors?.bg||'#F4F1EA').replace('#',''), darkBg=(parseInt(hx.slice(0,2),16)*.2126+parseInt(hx.slice(2,4),16)*.7152+parseInt(hx.slice(4,6),16)*.0722)/255<.45;
+      const baseC=darkBg?{bg:'#111317',ink:'#F4F1EA',muted:'#9AA1B3',accent:'#9B87FF',accent2:'#FF8A55',card:'#1C1F27',soft:'#3A3360'}:PP_DEF.colors;
+      const passport={...PP_DEF, ...pp, colors:{...baseC, ...(pp.colors||{})}, fonts:{...PP_DEF.fonts, ...(pp.fonts||{})}};
+      const body={name, kind:'premontage', aesthetic:$('#pm-aest').value.trim(), bg:ru.bg||'светлая', palette:Object.values(passport.colors), fonts:'', motion:'', sound:SOUND[0], blocks:[],
+        recipe:$('#pm-recipe').value.trim(), soundNotes:$('#pm-sound').value.trim(), speech:$('#pm-speech').value.trim(), blockMap:r.blockMap||[], gaps:r.gaps||[], deep:false,
+        refs:done.map(f=>({id:f.id, name:f.file.name, size:f.file.size, metrics:{duration:f.m.duration, shots:f.m.shots, cutsPerMin:f.m.cutsPerMin, avgShot:f.m.avgShot, cuts:f.m.cuts, palette:f.m.palette}, sound:f.snd, analysis:f.analysis})),
+        rules:{dna:$('#pm-dna').value.trim()?dnaFromText($('#pm-dna').value):null, style:styleAll, win:ru.win||'popout', bg:ru.bg||'светлая', subAnim:subOk?ru.subAnim:'static', titleAnim:'static', target:tgt, punch:ru.punch??true, progress:!!ru.progress, speed:ru.speed||null,
+          assets:'', assetsList:'', allowed, passport},
+        previewId:done[0]?.id||null, previewKind:'video', createdAt:new Date().toISOString()};
+      const ref=db.collection('templates').doc();
+      if(!await write(()=>ref.set(body),'Премонтаж сохранён')) return;
+      /* референсы — в Ассеты, раздел «Референсы» */
+      for(const f of done){ const code=nextAssetCode('ref');
+        await write(()=>db.collection('assets').doc(code).set({code, name:f.file.name.replace(/\.[^.]+$/,''), section:'ref', group:'Рилсы', when:`референс премонтажа «${name}»`, tags:'', license:'', source:'референс',
+          drive:'', fileId:f.id, fileKind:'video', fileName:f.file.name, size:f.file.size, previewId:null, previewKind:null, previewState:'done', templateId:ref.id, createdAt:new Date().toISOString()}));
+        S.assets.push({id:code, code}); }
+      $('#pm-out').innerHTML=`<div class="empty" style="margin-top:16px"><strong>Премонтаж «${esc(name)}» сохранён</strong>Он в списке шаблонов с кнопкой «Создать монтаж». Для точности нажми «Глубокий разбор» на карточке и вставь задание в чат — я уточню рецепт по видео и звуку.
+        <div class="row" style="justify-content:center;margin-top:10px"><button class="btn primary" type="button" id="pm-deep">Скопировать задание на глубокий разбор</button></div></div>`;
+      $('#pm-deep').onclick=()=>copyText(deepTask({...body,id:ref.id}),'Задание скопировано: вставь его в чат');
+    };
+  }
+}
+
