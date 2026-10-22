@@ -1,6 +1,7 @@
 /* ---------- РОЛИКИ ---------- */
 function renderReels(){
   $('#newReel').disabled = !canWrite || !db;
+  renderDelDrafts();
   const L = $('#reelList');
   if(!S.projects.length){
     L.innerHTML = `<div class="empty"><strong>Роликов пока нет</strong>Нажми «Новый ролик» или выбери шаблон во вкладке «Шаблоны». Здесь появится список с этапами: черновик, раскадровка, картинки, монтаж, готово.</div>`;
@@ -20,6 +21,37 @@ function renderReels(){
     const go=()=>openReel(S.projects.find(p=>p.id===r.dataset.open));
     r.addEventListener('click',go); r.addEventListener('keydown',e=>{ if(e.key==='Enter') go(); });
   });
+}
+/* удаление черновиков: документ проекта + его файлы на пульте (видео аватара, референсы), если они больше нигде не используются */
+const plural=(n,one,few,many)=>{ const m10=n%10, m100=n%100; return m10===1&&m100!==11?one:m10>=2&&m10<=4&&(m100<12||m100>14)?few:many; };
+function projectFileIds(p){ return [p.avatar&&p.avatar.id, ...(p.refs||[]).map(r=>r&&r.id)].filter(Boolean); }
+async function deleteProjects(list){
+  const gone=new Set(list.map(p=>p.id));
+  let docs=0, files=0;
+  for(const p of list){ try{ await db.collection('projects').doc(p.id).delete(); docs++; }catch(e){ gone.delete(p.id); } }
+  if(assets){
+    const rest=JSON.stringify(['projects','templates','blocks','presets','textanims','assets'].map(c=>(S[c]||[]).filter(d=>!(c==='projects'&&gone.has(d.id)))));
+    const ids=new Set(list.filter(p=>gone.has(p.id)).flatMap(projectFileIds));
+    for(const id of ids){ if(rest.includes(id)) continue; try{ await assets.delete(id); files++; }catch(e){} }
+  }
+  return {docs, files};
+}
+function renderDelDrafts(){
+  const box=$('#delDraftsBox'); if(!box) return;
+  const drafts=S.projects.filter(p=>(p.status||'draft')==='draft');
+  if(!canWrite || !db || !drafts.length){ box.innerHTML=''; return; }
+  box.innerHTML=`<button class="btn ghost danger" type="button" id="delDrafts">Удалить черновики (${drafts.length})</button>`;
+  $('#delDrafts').onclick=()=>{
+    box.innerHTML=`<span class="confirm">Удалить ${drafts.length} ${plural(drafts.length,'черновик','черновика','черновиков')} и их файлы? <button class="btn danger" type="button" id="delDraftsYes">Удалить</button><button class="btn ghost" type="button" id="delDraftsNo">Отмена</button></span>`;
+    $('#delDraftsNo').onclick=renderDelDrafts;
+    $('#delDraftsYes').onclick=async()=>{
+      $('#delDraftsYes').disabled=true;
+      const ed=$('#reelEditor'); if(drafts.some(p=>ed.dataset.pid===p.id)){ ed.hidden=true; ed.innerHTML=''; }
+      const r=await deleteProjects(drafts);
+      toast(r.docs ? `Удалено черновиков: ${r.docs}, файлов: ${r.files}` : 'Не получилось удалить');
+      renderDelDrafts();
+    };
+  };
 }
 function blankReel(tplId){
   const t = tplOf(tplId), r = t?.rules || {};
@@ -129,7 +161,7 @@ async function createReel(tplId){
   if(await write(()=>ref.set(body),'Ролик создан')) openReel({...body, id:ref.id});
 }
 function openReel(p){
-  const E = $('#reelEditor'); E.hidden = false;
+  const E = $('#reelEditor'); E.hidden = false; E.dataset.pid = p.id;
   const ro = !canWrite ? ' disabled' : '';
   const sub = {B:{...SUB_DEF.B, ...(p.sub?.B||{})}, C:{...SUB_DEF.C, ...(p.sub?.C||{})}};
   const winCards = WINS.map(([v,l,h])=>`<label class="wincard"><input type="radio" name="r-win" value="${v}"${(p.win||'popout')===v?' checked':''}${ro}><span class="winpic wp-${v}" aria-hidden="true"><i></i></span><b>${esc(l)}</b><span class="hint">${esc(h)}</span></label>`).join('');
@@ -256,7 +288,7 @@ function openReel(p){
   if(del) del.addEventListener('click', ()=>{
     $('#r-delBox').innerHTML = `<span class="confirm">Удалить ролик? <button class="btn danger" type="button" id="r-delYes">Удалить</button><button class="btn ghost" type="button" id="r-delNo">Отмена</button></span>`;
     $('#r-delNo').onclick = ()=>openReel(p);
-    $('#r-delYes').onclick = async ()=>{ if(await write(()=>db.collection('projects').doc(p.id).delete(),'Ролик удалён')){ E.hidden=true; E.innerHTML=''; } };
+    $('#r-delYes').onclick = async ()=>{ $('#r-delYes').disabled=true; const r=await deleteProjects([p]); if(r.docs){ toast(r.files?`Ролик удалён вместе с файлами (${r.files})`:'Ролик удалён'); E.hidden=true; E.innerHTML=''; } else toast('Не получилось удалить'); };
   });
   reelHooks = {updateSteps, renderSummary};
   wireStyle(p);
