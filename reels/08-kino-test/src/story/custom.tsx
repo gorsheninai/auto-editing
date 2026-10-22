@@ -140,3 +140,17 @@ export const CardWords: React.FC<SceneProps> = (p) => {
     <div style={{fontFamily: SANS, fontWeight: 700, fontSize: 56, letterSpacing: -1, color: '#111'}}>{cur.replace(/[—]/g, '')}</div>
   </AbsoluteFill>;
 };
+
+/* ---------- Лекция: аудитория, на парте карточка пишет (красный огонёк, волна), лёгкий наезд ---------- */
+export const LectureRec: React.FC<SceneProps> = (p) => {
+  const f = useCurrentFrame(); const t = th(p);
+  return <AbsoluteFill style={{overflow: 'hidden', background: '#000'}}>
+    <AbsoluteFill style={{filter: 'saturate(.85) brightness(.75)', scale: String(1.1), transformOrigin: '50% 30%'}}><Lecture /></AbsoluteFill>
+    <AbsoluteFill style={{background: 'linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,.55) 75%)'}} />
+    <div style={{position: 'absolute', left: 0, right: 0, bottom: 0, height: 760, background: 'linear-gradient(180deg, #3B2A1E, #23180F)'}} />
+    <div style={{position: 'absolute', left: '50%', bottom: 300, translate: '-50% 0', perspective: 1400}}>
+      <div style={{transform: 'rotateX(58deg) rotateZ(-8deg)', scale: '0.85'}}><Card t={t} rec={1} ai={0.4} /></div>
+    </div>
+    <Wave t={t} k={ramp(f, 3, 12) * 0.8} y={1000} />
+  </AbsoluteFill>;
+};

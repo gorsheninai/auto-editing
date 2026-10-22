@@ -52,11 +52,20 @@ const Content: React.FC<{r: Row; from: number; dur: number; zoneH: number; full:
   return <KineticText words={ws} seg0={r.s} fps={FPS} params={STORY.settings.titleAnim} ink={T.ink} accent={T.accent} h={zoneH} />;
 };
 
+/* Вставка на весь экран: медленная «камера» (наезд по спецификации) и зерно поверх графики */
+const InsertCam: React.FC<{dur: number; children: React.ReactNode}> = ({dur, children}) => {
+  const f = useCurrentFrame(); const z = STORY.settings.insertZoomPerS || 0; const g = STORY.settings.insertGrain || 0;
+  return <AbsoluteFill style={{overflow: 'hidden'}}>
+    <AbsoluteFill style={{scale: String(1 + z * (f / FPS))}}>{children}</AbsoluteFill>
+    {g ? <AbsoluteFill style={{backgroundImage: GRAIN_TEX, opacity: g, mixBlendMode: 'overlay', backgroundPosition: `${(f * 37) % 240}px ${(f * 53) % 240}px`}} /> : null}
+  </AbsoluteFill>;
+};
+const GRAIN_TEX = `url("data:image/svg+xml;utf8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(#n)"/></svg>')}")`;
 /* Подложка: точки или живой градиент (settings.backdrop = 'BgGrain') */
 const TEX = STORY.settings.backdrop === 'BgGrain' ? 'grain' : STORY.settings.passport?.texture || 'dots';
 const Bg: React.FC = () => TEX === 'grain' ? <BgGrain theme={themeFrom(T)} /> : TEX === 'paper' ? <BgPaper theme={themeFrom(T)} /> : TEX === 'clean' ? <AbsoluteFill style={{background: T.bg}} /> : <Backdrop bg={T.bg} dot={T.dot} />;
 const SegmentBody: React.FC<{r: Row; from: number; dur: number}> = ({r, from, dur}) => {
-  if (r.mode === 'A') return r.fx === 'BgSwap' ? <BgSwap from={from} cut={CUT} bg={r.fxText} /> : r.crop && r.crop !== 1 ? <AbsoluteFill style={{scale: String(r.crop), transformOrigin: '50% 30%'}}><SpeakerFull from={from} src={AV} /></AbsoluteFill> : <SpeakerFull from={from} src={AV} />;
+  if (r.mode === 'A') return r.fx === 'BgSwap' ? <BgSwap from={from} cut={CUT} bg={r.fxText} /> : r.crop && r.crop !== 1 ? <AbsoluteFill style={{scale: String(r.crop), transformOrigin: '50% 34%'}}><SpeakerFull from={from} src={AV} /></AbsoluteFill> : <SpeakerFull from={from} src={AV} />;
   if (r.mode === 'B') {
     const win = winOf(r); const h = ZONES[win].h;
     return <AbsoluteFill>
@@ -65,7 +74,7 @@ const SegmentBody: React.FC<{r: Row; from: number; dur: number}> = ({r, from, du
       <SpeakerWindow win={win} from={from} src={AV} cut={CUT} bg={T.bg} />
     </AbsoluteFill>;
   }
-  return <AbsoluteFill><Bg /><Content r={r} from={from} dur={dur} zoneH={1920} full /></AbsoluteFill>;
+  return <AbsoluteFill><Bg /><InsertCam dur={dur}><Content r={r} from={from} dur={dur} zoneH={1920} full /></InsertCam></AbsoluteFill>;
 };
 /* Сегмент + эффект (fx) + рукописные пометки (ov). lead — на сколько кадров сегмент начат раньше из-за перехода */
 const Segment: React.FC<{r: Row; from: number; dur: number; lead?: number}> = ({r, from, dur, lead = 0}) => {
@@ -121,7 +130,8 @@ const KEYS = SUB_STYLE ? pickKeywords(STORY.words, STORY.settings.subAnim?.keywo
 
 const Captions: React.FC = () => {
   const fr = useCurrentFrame(); const t = fr / FPS;
-  const ci = CHUNKS.findIndex((c, i) => { const next = CHUNKS[i + 1]?.s ?? c.e + 0.3; const end = next - c.e > 0.4 ? c.e + 0.15 : next; return t >= c.s && t < end; });
+  const lead = -(STORY.settings.subStyle?.leadMs ?? 0) / 1000; const tt = t + lead; // субтитр появляется чуть раньше слова, как у референса
+  const ci = CHUNKS.findIndex((c, i) => { const next = CHUNKS[i + 1]?.s ?? c.e + 0.3; const end = next - c.e > 0.4 ? c.e + 0.15 : next; return tt >= c.s && tt < end; });
   if (ci < 0) return null;
   const ch = CHUNKS[ci]; const seg = rowAt(fr); const r = seg.r;
   const kind = r.kind || (r.mode === 'C' ? 'kinetic' : '');
@@ -131,9 +141,14 @@ const Captions: React.FC = () => {
   const win = winOf(r);
   const y = SUB_STYLE === 'SubKino' ? (r.mode === 'B' ? 1300 : r.mode === 'C' ? (/^Phone/.test(r.scene || '') ? 1810 : 1520) : 1120) : r.mode === 'A' ? 1500 : r.mode === 'C' ? 1540 : win === 'circle' ? 1350 : win === 'strip' ? 1160 : 1150;
   const p = STORY.settings.subAnim;
-  if (p?.style === 'SubTom') { /* как у референса: 1–2 слова, мелко, кремовым, по центру груди, без анимации */
-    return <div style={{position: 'absolute', left: 0, right: 0, top: /^Phone/.test(r.scene || '') ? 1790 : 1140, translate: '0 -50%', textAlign: 'center', fontFamily: SANS, fontWeight: 700, fontSize: 66, letterSpacing: -1.5,
-      color: STORY.settings.passport?.colors?.ink || '#EFE7DA', textShadow: '0 2px 14px rgba(0,0,0,.45), 0 0 2px rgba(0,0,0,.3)'}}>{ch.text}</div>;
+  if (p?.style === 'SubTom') { /* как у референса: по слову, мелко, кремовым, по центру груди, без анимации; ключевые слова крупнее */
+    const ss = STORY.settings.subStyle || {}; const fs = ss.fontSize || 60;
+    const key = (ss.keywords || []).some((k) => ch.ws.some((w) => bareW(w.w) === k.toLowerCase()));
+    const size = key ? Math.min(fs * (ss.keyScale || 2.2), 900 / Math.max(1, ch.text.length * 0.56)) : fs;
+    const top = r.mode === 'C' ? (ss.topInsert ?? (/^Phone/.test(r.scene || '') ? 1790 : ss.top ?? 1140)) : ss.top ?? 1140;
+    const raw = ch.text.replace(/[,;]+$/, ''); const txt = ss.case === 'upper' ? raw.toUpperCase() : ss.case === 'as_is' ? raw : raw.toLowerCase();
+    return <div style={{position: 'absolute', left: 0, right: 0, top, translate: '0 -50%', textAlign: 'center', fontFamily: SANS, fontWeight: key ? 800 : 700, fontSize: size, lineHeight: 1, letterSpacing: key ? -size * 0.04 : -1.5,
+      color: ss.color || STORY.settings.passport?.colors?.ink || '#EFE7DA', textShadow: '0 2px 14px rgba(0,0,0,.45), 0 0 2px rgba(0,0,0,.3)'}}>{txt}</div>;
   }
   if (SUB_STYLE) {
     const onDark = r.mode === 'A' || T.dark;
@@ -177,6 +192,7 @@ const Transitions: React.FC = () => <TransitionSeries>{ROWS.flatMap(({r, i, from
 
 /* Звук по рецепту: вжух на смене режима и входе во вставку, удар на карточке/номере пункта, поп на ключевых словах, подложка */
 const SFX = (() => {
+  if (STORY.settings.sfxList) return STORY.settings.sfxList.map((x) => ({f: Math.max(0, Math.round(x.t * FPS)), src: x.src, vol: x.vol}));
   if (!STORY.settings.sfx) return [] as {f: number; src: string; vol: number}[];
   const out: {f: number; src: string; vol: number}[] = [];
   ROWS.forEach(({r, i, from}) => {

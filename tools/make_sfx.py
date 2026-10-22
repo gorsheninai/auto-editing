@@ -31,13 +31,15 @@ def lowpass(x, cut):
     for i in range(len(x)): s += a[i] * (x[i] - s); y[i] = s
     return y
 
-def whoosh(d=0.55):
+def whoosh(d=0.4):
+    """Воздушный вжух как у референсов: энергия в основном выше 4 кГц (свист воздуха), без гула в середине."""
     n = int(SR * d); t = np.linspace(0, 1, n)
     noise = rng.standard_normal(n)
-    sweep = 300 + 5200 * np.sin(np.pi * t) ** 2
-    x = lowpass(noise, sweep) - lowpass(noise, sweep * 0.25)
-    e = np.sin(np.pi * t) ** 1.6
-    pan = 0.5 + 0.4 * np.sin(np.pi * (t - 0.5))
+    hp = noise - lowpass(noise, 3500)                       # убрать всё ниже ~3,5 кГц
+    sweep = 5000 + 7000 * np.sin(np.pi * t) ** 2
+    x = lowpass(hp, sweep)
+    e = np.sin(np.pi * t ** 0.8) ** 2.2
+    pan = 0.5 + 0.35 * np.sin(np.pi * (t - 0.5))
     m = x * e
     return np.stack([m * (1 - pan), m * pan], 1)
 

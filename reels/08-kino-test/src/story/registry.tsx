@@ -1,4 +1,5 @@
 import React from 'react';
+import {Sequence} from 'remotion';
 import type {Row, Word} from './types';
 import {SCENES} from '../blocks/library';
 import {parseData, themeFrom} from '../blocks/kit';
@@ -17,5 +18,7 @@ const lib = Object.fromEntries(Object.entries(SCENES).map(([code, C]) => [code, 
   return <C data={parseData(p.row.note || code, p.row.text)} theme={themeFrom(p.theme || {dark: false, bg: '#F4F1EA', ink: '#1C1B22', accent: '#7B61FF'})} zoneH={p.zoneH} full={p.full} dur={p.dur} marks={marks} speaker={p.speaker} />;
 }) as React.FC<SceneProps>]));
 /* Свои сцены ролика добавляются сюда и перекрывают библиотечные с тем же кодом */
-import {AiCard, CardWorld, CardWords, PhoneNotes} from './custom';
-export const REG: Record<string, React.FC<SceneProps>> = {...lib, AiCard, PhoneNotes, CardWorld, CardWords};
+import {AiCard, CardWorld, CardWords, LectureRec, PhoneNotes} from './custom';
+/* Кино-подача: вставка начинается сразу с готового кадра (как живой B-roll после жёсткой склейки) — без вылета, пропускаем вход */
+const cutIn = (C: React.FC<SceneProps>, skip = 22): React.FC<SceneProps> => (p) => <Sequence from={-skip} layout="none"><C {...p} dur={p.dur + skip} /></Sequence>;
+export const REG: Record<string, React.FC<SceneProps>> = {...lib, AiCard: cutIn(AiCard), PhoneNotes: cutIn(PhoneNotes), CardWorld, CardWords, LectureRec: cutIn(LectureRec, 12)};

@@ -34,6 +34,9 @@ export type Row = {
 export type Story = {
   fps: number; duration: number;
   settings: {bg: 'светлая' | 'тёмная' | string; accent?: string; subWords?: number; subColor?: string; win?: Win;
-    subAnim?: AnimParams | null; titleAnim?: AnimParams | null; backdrop?: string; passport?: import('../blocks/style').Passport | null; sfx?: boolean; wipe?: boolean; music?: string | null; musicVolume?: number; punch?: boolean; progress?: boolean; avatar?: string; avatarCut?: string; speed?: number};
+    subAnim?: AnimParams | null; titleAnim?: AnimParams | null; backdrop?: string; passport?: import('../blocks/style').Passport | null; sfx?: boolean; wipe?: boolean;
+    subStyle?: {fontSize?: number; top?: number; topInsert?: number; color?: string; case?: 'lower' | 'upper' | 'as_is'; keywords?: string[]; keyScale?: number; leadMs?: number}; // субтитры по спецификации стиля
+    sfxList?: {t: number; src: string; vol: number}[]; // звуки по плану из спецификации (секунды)
+    insertZoomPerS?: number; insertGrain?: number;      /* «камера» во вставках и зерно поверх графики */ music?: string | null; musicVolume?: number; punch?: boolean; progress?: boolean; avatar?: string; avatarCut?: string; speed?: number};
   words: Word[]; rows: Row[];
 };
