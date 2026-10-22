@@ -110,7 +110,7 @@ def main():
         'fps': 30, 'duration': dur, 'words': words, 'rows': out,
         'settings': {
             'bg': proj.get('bg') or 'светлая', 'win': proj.get('win') or 'popout',
-            'subWords': int(proj.get('subWords') or 2), 'subColor': proj.get('subColor') or None,
+            'subWords': int(proj.get('subWords') or 2), 'subColor': (proj.get('subColor') if re.match(r'^(#|rgb|hsl)', str(proj.get('subColor') or '')) else None),  # «по подложке» = автоматически
             'subAnim': anim(proj.get('subAnim')), 'titleAnim': anim(proj.get('titleAnim')),
             'speed': proj.get('speed'), 'avatar': 'avatar.mp4', 'avatarCut': 'avatar_cut.webm',
         },
@@ -120,7 +120,7 @@ def main():
     if 'градиент' in (proj.get('bg') or '') or proj.get('backdrop') == 'BgGrain': st['settings']['backdrop'] = 'BgGrain'
     if proj.get('accent'): st['settings']['accent'] = proj['accent']
     if proj.get('passport'): st['settings']['passport'] = proj['passport']
-    if proj.get('sfx'): st['settings']['sfx'] = True                      # звуки по рецепту: вжух/удар/поп (public/sfx из tools/make_sfx.py)
+    if proj.get('sfx') or 'эффект' in str(proj.get('sound') or ''): st['settings']['sfx'] = True                      # звуки по рецепту: вжух/удар/поп (public/sfx из tools/make_sfx.py)
     if proj.get('music'): st['settings']['music'] = proj['music']; st['settings']['musicVolume'] = proj.get('musicVolume', 0.12)
     if proj.get('keywords') and st['settings'].get('subAnim'): st['settings']['subAnim']['keywords'] = proj['keywords']  # стилевой паспорт шаблона: цвета, шрифты, форма, движение
     if proj.get('dna'):  # стиль тремя слоями: ядро, приёмы, структура — читают spec_build.py и compare_dna.py
