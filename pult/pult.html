@@ -649,8 +649,8 @@ function openReel(p){
   $('#r-copy').addEventListener('click', ()=>{
     const d = collect(), sh = rowShares(curRows), cnt = kindCounts(curRows);
     const text = [
-      `Новый ролик, подключи auto-editing.`,
-      `Проект на пульте: «${d.title}» (id: ${p.id}). Текст, стиль, раскадровку и материалы бери оттуда.`,
+      ...chatHead(`Новый ролик по проекту с пульта.`),
+      `Проект: «${d.title}» — projects/${p.id}. Текст, стиль, раскадровку и материалы бери оттуда.`,
       ...(tplOf(p.templateId) ? (t=>[`Монтаж по шаблону «${t.name}» (templates/${t.id}), режим: ${p.mode==='own'?'свои настройки':'авто'}.`,
         tplAllowed(t) ? `Блоки — только разрешённые шаблоном: ${tplAllowed(t).join(', ')}.` : '',
         p.passport ? `Стилевой паспорт (цвета, шрифты, движение) лежит в проекте, поле passport: ${ppSummary(p.passport)}.` : '',
@@ -1444,9 +1444,17 @@ function copyText(text, msg){
   const done=()=>toast(msg||'Скопировано');
   if(navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(done, ()=>fallbackCopy(text)); else fallbackCopy(text);
 }
+/* шапка любого задания для чата: чат сразу знает, где репозиторий и пульт и чем их читать, и не ищет коннекторы */
+const PULT_URL='https://claude.ai/artifact/5hvEdgNfsfN5esbxToxz9r';
+function chatHead(first){
+  return [first,
+    `Репозиторий: GitHub gorsheninai/auto-editing — подключи инструментом add_repo, склонируй, работай по его CLAUDE.md.`,
+    `Пульт: ${PULT_URL} — данные читай и пиши инструментом ArtifactData (коллекции projects, templates, blocks), файлы пульта — Artifact read с path.`,
+    `Коннекторы не ищи и не предлагай (SearchMcpRegistry, SuggestConnectors не вызывай): всё нужное уже есть — GitHub, пульт, Google Диск.`];
+}
 function deepTask(t){
   if(!t) return '';
-  return [`Глубокий разбор премонтажа «${t.name}» (templates/${t.id}), подключи auto-editing.`,
+  return [...chatHead(`Глубокий разбор премонтажа «${t.name}» (templates/${t.id}).`),
     `Референсы — видео на пульте: ${(t.refs||[]).map((r,i)=>`${i+1}) ${r.name} — id ${r.id}`).join('; ')}.`,
     `Скачай их (Artifact read с path=id) и прогони конвейер из CLAUDE.md «Глубокий разбор»: tools/ref_analyze.py по каждому → tools/style_spec.py → проверь листы глазами (шрифт, анимации, переходы, вставки).`,
     `Затем tools/style_dna.py по тем же отчётам (--timeline) → сравни референсы между собой и опиши стиль тремя слоями: ядро (одинаково у всех), приёмы с правилом «когда» по смыслу текста, структура и диапазоны; формат — tools/dna_text.py; запиши в rules.dna.`,
