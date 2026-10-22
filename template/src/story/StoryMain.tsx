@@ -16,7 +16,7 @@ import {Flash, FreezeAt} from '../blocks/shotcraft';
 import {SANS as KSANS, themeFrom} from '../blocks/kit';
 import {STY, fontVars, setPassport} from '../blocks/style';
 import {BgPaper} from '../blocks/text-fx';
-import {BgSwap, FxGrade} from '../blocks/kino';
+import {BgSwap, FxGrade, HookTitle} from '../blocks/kino';
 
 /* Ролик целиком по раскадровке с пульта: src/story.json (tools/pult_to_story.py). */
 export const STORY = storyJson as unknown as Story;
@@ -56,7 +56,7 @@ const Content: React.FC<{r: Row; from: number; dur: number; zoneH: number; full:
 const TEX = STORY.settings.backdrop === 'BgGrain' ? 'grain' : STORY.settings.passport?.texture || 'dots';
 const Bg: React.FC = () => TEX === 'grain' ? <BgGrain theme={themeFrom(T)} /> : TEX === 'paper' ? <BgPaper theme={themeFrom(T)} /> : TEX === 'clean' ? <AbsoluteFill style={{background: T.bg}} /> : <Backdrop bg={T.bg} dot={T.dot} />;
 const SegmentBody: React.FC<{r: Row; from: number; dur: number}> = ({r, from, dur}) => {
-  if (r.mode === 'A') return r.fx === 'BgSwap' ? <BgSwap from={from} cut={CUT} bg={r.fxText} /> : <SpeakerFull from={from} src={AV} />;
+  if (r.mode === 'A') return r.fx === 'BgSwap' ? <BgSwap from={from} cut={CUT} bg={r.fxText} /> : r.crop && r.crop !== 1 ? <AbsoluteFill style={{scale: String(r.crop), transformOrigin: '50% 30%'}}><SpeakerFull from={from} src={AV} /></AbsoluteFill> : <SpeakerFull from={from} src={AV} />;
   if (r.mode === 'B') {
     const win = winOf(r); const h = ZONES[win].h;
     return <AbsoluteFill>
@@ -79,7 +79,8 @@ const Segment: React.FC<{r: Row; from: number; dur: number; lead?: number}> = ({
   if (r.fx === 'FxFlash') body = <Flash at={lead + 4}>{body}</Flash>;
   if (r.fx === 'FxFreeze') body = <FreezeAt at={lead + Math.min(20, Math.round(dur * 0.4))} text={r.fxText} theme={themeFrom(T)}>{body}</FreezeAt>;
   return <AbsoluteFill>
-    {r.fx === 'FxVhs' ? <FxVhs>{body}</FxVhs> : r.fx === 'FxGrade' ? <FxGrade mode={r.fxText}>{body}</FxGrade> : body}
+    {r.fx === 'FxVhs' ? <FxVhs>{body}</FxVhs> : r.fx === 'FxGrade' ? <FxGrade mode={r.fxText}>{body}</FxGrade> : r.grade ? <FxGrade mode={r.grade}>{body}</FxGrade> : body}
+    {r.hook ? <HookTitle top={r.hook.top} big={r.hook.big} words={wordsIn(r).map((w) => ({w: w.w, f: Math.round((w.s - r.s) * FPS) + lead}))} dur={dur} /> : null}
     {r.fx === 'FxConfetti' ? <FxConfetti theme={themeFrom(T)} at={lead + 4} /> : null}
     {(r.ov || []).map((o, k) => <Overlay key={k} ov={{...o, at: (o.at ?? 6) + lead}} theme={themeFrom(T)} />)}
   </AbsoluteFill>;
@@ -123,11 +124,16 @@ const Captions: React.FC = () => {
   if (ci < 0) return null;
   const ch = CHUNKS[ci]; const seg = rowAt(fr); const r = seg.r;
   const kind = r.kind || (r.mode === 'C' ? 'kinetic' : '');
-  if (r.scene && (/^Txt/.test(r.scene) || r.scene === 'CardWord')) return null; // текстовая сцена уже показывает эти слова
+  if (r.hook) return null; // хук сам показывает текущее слово
+  if (r.scene && (/^Txt/.test(r.scene) || /^Card/.test(r.scene))) return null; // текстовая сцена уже показывает эти слова
   if (r.mode === 'C' && (kind === 'kinetic' || ((kind === 'motion' || kind === 'd3') && !(r.scene && REG[r.scene])))) return null; // текст уже на экране
   const win = winOf(r);
   const y = SUB_STYLE === 'SubKino' ? (r.mode === 'B' ? 1300 : r.mode === 'C' ? (/^Phone/.test(r.scene || '') ? 1810 : 1520) : 1120) : r.mode === 'A' ? 1500 : r.mode === 'C' ? 1540 : win === 'circle' ? 1350 : win === 'strip' ? 1160 : 1150;
   const p = STORY.settings.subAnim;
+  if (p?.style === 'SubTom') { /* как у референса: 1–2 слова, мелко, кремовым, по центру груди, без анимации */
+    return <div style={{position: 'absolute', left: 0, right: 0, top: /^Phone/.test(r.scene || '') ? 1790 : 1140, translate: '0 -50%', textAlign: 'center', fontFamily: SANS, fontWeight: 700, fontSize: 66, letterSpacing: -1.5,
+      color: STORY.settings.passport?.colors?.ink || '#EFE7DA', textShadow: '0 2px 14px rgba(0,0,0,.45), 0 0 2px rgba(0,0,0,.3)'}}>{ch.text}</div>;
+  }
   if (SUB_STYLE) {
     const onDark = r.mode === 'A' || T.dark;
     return <div style={{position: 'absolute', left: 60, right: 60, top: y, translate: '0 -50%', textAlign: 'center', fontFamily: SANS, letterSpacing: -1}}>

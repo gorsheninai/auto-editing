@@ -52,7 +52,7 @@ const Wave: React.FC<{t: Theme; k: number; y: number}> = ({t, k, y}) => {
 /* AiCard: появление карточки → «диктофон» → «+ ИИ». note: «AiCard» или «AiCard: запись» (режим записи) */
 export const AiCard: React.FC<SceneProps> = (p) => {
   const f = useCurrentFrame(); const t = th(p);
-  const rec = /запис|rec/i.test(p.row.note || '');
+  const rec = /запис|rec/i.test(p.row.note || ''); const clean = /чисто|clean/i.test(p.row.note || '');
   const k = spring({frame: f, fps: 30, config: {damping: 15, stiffness: 120}});
   const tilt = interpolate(f, [0, p.dur], [-10, 6], clamp);
   const iAi = rec ? 0 : Math.max(0, at(p, 5));
@@ -60,14 +60,14 @@ export const AiCard: React.FC<SceneProps> = (p) => {
   const labels = rec ? [{s: 0, txt: '● запись'}, {s: 8, txt: `00:${String(12 + Math.floor(f / 30)).padStart(2, '0')}`}] : [{s: 4, txt: 'диктофон'}, {s: iAi, txt: '+ искусственный интеллект'}];
   return <AbsoluteFill style={{overflow: 'hidden'}}>
     <Glow t={t} />
-    {rec ? <Wave t={t} k={ramp(f, 4, 14)} y={1110} /> : null}
+    {rec ? <Wave t={t} k={ramp(f, 4, 14)} y={clean ? 1300 : 1110} /> : null}
     <div style={{position: 'absolute', left: '50%', top: rec ? 120 : 260, translate: `-50% ${(1 - k) * 700}px`, perspective: 1600}}>
       <div style={{transform: `rotateY(${tilt}deg) rotateX(${6 - k * 6}deg) rotateZ(${(1 - k) * -14}deg)`, scale: String(rec ? 0.82 + 0.02 * Math.sin(f / 6) : 0.9 + 0.1 * k)}}>
         <Card t={t} rec={rec ? 1 : 0} ai={ai} />
       </div>
     </div>
     <div style={{position: 'absolute', left: 0, right: 0, top: rec ? 900 : 1150, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14}}>
-      {labels.map((l, i) => { const o = ramp(f, l.s, l.s + 8);
+      {!clean && labels.map((l, i) => { const o = ramp(f, l.s, l.s + 8);
         return <div key={i} style={{fontFamily: SANS, fontWeight: 800, fontSize: i === 0 ? 92 : 46, letterSpacing: i === 0 ? -3 : 0, color: i === 0 ? t.ink : t.accent,
           opacity: o, translate: `0 ${(1 - o) * 24}px`, textTransform: i === 0 ? 'lowercase' : 'none', textShadow: '0 4px 24px rgba(0,0,0,.5)'}}>{l.txt}</div>; })}
     </div>
@@ -100,5 +100,43 @@ export const PhoneNotes: React.FC<SceneProps> = (p) => {
         {f >= done ? '✓ Конспект готов' : 'ИИ пишет конспект…'}
       </div>
     </Phone>
+  </AbsoluteFill>;
+};
+
+/* ---------- Флик-монтаж «везде с тобой»: карточка стоит на месте, мир вокруг меняется каждые 3 кадра (как «время летит» у референса) ---------- */
+const Lecture: React.FC = () => <svg viewBox="0 0 1080 1920" width="100%" height="100%"><rect width="1080" height="1920" fill="#22303A" /><rect x="120" y="240" width="840" height="420" rx="10" fill="#1E3A2E" stroke="#5B4632" strokeWidth="16" />
+  {[0, 1, 2, 3].map((i) => <path key={i} d={`M200 ${330 + i * 80} q120 -30 240 0 t240 0`} stroke="#DDE6D8" strokeWidth="6" fill="none" opacity=".55" />)}
+  {[0, 1, 2, 3, 4].map((r) => <g key={r}>{Array.from({length: 4 + r}, (_, i) => <g key={i} transform={`translate(${540 + (i - (3 + r) / 2) * (190 + r * 20)},${1000 + r * 190})`}><circle r={34 + r * 6} cy={-60} fill="#0F161C" /><rect x={-70 - r * 8} y={-30} width={140 + r * 16} height={120} rx="30" fill="#0F161C" /></g>)}<rect x="0" y={1080 + r * 190} width="1080" height="26" fill="#3A2B20" /></g>)}</svg>;
+const Cafe: React.FC = () => <svg viewBox="0 0 1080 1920" width="100%" height="100%"><rect width="1080" height="1920" fill="#4A2F22" /><rect x="140" y="200" width="800" height="760" rx="20" fill="#C98A52" opacity=".55" /><rect x="530" y="200" width="20" height="760" fill="#4A2F22" /><rect x="140" y="570" width="800" height="20" fill="#4A2F22" />
+  <ellipse cx="540" cy="1400" rx="520" ry="120" fill="#2A1A12" /><rect x="300" y="1220" width="90" height="120" rx="14" fill="#EDE2D0" /><rect x="690" y="1230" width="80" height="110" rx="14" fill="#EDE2D0" /><circle cx="900" cy="900" r="160" fill="#FFB86B" opacity=".25" /></svg>;
+const Office: React.FC = () => <svg viewBox="0 0 1080 1920" width="100%" height="100%"><rect width="1080" height="1920" fill="#2A3240" /><rect x="0" y="1180" width="1080" height="740" fill="#1A1F28" />
+  {[0, 1, 2].map((i) => <g key={i}><rect x={80 + i * 330} y={820} width="260" height="170" rx="12" fill="#0E1218" stroke="#3E4A5E" strokeWidth="8" /><rect x={95 + i * 330} y={835} width="230" height="140" rx="6" fill="#4D7CA8" opacity=".55" /><rect x={195 + i * 330} y={990} width="30" height="190" fill="#0E1218" /></g>)}
+  {[0, 1, 2, 3].map((i) => <rect key={i} x={120 + i * 240} y="180" width="180" height="420" fill="#8FB2D6" opacity=".18" />)}</svg>;
+const Street: React.FC = () => <svg viewBox="0 0 1080 1920" width="100%" height="100%"><rect width="1080" height="1920" fill="#101A2E" /><circle cx="820" cy="300" r="90" fill="#F2E6C8" opacity=".9" />
+  {[[40, 700, 260], [300, 520, 220], [520, 820, 240], [760, 600, 300]].map(([x, y, w], i) => <g key={i}><rect x={x} y={y} width={w} height={1920 - y} fill="#0A0F1A" />
+    {Array.from({length: 18}, (_, k) => <rect key={k} x={x + 26 + (k % 3) * (w / 3.4)} y={y + 40 + Math.floor(k / 3) * 110} width="36" height="54" fill="#F5C66B" opacity={(k * 7 + i) % 3 ? 0.85 : 0.15} />)}</g>)}</svg>;
+const Park: React.FC = () => <svg viewBox="0 0 1080 1920" width="100%" height="100%"><rect width="1080" height="1920" fill="#8CB8C9" /><rect y="1250" width="1080" height="670" fill="#3F6B3A" />
+  {[[160, 1050, 220], [520, 980, 280], [900, 1080, 200]].map(([x, y, r], i) => <g key={i}><rect x={x - 22} y={y} width="44" height="300" fill="#4A3424" /><circle cx={x} cy={y} r={r} fill="#2F5A2F" /></g>)}
+  <path d="M0 1500 Q540 1380 1080 1520 L1080 1920 L0 1920Z" fill="#C9B48A" opacity=".7" /></svg>;
+const Meeting: React.FC = () => <svg viewBox="0 0 1080 1920" width="100%" height="100%"><rect width="1080" height="1920" fill="#3B3F46" /><ellipse cx="540" cy="1350" rx="500" ry="230" fill="#7A5A3E" />
+  {[[250, 1250], [540, 1170], [830, 1250]].map(([x, y], i) => <g key={i}><rect x={x - 90} y={y - 10} width="180" height="110" rx="8" fill="#C9CED6" /><circle cx={x} cy={y - 230} r="70" fill="#1C1F24" /><rect x={x - 110} y={y - 160} width="220" height="150" rx="60" fill="#1C1F24" /></g>)}</svg>;
+const WORLDS = [Lecture, Cafe, Office, Street, Park, Meeting];
+export const CardWorld: React.FC<SceneProps> = (p) => {
+  const f = useCurrentFrame(); const t = th(p); const W = WORLDS[Math.floor(f / 3) % WORLDS.length];
+  return <AbsoluteFill style={{overflow: 'hidden', background: '#000'}}>
+    <AbsoluteFill style={{filter: 'saturate(.8) contrast(1.05) brightness(.8)', scale: String(1.04 + (f % 3) * 0.01)}}><W /></AbsoluteFill>
+    <AbsoluteFill style={{background: 'radial-gradient(ellipse at 50% 38%, rgba(0,0,0,0) 30%, rgba(0,0,0,.55))'}} />
+    <div style={{position: 'absolute', left: '50%', top: 300, translate: '-50% 0', perspective: 1600}}>
+      <div style={{transform: 'rotateY(-8deg) rotateX(4deg)', scale: '0.8'}}><Card t={t} rec={1} ai={0.5} /></div>
+    </div>
+  </AbsoluteFill>;
+};
+
+/* ---------- Карточка-пауза по словам: светлый фон, одно слово за раз, мелко (как «and / Mekealy / had / enough.») ---------- */
+export const CardWords: React.FC<SceneProps> = (p) => {
+  const f = useCurrentFrame(); let cur = '';
+  for (const w of p.words) if (f >= Math.round((w.s - p.t0) * 30)) cur = w.w;
+  return <AbsoluteFill style={{background: '#F0F0EF', display: 'grid', placeItems: 'center'}}>
+    <div style={{fontFamily: SANS, fontWeight: 700, fontSize: 56, letterSpacing: -1, color: '#111'}}>{cur.replace(/[—]/g, '')}</div>
   </AbsoluteFill>;
 };

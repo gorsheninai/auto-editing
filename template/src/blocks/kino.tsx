@@ -102,6 +102,11 @@ export const CardWord: React.FC<BlockProps> = ({data, theme}) => {
 /* ---------- FxGrade: грейд на сегмент — ч/б или кино (row.fx = 'FxGrade', fxText = 'чб' | 'кино') ---------- */
 export const FxGrade: React.FC<{mode?: string; children: React.ReactNode}> = ({mode, children}) => {
   const bw = !mode || /ч\/?б|bw|black/i.test(mode);
+  if (/кино|film/i.test(mode || '')) return <AbsoluteFill>
+    <AbsoluteFill style={{filter: 'saturate(.82) contrast(1.14) brightness(.82) sepia(.1)'}}>{children}</AbsoluteFill>
+    <AbsoluteFill style={{background: 'linear-gradient(180deg, rgba(20,70,80,.28), rgba(30,40,40,.1) 45%, rgba(255,150,70,.14))', mixBlendMode: 'soft-light'}} />
+    <AbsoluteFill style={{background: 'radial-gradient(ellipse at 50% 40%, transparent 45%, rgba(0,0,0,.5))'}} />
+  </AbsoluteFill>;
   return <AbsoluteFill>
     <AbsoluteFill style={{filter: bw ? 'grayscale(1) contrast(1.18) brightness(.95)' : 'saturate(.85) contrast(1.12) sepia(.12) hue-rotate(-8deg)'}}>{children}</AbsoluteFill>
     {!bw ? <AbsoluteFill style={{background: 'linear-gradient(180deg, rgba(0,60,70,.18), rgba(255,140,60,.10))', mixBlendMode: 'soft-light'}} /> : null}
@@ -121,6 +126,19 @@ export const BgSwap: React.FC<{from: number; cut: string; bg?: string}> = ({from
   {bg && isMedia(bg) ? <Media s={bg} /> : <Sunset />}
   <AbsoluteFill><OffthreadVideo src={staticFile(cut)} transparent muted startFrom={from} style={{width: '100%', height: '100%', objectFit: 'cover'}} /></AbsoluteFill>
 </AbsoluteFill>;
+
+/* ---------- HookTitle: заголовок-хук из размытия; под ним справа мелким капсом — текущее слово речи ---------- */
+export const HookTitle: React.FC<{top?: string; big: string[]; words: {w: string; f: number}[]; dur: number; color?: string}> = ({top, big, words, dur, color = '#EFE7DA'}) => {
+  const f = useCurrentFrame();
+  const inn = interpolate(f, [2, 14], [0, 1], clamp), out = interpolate(f, [dur - 8, dur - 1], [0, 1], clamp);
+  const blur = (1 - inn) * 26 + out * 22, op = Math.min(1, inn * 1.4) * (1 - out);
+  let cur = ''; for (const w of words) if (f >= w.f) cur = w.w.replace(/[.,:;!?—…«»]/g, '');
+  return <div style={{position: 'absolute', left: 150, top: 820, filter: `blur(${blur}px)`, opacity: op, color, fontFamily: SANS, textShadow: '0 4px 30px rgba(0,0,0,.35)'}}>
+    {top ? <div style={{fontWeight: 800, fontSize: 34, letterSpacing: 1, textTransform: 'uppercase', marginLeft: 6, marginBottom: 2}}>{top}</div> : null}
+    {big.map((l, i) => <div key={i} style={{fontWeight: 800, fontSize: 170, lineHeight: 0.8, letterSpacing: -9, textTransform: 'lowercase', marginLeft: i * 34}}>{l}</div>)}
+    <div style={{textAlign: 'right', fontWeight: 800, fontSize: 30, letterSpacing: 1, textTransform: 'uppercase', marginTop: 14}}>{cur}</div>
+  </div>;
+};
 
 export const KINO_SCENES = {TxtNumberTitle, MBurst, CardWord};
 export const KINO_INFO: Record<string, {name: string; summary: string}> = {

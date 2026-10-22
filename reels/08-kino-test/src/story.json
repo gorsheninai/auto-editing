@@ -161,31 +161,49 @@
  "rows": [
   {
    "s": 0.0,
-   "e": 0.792,
-   "text": "Вот эта карточка",
+   "e": 1.169,
+   "text": "Вот эта карточка диктофон",
    "mode": "A",
    "kind": "speaker",
-   "note": ""
+   "note": "",
+   "grade": "кино",
+   "crop": 1.0,
+   "hook": {
+    "top": "это",
+    "big": [
+     "ии-",
+     "дикто",
+     "фон"
+    ]
+   }
   },
   {
-   "s": 0.792,
+   "s": 1.169,
    "e": 2.708,
-   "text": "диктофон со встроенным искусственным интеллектом,",
+   "text": "со встроенным искусственным интеллектом,",
    "mode": "C",
    "kind": "motion",
-   "note": "AiCard — карточка появляется, «диктофон», загорается AI",
-   "scene": "AiCard",
-   "tr": "TrWhip"
+   "note": "чисто",
+   "scene": "AiCard"
   },
   {
    "s": 2.708,
-   "e": 4.961,
-   "text": "который запоминает всё, что происходит вокруг вас.",
+   "e": 3.686,
+   "text": "который запоминает",
    "mode": "A",
    "kind": "speaker",
-   "note": "BgSwap: закат — «вокруг вас»",
-   "fx": "BgSwap",
-   "fxText": "закат — «вокруг вас»"
+   "note": "",
+   "grade": "кино",
+   "crop": 1.45
+  },
+  {
+   "s": 3.686,
+   "e": 4.961,
+   "text": "всё, что происходит вокруг вас.",
+   "mode": "C",
+   "kind": "motion",
+   "note": "",
+   "scene": "CardWorld"
   },
   {
    "s": 4.961,
@@ -193,8 +211,8 @@
    "text": "Если вы студент,",
    "mode": "C",
    "kind": "motion",
-   "note": "CardWord: текст: студент | белая",
-   "scene": "CardWord"
+   "note": "",
+   "scene": "CardWords"
   },
   {
    "s": 5.675,
@@ -202,7 +220,9 @@
    "text": "прямо на лекции",
    "mode": "A",
    "kind": "speaker",
-   "note": ""
+   "note": "",
+   "grade": "кино",
+   "crop": 1.0
   },
   {
    "s": 6.553,
@@ -210,9 +230,8 @@
    "text": "запускаете устройство",
    "mode": "C",
    "kind": "motion",
-   "note": "AiCard: запись — карточка на столе пишет лекцию",
-   "scene": "AiCard",
-   "tr": "TrZoom"
+   "note": "запись чисто",
+   "scene": "AiCard"
   },
   {
    "s": 7.637,
@@ -220,7 +239,7 @@
    "text": "и в приложении на телефоне",
    "mode": "C",
    "kind": "motion",
-   "note": "PhoneNotes — приложение пишет конспект",
+   "note": "",
    "scene": "PhoneNotes"
   },
   {
@@ -229,28 +248,24 @@
    "text": "получаете готовый конспект.",
    "mode": "A",
    "kind": "speaker",
-   "note": ""
+   "note": "",
+   "grade": "кино",
+   "crop": 1.4
   }
  ],
  "settings": {
   "bg": "тёмная",
   "win": "popout",
-  "subWords": 3,
+  "subWords": 2,
   "subColor": null,
   "subAnim": {
-   "style": "SubKino",
-   "keywords": [
-    "карточка",
-    "запоминает",
-    "студент",
-    "конспект"
-   ]
+   "style": "SubTom"
   },
   "titleAnim": null,
   "speed": 1.15,
   "avatar": "avatar.mp4",
   "avatarCut": "avatar_cut.webm",
-  "punch": true,
+  "punch": false,
   "passport": {
    "colors": {
     "bg": "#121212",
@@ -273,6 +288,6 @@
   },
   "sfx": true,
   "music": "sfx/bed_kino.wav",
-  "musicVolume": 0.1
+  "musicVolume": 0.09
  }
 }

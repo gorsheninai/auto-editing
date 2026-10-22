@@ -25,7 +25,10 @@ export type Row = {
   fxText?: string;         // подпись эффекта (FxFreeze: …)
   fx?: string;             // эффект на сегмент: FxVhs | FxConfetti
   ov?: {code: string; x?: number; y?: number; w?: number; h?: number; to?: [number, number]; text?: string; at?: number}[]; // пометки InkUnderline | InkCircle | InkArrow | PaperSticker
-  marks?: number[];        // индексы слов (в words), на которых появляются пункты моушн-сцены
+  marks?: number[];
+  crop?: number;           // кадрирование спикера в A: 1 — как снято, 1.3 — крупнее (смена крупности через склейку)
+  hook?: {top?: string; big: string[]}; // заголовок-хук из размытия поверх сегмента; под ним мелко — текущее слово речи
+  grade?: string;          // грейд сегмента: 'кино' | 'чб'        // индексы слов (в words), на которых появляются пункты моушн-сцены
 };
 export type Story = {
   fps: number; duration: number;
