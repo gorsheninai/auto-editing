@@ -254,7 +254,8 @@ def audio_analysis(src, dur, cuts, words):
     voice = db[db > np.percentile(db, 60)]
     bed = float(np.percentile(db, 10) - np.percentile(db, 90))
     onset = librosa.onset.onset_strength(y=y, sr=sr, hop_length=512)
-    tempo, beats = librosa.beat.beat_track(onset_envelope=onset, sr=sr, hop_length=512)
+    # темп без трекинга долей: beat_track в librosa 1.0 + numba 0.68 падает с segfault на части роликов (localmax)
+    tempo = librosa.feature.tempo(onset_envelope=onset, sr=sr, hop_length=512)
     ac = librosa.autocorrelate(onset - onset.mean()); ac = ac / (ac[0] + 1e-9)
     lag = int(round(60 / max(float(np.atleast_1d(tempo)[0]), 1) * sr / 512)) if np.atleast_1d(tempo)[0] > 0 else 0
     pulse = float(ac[lag]) if 0 < lag < len(ac) else 0.0
