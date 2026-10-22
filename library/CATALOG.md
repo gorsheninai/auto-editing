@@ -207,3 +207,6 @@
 | 02-professions | Светлый моушн с зерном, глиняное 3D | кремовый #F4F1EA, чернила #1C1B22, фиолетовый #7B61FF, оранжевый #FF6A2B, лаванда #CFC6FF | Inter Tight и Noto Serif Display Italic |
 | 05-brands-c | Интернет-коллаж bzik: белый лист, стикеры в тонких рамках, Windows-UI, пиксели, режим C 100% | белый #FFFFFF, #111111, серый #8C8C8C, жёлтый #F4C542, сиреневый #B06CF0, голубой #E8EEF8 | Inter Tight, Pixelify Sans, Noto Serif Display Italic |
 | 03-white-bg | Тёмный космос + светлый UI, мягкое Pixar-3D, жёлтый рукописный текст | navy #0B0D2A, фиолетовый #8B6FD1, розовый #F2A8C8, жёлтый #FFD84A, off-white #F4F4F6, синий #2F9BEA | Caveat 700 (подписи), Inter Tight (субтитры) |
+
+## Стиль «bzik» (library/bzik.tsx)
+Белый лист без картинок: рассыпные слова (W), пиксельные человечки (Pix: think, run, cheer, stand, jump, heart, quest, cup), тонкие рамки (Frame), линейные рисунки без логотипов (Sneaker, Cup, Phone, Tee, Medal, Portrait), курсор (Cursor). Сцены: BzHook, WordShot (бренд + предмет, сдвиг на «не просто»), BzAthlete, BzType (допечатка с кареткой), BzClick (кнопка + курсор), BzGodin (портрет с выносками), TxtAside (цитата собирается в кучку), TxtKey (фраза дугой + ремарка). Подключение: `...BZIK` в registry.tsx. Ролик 10-overpay-bzik.
