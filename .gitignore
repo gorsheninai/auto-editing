@@ -10,3 +10,4 @@ reels/*/work/stills/
 reels/*/work/*.log
 /work/
 reels/*/node_modules
+reels/*/work/
