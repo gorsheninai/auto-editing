@@ -44,7 +44,7 @@ def events(r):
     for t in r['text'].get('titles', []):
         key = abs(t['y_rel'] - sub_y) < 0.08 and t['words'] <= 1 and t['dur'] < 1.0
         anim = (t.get('anim_in') or {}).get('kind', '?')
-        ev.append((t['t_in'], 'keyword' if key else 'title', f"«{t['text']}» {t['xh_px']:.0f}px {anim}"))
+        ev.append((t['t_in'], 'keyword' if key else 'title', f"«{t['text']}» {(t.get('xh_px') or t.get('h_px') or 0):.0f}px {anim}"))
     for x in r['audio'].get('sfx', []):
         nxt = next((s['type'] for s in sh if s['s'] >= x['t'] - 0.1), '?')
         ev.append((x['t'], f"sfx_{x['kind']}", f"{x['level_rel_voice_db']:+.0f}dB {'на склейке→' + nxt if x['on_cut'] else 'не на склейке'}"))
