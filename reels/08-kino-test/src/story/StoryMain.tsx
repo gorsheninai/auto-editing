@@ -143,7 +143,8 @@ const Captions: React.FC = () => {
   const p = STORY.settings.subAnim;
   if (p?.style === 'SubTom') { /* как у референса: по слову, мелко, кремовым, по центру груди, без анимации; ключевые слова крупнее */
     const ss = STORY.settings.subStyle || {}; const fs = ss.fontSize || 60;
-    const key = (ss.keywords || []).some((k) => ch.ws.some((w) => bareW(w.w) === k.toLowerCase()));
+    const ki = new Set(ss.keyIdx || []); // крупные слова по номерам (приёмы KEY/NUM/WORD раскадровки) — точнее, чем по написанию
+    const key = ki.size ? ch.ws.some((w) => ki.has(STORY.words.indexOf(w))) : (ss.keywords || []).some((k) => ch.ws.some((w) => bareW(w.w) === k.toLowerCase()));
     const size = key ? Math.min(fs * (ss.keyScale || 2.2), 900 / Math.max(1, ch.text.length * 0.56)) : fs;
     const top = r.mode === 'C' ? (ss.topInsert ?? (/^Phone/.test(r.scene || '') ? 1790 : ss.top ?? 1140)) : ss.top ?? 1140;
     const raw = ch.text.replace(/[,;]+$/, ''); const txt = ss.case === 'upper' ? raw.toUpperCase() : ss.case === 'as_is' ? raw : raw.toLowerCase();

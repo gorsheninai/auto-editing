@@ -410,6 +410,7 @@ function blankReel(tplId){
     ...(r.target ? {target:{...r.target}, useTarget:true} : {}),
     styleAnalysis: tplStyle(t), mediaList: r.assetsList || '', passport: r.passport || null,
     /* глубокий разбор: цифровая спецификация референсов едет в проект целиком и задаёт ритм, субтитры, звук и грейд */
+    ...(r.dna ? {dna: r.dna} : {}),
     ...(t.spec ? {spec: t.spec, speed: 1.0, punch: false, subWords: t.spec.engine?.subtitle?.words || 1} : {})};
 }
 /* ритм раскадровки по спецификации шаблона — для промпта Claude */
@@ -423,6 +424,56 @@ function specShares(sp){
     `Склейки только жёсткие, на начале слова; коды переходов Tr… не ставь.`,
     subs.length?`Чего у нас нет, заменяй так: ${subs.join('; ')}.`:''].filter(Boolean).join(' ');
 }
+/* стиль тремя слоями: ядро (держать всегда), приёмы (по смыслу, правило «когда»), структура; текст ⇄ объект — как tools/dna_text.py */
+const DNA_CODES={HOOK:'хук-заголовок из размытия', WORD:'вставка-слово: буквальный кадр того, что названо, слово крупно', NUM:'число крупно', KEY:'ключевое слово крупнее', CROP:'смена крупности спикера', BURST:'серия коротких вставок', LIST:'пункт списка «1:» поверх вставки', BW:'ч/б', CARD:'карточка-пауза с одним словом'};
+const DNA_FORMAT=`ЯДРО (держать в каждом ролике)
+Название | правило
+ПРИЁМЫ (брать по смыслу текста)
+КОД · Название | что это | когда: … | как часто | длина | звук: whoosh, hit или нет
+СТРУКТУРА
+Часть (где) | правило
+ДИАПАЗОНЫ
+спикер 1,5–4 с; вставка 0,7–2 с; серия 0,2–0,6 с`;
+function dnaToText(d){
+  if(!d) return '';
+  const S2=' | ', r=d.ranges||{}, f=k=>(r[k]||[]).map(x=>String(x).replace('.',',')).join('–');
+  return [`Стиль «${d.name||''}»`,'','ЯДРО (держать в каждом ролике)', ...(d.core||[]).map(c=>c.name+S2+c.rule),
+    '','ПРИЁМЫ (брать по смыслу текста, не все сразу)', ...(d.techniques||[]).map(t=>`${t.code} · ${t.name}${S2}${t.what}${S2}когда: ${t.when}${S2}${t.freq}${S2}${t.len||''}${S2}звук: ${t.sfx||'нет'}`),
+    '','СТРУКТУРА', ...(d.structure||[]).map(x=>`${x.part} (${x.span})${S2}${x.rule}`),
+    '','ДИАПАЗОНЫ', [r.speaker&&`спикер ${f('speaker')} с`, r.insert&&`вставка ${f('insert')} с`, r.burst&&`серия ${f('burst')} с`].filter(Boolean).join('; '),
+    ...(d.choices?['','ВЫБОР ШАБЛОНА', Object.entries(d.choices).map(([k,v])=>`${k}: ${v}`).join('; ')]:[]),
+    ...(d.varies?['','МЕНЯЕТСЯ ОТ РОЛИКА К РОЛИКУ', d.varies]:[])].join('\n');
+}
+function dnaFromText(txt){
+  const d={core:[],techniques:[],structure:[],ranges:{}}; let sec=null;
+  const HEADS=['ЯДРО','ПРИЁМЫ','СТРУКТУРА','ДИАПАЗОНЫ','ВЫБОР ШАБЛОНА','МЕНЯЕТСЯ ОТ РОЛИКА К РОЛИКУ'];
+  for(const line of String(txt||'').split('\n')){
+    const s=line.trim(); if(!s) continue;
+    const m0=s.match(/^Стиль «(.*)»$/); if(m0){ d.name=m0[1]; continue; }
+    const head=s.split(' (')[0]; if(HEADS.includes(head.toUpperCase()) && head===head.toUpperCase()){ sec=head.toUpperCase(); continue; }
+    const p=s.split('|').map(x=>x.trim()), g=i=>p[i]||'';
+    if(sec==='ЯДРО') d.core.push({name:p[0], rule:p.slice(1).join(' | ')});
+    else if(sec==='ПРИЁМЫ'){ const [code,...nm]=p[0].split('·'); d.techniques.push({code:code.trim().toUpperCase(), name:nm.join('·').trim(), what:g(1), when:g(2).replace(/^когда:\s*/,''), freq:g(3), len:g(4), sfx:g(5).replace(/^звук:\s*/,'').replace('нет','')}); }
+    else if(sec==='СТРУКТУРА'){ const m=p[0].match(/^(.*?)\s*\((.*)\)$/); d.structure.push({part:m?m[1]:p[0], span:m?m[2]:'', rule:p.slice(1).join(' | ')}); }
+    else if(sec==='ДИАПАЗОНЫ'){ for(const [k,w] of [['speaker','спикер'],['insert','вставка'],['burst','серия']]){ const m=s.match(new RegExp(w+'\\s*([\\d.,]+)\\s*[–-]\\s*([\\d.,]+)')); if(m) d.ranges[k]=[+m[1].replace(',','.'), +m[2].replace(',','.')]; } }
+    else if(sec==='ВЫБОР ШАБЛОНА') d.choices=Object.fromEntries(s.split('; ').filter(x=>x.includes(': ')).map(x=>[x.slice(0,x.indexOf(': ')), x.slice(x.indexOf(': ')+2)]));
+    else if(sec==='МЕНЯЕТСЯ ОТ РОЛИКА К РОЛИКУ') d.varies=((d.varies||'')+' '+s).trim();
+  }
+  return d;
+}
+function dnaSummary(d){ return d ? `ядро ${d.core?.length||0} · приёмов ${d.techniques?.length||0} (${(d.techniques||[]).map(t=>t.code).join(', ')}) · частей ${d.structure?.length||0}` : ''; }
+/* раскадровка по трём слоям: смысловые моменты текста → приёмы из словаря */
+function dnaPrompt(d){
+  const r=d.ranges||{}, f=k=>(r[k]||[]).join('–');
+  return [`СТИЛЬ ШАБЛОНА ТРЕМЯ СЛОЯМИ — главное требование раскадровки.`,
+    `ЯДРО (соблюдай во всём ролике):`, ...(d.core||[]).map(c=>`- ${c.name}: ${c.rule}`),
+    `ПРИЁМЫ — словарь стиля. Бери ТОЛЬКО их, по правилу «когда» и с указанной частотой; все сразу не нужны. Один и тот же приём не ставь в два сегмента подряд (кроме KEY и CROP). Не повторяй одну и ту же схему — ролик должен быть в стиле, а не копией:`,
+    ...(d.techniques||[]).map(t=>`- ${t.code} (${t.name}): ${t.what}. Когда: ${t.when}. Частота: ${t.freq}.${t.len?' Длина: '+t.len+'.':''}`),
+    `СТРУКТУРА — размечай текст по смыслу на эти части и веди каждую так:`, ...(d.structure||[]).map(x=>`- ${x.part} (${x.span}): ${x.rule}`),
+    (r.speaker||r.insert)?`ДЛИНЫ: план спикера ${f('speaker')} с, вставка ${f('insert')} с${r.burst?`, кадр серии ${f('burst')} с`:''}. Длину внутри диапазона выбирай по смыслу фразы, не одинаково. Склейка — на начале слова.`:'',
+    `ПОРЯДОК: 1) найди смысловые моменты текста: первая фраза-хук, новые мысли, конкретные предметы, места, люди, бренды и действия, числа, перечисления, нумерованные пункты, прошлое или контраст, вывод; 2) на каждый момент поставь приём из словаря по его правилу «когда»; 3) нарежь сегменты по словам. Приёмы-вставки (WORD, BURST, LIST, CARD) — режим C на весь экран; остальные — режим A. Режим B не используй, если ядро требует спикера во весь кадр.`,
+    `В каждом сегменте добавь поле "tech" — массив кодов приёмов сегмента (может быть пустым). Для WORD в "visual" напиши, какой именно кадр показать (предмет или действие из этих слов) и какое слово крупно; для BURST — 4–6 кадров через «;»; для LIST — номер и заголовок пункта; для KEY и NUM — какое слово крупно. Если берёшь блок библиотеки — начни visual с его кода.`].filter(Boolean).join('\n');
+}
 function specSummary(sp){
   const e=sp.engine||{}, sh=e.shots||{}, su=e.subtitle||{}, so=e.sound||{};
   return [`спикер ${Math.round((sh.speakerShare||0)*100)}%`, `планы ${(sh.speakerMedian||0).toFixed(1)} / ${(sh.insertMedian||0).toFixed(1)} с`,
@@ -431,6 +482,7 @@ function specSummary(sp){
 /* стиль шаблона → поле «Стиль ролика»: свой текст правил или сборка из полей карточки */
 function tplStyle(t){
   const r=t.rules||{};
+  if(r.dna) return dnaToText(r.dna)+(r.style?.trim()?'\n\nДОПОЛНИТЕЛЬНО:\n'+r.style.trim():'');
   if(r.style?.trim()) return r.style.trim();
   return [`Шаблон «${t.name}».`, t.aesthetic&&`Эстетика: ${t.aesthetic}`, t.palette?.length&&`Палитра: ${t.palette.join(', ')}`,
     t.fonts&&`Шрифты: ${t.fonts}`, t.motion&&`Движение и переходы: ${t.motion}`, t.bg&&`Подложка: ${t.bg}`].filter(Boolean).join('\n');
@@ -603,7 +655,8 @@ function openReel(p){
         tplAllowed(t) ? `Блоки — только разрешённые шаблоном: ${tplAllowed(t).join(', ')}.` : '',
         p.passport ? `Стилевой паспорт (цвета, шрифты, движение) лежит в проекте, поле passport: ${ppSummary(p.passport)}.` : '',
         t.rules?.assets ? `Базовые ассеты шаблона на Диске: ${t.rules.assets} — скачать в public/media/ вместе с картинками ролика.` : '',
-        (p.spec||t.spec) ? `У шаблона есть спецификация стиля (поле spec проекта: ${specSummary(p.spec||t.spec)}). После pult_to_story.py запусти tools/spec_build.py <ролик> --src <исходник> — реальные тайминги слов, ритм и крупность спикера, грейд, звуки и субтитры по референсам; после рендера — замкнутая проверка compare_spec.py.` : ''])(tplOf(p.templateId)) : []),
+        (p.dna||t.rules?.dna) ? `Стиль шаблона тремя слоями лежит в проекте (поле dna: ${dnaSummary(p.dna||t.rules.dna)}): ядро держать во всём ролике, приёмы — коды в поле tech у сегментов раскадровки.` : '',
+        (p.spec||t.spec) ? `У шаблона есть цифры ядра стиля (поле spec проекта: ${specSummary(p.spec||t.spec)}). После pult_to_story.py запусти tools/spec_build.py <ролик> --src <исходник> — реальные тайминги слов, ритм и крупность спикера, грейд, звуки и субтитры по референсам; после рендера — замкнутая проверка compare_spec.py.` : ''])(tplOf(p.templateId)) : []),
       ``,
       sh?`Раскадровка: ${curRows.length} сегментов, A ${sh.a}% / B ${sh.b}% / C ${sh.c}%. ${cnt}`:'Раскадровки ещё нет.',
       `Окно спикера по умолчанию: ${winName(d.win)}. Подложка: ${d.bg}. Звук: ${d.sound}.`,
@@ -918,12 +971,12 @@ function wireTiming(p){
       for(const m of ['B','C']) if(Object.values(sb[m]).reduce((x,y)=>x+y,0)!==100){ toast(`Доли внутри ${m} должны давать 100%`); return; }
     }
     const btns=['#r-sbGo','#r-sbSend','#r-quickGo'].map(x=>$(x)).filter(Boolean), stop=$('#r-sbStop'), n=$('#r-sbNote');
-    const tpl=tplOf(p.templateId), allow=tplAllowed(tpl), lib=allow ? S.blocks.filter(b=>allow.includes(b.code||b.id)) : S.blocks, spec=p.spec||tpl?.spec;
-    const bySpec = !!spec && !(p.mode==='own' && withTarget);
+    const tpl=tplOf(p.templateId), allow=tplAllowed(tpl), lib=allow ? S.blocks.filter(b=>allow.includes(b.code||b.id)) : S.blocks, spec=p.spec||tpl?.spec, dna=p.dna||tpl?.rules?.dna;
+    const bySpec = (!!spec || !!dna) && !(p.mode==='own' && withTarget);
     btns.forEach(b=>b.disabled=true); stop.hidden=false; n.textContent='Claude подбирает сцены по тексту и хронометражу… обычно до минуты.';
     const d=collect(), files=mediaFiles();
     const kindsTxt = m => SEG_KINDS[m].map(([k,l])=>`${k} — ${l} ${sb[m][k]}%`).join(', ');
-    const shares = bySpec ? specShares(spec) : withTarget
+    const shares = bySpec ? (dna ? dnaPrompt(dna) : specShares(spec)) : withTarget
       ? `ЦЕЛЕВЫЕ ДОЛИ ПО ВРЕМЕНИ (выбрал пользователь): A ${tg.a}%, B ${tg.b}%, C ${tg.c}%. Внутри B: ${kindsTxt('B')}. Внутри C: ${kindsTxt('C')}. Время каждого слова дано — режь сегменты и подбирай режимы и типы так, чтобы суммы секунд были как можно ближе к этим долям (режимы ±5 п.п., типы ±10 п.п.). Это главное требование: ради него смело режь посреди предложений. Режим или тип с долей 0% не используй.`
       : `ДОЛИ И ТИПЫ ВЫБЕРИ САМ по смыслу текста и ритму. Ориентир: A около 10%, B 50–65%, C 25–35% на самых сильных местах; внутри B больше 2D-сцен и моушна, 3D — где яркая метафора; внутри C — смысловой моушн, 3D и кинетический текст.`;
     const prompt=SB_PROMPT.replace('{SHARES}',shares)
@@ -941,20 +994,20 @@ function wireTiming(p){
       const res = await sample.json(prompt, {signal:ctl.signal, cache:false});
       if(!Array.isArray(res)) throw {code:'invalid_json'};
       const W=curWords, N=W.length, names=new Set(files.map(f=>f.name));
-      const segs=res.map(x=>({a:Math.round(Number(x.from)), b:Math.round(Number(x.to)), mode:String(x.mode||''), kind:String(x.kind||''), win:String(x.win||''), media:String(x.media||''), note:String(x.visual||x.note||'')}))
+      const segs=res.map(x=>({a:Math.round(Number(x.from)), b:Math.round(Number(x.to)), mode:String(x.mode||''), kind:String(x.kind||''), win:String(x.win||''), media:String(x.media||''), note:String(x.visual||x.note||''), tech:(Array.isArray(x.tech)?x.tech:[]).map(c=>String(c).toUpperCase()).filter(c=>/^[A-Z0-9_]{2,12}$/.test(c))}))
         .filter(x=>Number.isFinite(x.a)&&Number.isFinite(x.b)).map(x=>({...x, a:Math.max(0,Math.min(N-1,x.a)), b:Math.max(0,Math.min(N-1,x.b))})).filter(x=>x.b>=x.a).sort((x,y)=>x.a-y.a);
       if(!segs.length) throw {code:'invalid_json'};
       const rows=[]; let next=0;
       for(const g of segs){ if(g.b<next) continue;
         const mode=['A','B','C'].includes(g.mode)?g.mode:'B', ks=(SEG_KINDS[mode]||[]).map(x=>x[0]);
         let kind = ks.includes(g.kind)?g.kind:ks[0]; if(kind==='media' && !names.has(g.media)) kind = ks.find(k=>k!=='media')||kind;
-        rows.push({...rowFromWords(W, next, g.b, mode, g.note), kind, win: mode==='B' ? (WINS.some(w=>w[0]===g.win)?g.win:readWin()) : '', media: kind==='media'?g.media:''});
+        rows.push({...rowFromWords(W, next, g.b, mode, (g.tech.length?`[${g.tech.join(',')}] `:'')+g.note.replace(/^\[[A-Z0-9_,\s]+\]\s*/,'')), tech:g.tech, kind, win: mode==='B' ? (WINS.some(w=>w[0]===g.win)?g.win:readWin()) : '', media: kind==='media'?g.media:''});
         next=g.b+1; }
-      if(next<N && rows.length){ const last=rows.pop(); rows.push({...rowFromWords(W,last.wi[0],N-1,last.mode,last.note), kind:last.kind, win:last.win, media:last.media}); }
+      if(next<N && rows.length){ const last=rows.pop(); rows.push({...rowFromWords(W,last.wi[0],N-1,last.mode,last.note), tech:last.tech||[], kind:last.kind, win:last.win, media:last.media}); }
       curRows=rows; useTarget=withTarget;
       if(withTarget && !bySpec) fitShares();
       renderSb();
-      const ok=await write(()=>docRef.update({sbRows:curRows, storyboard:rowsText(curRows), target:tg, sub:sb, useTarget, ...(spec&&!p.spec?{spec}:{}), updatedAt:new Date().toISOString()}));
+      const ok=await write(()=>docRef.update({sbRows:curRows, storyboard:rowsText(curRows), target:tg, sub:sb, useTarget, ...(spec&&!p.spec?{spec}:{}), ...(dna&&!p.dna?{dna}:{}), updatedAt:new Date().toISOString()}));
       done=true;
       n.textContent = ok ? 'Готово. Меняй режим, тип, окно и визуал в таблице и нажми «Сохранить».' : 'Раскадровка готова, но не сохранилась.';
     }catch(e){ n.textContent = e&&e.code==='cancelled' ? 'Остановлено.' : e&&e.code==='invalid_json' ? 'Claude ответил не в том формате. Нажми ещё раз.' : sampleErr(e); }
@@ -1396,7 +1449,8 @@ function deepTask(t){
   return [`Глубокий разбор премонтажа «${t.name}» (templates/${t.id}), подключи auto-editing.`,
     `Референсы — видео на пульте: ${(t.refs||[]).map((r,i)=>`${i+1}) ${r.name} — id ${r.id}`).join('; ')}.`,
     `Скачай их (Artifact read с path=id) и прогони конвейер из CLAUDE.md «Глубокий разбор»: tools/ref_analyze.py по каждому → tools/style_spec.py → проверь листы глазами (шрифт, анимации, переходы, вставки).`,
-    `Уточни и запиши обратно в templates/${t.id}: spec (style_spec.json целиком), rules.style, recipe, sound, speech, rules.passport, rules.target, rules.subAnim, rules.allowed, blockMap, gaps; поставь deep: true. С полем spec «Создать монтаж» сам собирает раскадровку по ритму референсов, а tools/spec_build.py — тайминги, грейд, звук и субтитры.`,
+    `Затем tools/style_dna.py по тем же отчётам (--timeline) → сравни референсы между собой и опиши стиль тремя слоями: ядро (одинаково у всех), приёмы с правилом «когда» по смыслу текста, структура и диапазоны; формат — tools/dna_text.py; запиши в rules.dna.`,
+    `Уточни и запиши обратно в templates/${t.id}: rules.dna, spec (style_spec.json целиком — цифры ядра), rules.style, recipe, sound, speech, rules.passport, rules.target, rules.subAnim, rules.allowed, blockMap, gaps; поставь deep: true. С полем spec «Создать монтаж» сам собирает раскадровку по ритму референсов, а tools/spec_build.py — тайминги, грейд, звук и субтитры.`,
     `Чего нет в библиотеке (gaps) — предложи блоки, после согласования сделай их и добавь в allowed.`].join('\n');
 }
 /* замеры видео в браузере: склейки по кадрам, планы, палитра, ключевые кадры */
@@ -1502,7 +1556,9 @@ const SYNTH_PROMPT = `Ты — арт-директор. Ниже разборы 
 "rules":{"win":"popout|window|circle|strip","bg":"светлая|тёмная|светлая, живой градиент|тёмная, живой градиент","subAnim":"id стиля субтитров или static","target":{"a":0,"b":0,"c":0},"punch":true,"progress":false,"speed":1.1},
 "allowed":["коды наших блоков, которые подходят под эту подачу"],
 "blockMap":[{"technique":"приём из референсов","code":"наш блок"}],
-"gaps":[{"technique":"приём, которого у нас нет","seen":"где видели","proposal":"какой блок сделать"}]}
+"gaps":[{"technique":"приём, которого у нас нет","seen":"где видели","proposal":"какой блок сделать"}],
+"dna":{"core":[{"name":"коротко","rule":"правило"}],"techniques":[{"code":"КОД латиницей","name":"название","what":"что это","when":"на каком смысловом моменте текста","freq":"как часто словами","len":"длина, с","sfx":"whoosh|hit|"}],"structure":[{"part":"Хук|Раскрытие|…|Финал","span":"где","rule":"как ведётся"}],"ranges":{"speaker":[1.5,4],"insert":[0.7,2]},"varies":"что меняется от ролика к ролику"}}
+DNA — главное: стиль тремя слоями. core — только то, что ОДИНАКОВО во всех роликах (по этому стиль узнаётся). techniques — приёмы, которые встречаются не везде или по-разному, у каждого правило «когда» через смысл текста (предмет, число, перечисление, прошлое, вывод), а не через секунды. Коды бери из стандартных, если подходит: ${Object.entries(DNA_CODES).map(([k,v])=>k+' — '+v).join('; ')}. structure — части ролика и как ведётся каждая. ranges — диапазоны длин планов, не одна точка.
 Доли target в сумме 100 и соответствуют разборам. Цвета — из палитры замеров и кадров, текст читается на фоне.`;
 
 $('#newPremont').addEventListener('click', ()=>openPremont());
@@ -1564,6 +1620,7 @@ function openPremont(){
     $('#pm-out').innerHTML=`<div class="fields" style="margin-top:18px">
       <div class="f"><label for="pm-name">Название</label><input type="text" id="pm-name" value="${esc(r.name||'Премонтаж')}"></div>
       <div class="f wide"><label for="pm-aest">Суть</label><input type="text" id="pm-aest" value="${esc(r.aesthetic||'')}"></div>
+      <div class="f wide"><label for="pm-dna">Стиль тремя слоями: ядро, приёмы, структура</label><textarea id="pm-dna" spellcheck="false" style="min-height:300px;font-family:var(--mono);font-size:13px;line-height:1.45">${esc(r.dna?dnaToText({name:r.name,...r.dna}):'')}</textarea><span class="hint">Ядро держится в каждом ролике, приёмы ставятся по смыслу текста. Можно править: строка на пункт, поля через « | ».</span></div>
       <div class="f wide"><label for="pm-style">Стиль</label><textarea id="pm-style" style="min-height:200px">${esc(r.style||'')}</textarea></div>
       <div class="f wide"><label for="pm-recipe">Рецепт структуры</label><textarea id="pm-recipe" style="min-height:160px">${esc(r.recipe||'')}</textarea></div>
       <div class="f wide"><label for="pm-sound">Звук</label><textarea id="pm-sound" style="min-height:90px">${esc(r.sound||'')}</textarea></div>
@@ -1585,7 +1642,7 @@ function openPremont(){
       const body={name, kind:'premontage', aesthetic:$('#pm-aest').value.trim(), bg:ru.bg||'светлая', palette:Object.values(passport.colors), fonts:'', motion:'', sound:SOUND[0], blocks:[],
         recipe:$('#pm-recipe').value.trim(), soundNotes:$('#pm-sound').value.trim(), speech:$('#pm-speech').value.trim(), blockMap:r.blockMap||[], gaps:r.gaps||[], deep:false,
         refs:done.map(f=>({id:f.id, name:f.file.name, size:f.file.size, metrics:{duration:f.m.duration, shots:f.m.shots, cutsPerMin:f.m.cutsPerMin, avgShot:f.m.avgShot, cuts:f.m.cuts, palette:f.m.palette}, sound:f.snd, analysis:f.analysis})),
-        rules:{style:styleAll, win:ru.win||'popout', bg:ru.bg||'светлая', subAnim:subOk?ru.subAnim:'static', titleAnim:'static', target:tgt, punch:ru.punch??true, progress:!!ru.progress, speed:ru.speed||null,
+        rules:{dna:$('#pm-dna').value.trim()?dnaFromText($('#pm-dna').value):null, style:styleAll, win:ru.win||'popout', bg:ru.bg||'светлая', subAnim:subOk?ru.subAnim:'static', titleAnim:'static', target:tgt, punch:ru.punch??true, progress:!!ru.progress, speed:ru.speed||null,
           assets:'', assetsList:'', allowed, passport},
         previewId:done[0]?.id||null, previewKind:'video', createdAt:new Date().toISOString()};
       const ref=db.collection('templates').doc();
@@ -1618,7 +1675,7 @@ function quickPanel(p, ro){
       <li>«Составить промпт» в «Картинках» → вставь его в ChatGPT.</li>
       <li>«Скопировать задание для чата» → в чате соберётся готовый ролик.</li>
     </ol>
-    <div class="row"><button class="btn primary" type="button" id="r-quickGo"${ro}>Собрать раскадровку</button><span class="hint" id="r-quickNote">${m==='auto'?(t.spec?'Авто: ритм, субтитры, звук и грейд — по спецификации референсов.':'Авто: стиль, окно, субтитры и доли берутся из шаблона.'):'Свои настройки: стиль и настройки открыты, их можно поменять.'}</span></div>
+    <div class="row"><button class="btn primary" type="button" id="r-quickGo"${ro}>Собрать раскадровку</button><span class="hint" id="r-quickNote">${m==='auto'?(t.rules?.dna?'Авто: раскадровка по смыслу текста из приёмов стиля; ядро стиля держится во всём ролике.':t.spec?'Авто: ритм, субтитры, звук и грейд — по спецификации референсов.':'Авто: стиль, окно, субтитры и доли берутся из шаблона.'):'Свои настройки: стиль и настройки открыты, их можно поменять.'}</span></div>
   </div>`;
 }
 function wireQuick(p, api){
@@ -1644,7 +1701,7 @@ function wireQuick(p, api){
     try{
       if(api.needSend()){ note.textContent='Шаг 1 из 2: считаю паузы и хронометраж…'; if(!await api.sendMaterials()){ note.textContent='Не хватает материалов: проверь текст и видео в «Материалах».'; return; } }
       note.textContent='Шаг 2 из 2: Claude подбирает сцены по правилам шаблона… обычно до минуты.';
-      const withTarget = (!!t?.rules?.target && !t?.spec) || (p.mode==='own' && !$('#r-manual').hidden);
+      const withTarget = (!!t?.rules?.target && !t?.spec && !t?.rules?.dna) || (p.mode==='own' && !$('#r-manual').hidden);
       const ok = await api.propose(withTarget);
       if(ok){ note.textContent='Раскадровка готова — проверь таблицу ниже, затем «Составить промпт» для картинок.'; $('#r-sec-6').scrollIntoView({behavior:'smooth',block:'start'}); }
       else note.textContent='Раскадровка не собралась — подробности в шаге «Раскадровка». Нажми ещё раз.';
@@ -1662,7 +1719,8 @@ function openTplRules(t){
   E.innerHTML=`<form class="panel" id="tplRules" novalidate><h3>Правила шаблона «${esc(t.name)}»</h3>
     <p>По этим правилам «Создать монтаж» собирает раскадровку сам: стиль, окно спикера, субтитры, доли кадра и какие блоки библиотеки можно брать.</p>
     <div class="fields">
-      <div class="f wide"><label for="tr-style">Стиль монтажа</label><textarea id="tr-style" style="min-height:180px">${esc(r.style||tplStyle(t))}</textarea><span class="hint">Уходит в поле «Стиль ролика»: по нему Claude подбирает сцены и пишет промпт для картинок.</span></div>
+      <div class="f wide"><label for="tr-dna">Стиль тремя слоями: ядро, приёмы, структура</label><textarea id="tr-dna" spellcheck="false" style="min-height:340px;font-family:var(--mono);font-size:13px;line-height:1.45" placeholder="${esc(DNA_FORMAT)}">${esc(r.dna?dnaToText(r.dna):'')}</textarea><span class="hint">По строке на пункт, поля через « | ». Ядро держится в каждом ролике; приёмы Claude ставит по смыслу текста, по правилу «когда»; структура — как устроен ролик во времени. Коды приёмов, которые сборка знает: ${Object.keys(DNA_CODES).join(', ')}; новый код — опиши, сделаю блок в чате.</span></div>
+      <div class="f wide"><label for="tr-style">${r.dna?'Дополнительно к стилю (свободный текст)':'Стиль монтажа'}</label><textarea id="tr-style" style="min-height:${r.dna?90:180}px">${esc(r.dna?(r.style||''):(r.style||tplStyle(t)))}</textarea><span class="hint">${r.dna?'Необязательно: то, что не легло в три слоя.':'Уходит в поле «Стиль ролика». Лучше описать стиль тремя слоями выше.'}</span></div>
       <div class="f"><label for="tr-win">Окно спикера</label><select id="tr-win">${opts(WINS.map(w=>[w[0],w[1]]), r.win||'popout')}</select></div>
       <div class="f"><label for="tr-bg">Подложка</label><select id="tr-bg">${opts(['светлая','тёмная','светлая, живой градиент','тёмная, живой градиент'], r.bg||t.bg||'светлая')}</select></div>
       <div class="f"><label for="tr-sub">Анимация субтитров</label><select id="tr-sub">${opts(anim('subtitle'), r.subAnim||'static')}</select></div>
@@ -1741,7 +1799,9 @@ radius — одно из 0.3, 0.6, 1, 1.6. motion — soft | spring | snappy. te
     if(target && target.a+target.b+target.c!==100){ toast('Доли должны давать 100%'); return; }
     const on=boxes().filter(x=>x.checked).map(x=>x.dataset.blk);
     if(!on.length){ toast('Выбери хотя бы один блок'); return; }
-    const rules={style:$('#tr-style').value.trim(), win:$('#tr-win').value, bg:$('#tr-bg').value, subAnim:$('#tr-sub').value, titleAnim:$('#tr-title').value,
+    const dnaTxt=$('#tr-dna').value.trim(), dna=dnaTxt?dnaFromText(dnaTxt):null;
+    if(dna && (!dna.core.length || !dna.techniques.length)){ toast('В стиле нужны разделы ЯДРО и ПРИЁМЫ'); return; }
+    const rules={dna, style:$('#tr-style').value.trim(), win:$('#tr-win').value, bg:$('#tr-bg').value, subAnim:$('#tr-sub').value, titleAnim:$('#tr-title').value,
       target, punch:$('#tr-punch').checked, progress:$('#tr-prog').checked, assets:$('#tr-assets').value.trim(), assetsList:$('#tr-alist').value,
       allowed: on.length===boxes().length ? [] : on, passport: readPP()};
     if(await write(()=>db.collection('templates').doc(t.id).update({rules, bg:rules.bg, updatedAt:new Date().toISOString()}),'Правила сохранены')){ E.hidden=true; E.innerHTML=''; }
@@ -1757,7 +1817,7 @@ function renderTemplates(){
     return `<article class="card">
       ${media(t.previewId, t.previewKind, t.posterId)}
       <div class="body">
-        ${t.kind==='premontage'?`<div class="row" style="gap:6px"><span class="chip">Премонтаж · ${t.refs?.length||0} реф.</span>${t.deep?'<span class="chip">глубокий разбор ✓</span>':''}${t.spec?'<span class="chip">спецификация ✓</span>':''}${t.gaps?.length?`<span class="chip" title="${esc(t.gaps.map(g=>g.technique).join('; '))}">нет в библиотеке: ${t.gaps.length}</span>`:''}</div>`:''}
+        ${t.kind==='premontage'?`<div class="row" style="gap:6px"><span class="chip">Премонтаж · ${t.refs?.length||0} реф.</span>${t.deep?'<span class="chip">глубокий разбор ✓</span>':''}${t.rules?.dna?'<span class="chip">стиль в 3 слоя ✓</span>':''}${t.spec?'<span class="chip">цифры стиля ✓</span>':''}${t.gaps?.length?`<span class="chip" title="${esc(t.gaps.map(g=>g.technique).join('; '))}">нет в библиотеке: ${t.gaps.length}</span>`:''}</div>`:''}
         <h3>${esc(t.name)}</h3>
         <p class="desc">${esc(t.aesthetic)}</p>
         ${t.palette?.length?`<div class="swatches" aria-label="Палитра">${t.palette.map(c=>`<i style="background:${esc(c)}" title="${esc(c)}"></i>`).join('')}</div>`:''}
@@ -1770,7 +1830,8 @@ function renderTemplates(){
         </dl>
         ${tplAllowed(t)?`<div class="meta">${tplAllowed(t).slice(0,12).map(b=>`<span class="chip code">${esc(b)}</span>`).join('')}${tplAllowed(t).length>12?`<span class="chip">ещё ${tplAllowed(t).length-12}</span>`:''}</div>`:''}
         <p class="hint" style="margin:8px 0 0">${t.rules ? `Правила: ${[t.rules.target?`доли ${t.rules.target.a}/${t.rules.target.b}/${t.rules.target.c}`:'доли по смыслу', winName(t.rules.win||'popout').toLowerCase(), tplAllowed(t)?`${tplAllowed(t).length} блоков`:'все блоки', t.rules.assets?'ассеты на Диске':''].filter(Boolean).join(' · ')}` : 'Правила не настроены — возьмутся поля карточки и вся библиотека.'}</p>
-        ${t.spec?`<p class="hint" style="margin:4px 0 0">По референсам: ${esc(specSummary(t.spec))}</p>`:''}
+        ${t.rules?.dna?`<p class="hint" style="margin:4px 0 0">Стиль: ${esc(dnaSummary(t.rules.dna))}</p>`:''}
+        ${t.spec?`<p class="hint" style="margin:4px 0 0">Цифры ядра: ${esc(specSummary(t.spec))}</p>`:''}
         ${t.rules?.passport?`<div class="swatches" aria-label="Паспорт" style="margin-top:8px">${PP_COLORS.map(([k])=>t.rules.passport.colors?.[k]).filter(Boolean).map(c=>`<i style="background:${esc(c)}" title="${esc(c)}"></i>`).join('')}</div><p class="hint" style="margin:4px 0 0">${esc(ppSummary(t.rules.passport))}</p>`:''}
         <div class="actions">
           <button class="btn primary" data-use="${esc(t.id)}"${canWrite&&db?'':' disabled'}>Создать монтаж</button>

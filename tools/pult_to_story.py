@@ -63,6 +63,11 @@ def main():
         kind = r.get('kind') or ('speaker' if mode == 'A' else 'l2d')
         row = {'s': float(r.get('s', 0)), 'e': float(r.get('e', 0)), 'text': r.get('text', ''), 'mode': mode, 'kind': kind,
                'note': r.get('note', '')}
+        # приёмы стиля (коды из словаря шаблона): поле tech или префикс «[WORD,KEY] » в описании
+        m = re.match(r'\s*\[([A-Z0-9_,\s]+)\]\s*', row['note'])
+        tech = [str(c).upper() for c in (r.get('tech') or [])] or ([c.strip() for c in m.group(1).split(',') if c.strip()] if m else [])
+        if m: row['note'] = row['note'][m.end():]
+        if tech: row['tech'] = tech
         if r.get('wi'): row['wi'] = [int(r['wi'][0]), int(r['wi'][-1])]   # индексы слов — для переноса на реальные тайминги (spec_build.py)
         if mode == 'B': row['win'] = r.get('win') or proj.get('win') or 'popout'
         if r.get('scene'): row['scene'] = r['scene']
@@ -118,6 +123,8 @@ def main():
     if proj.get('sfx'): st['settings']['sfx'] = True                      # звуки по рецепту: вжух/удар/поп (public/sfx из tools/make_sfx.py)
     if proj.get('music'): st['settings']['music'] = proj['music']; st['settings']['musicVolume'] = proj.get('musicVolume', 0.12)
     if proj.get('keywords') and st['settings'].get('subAnim'): st['settings']['subAnim']['keywords'] = proj['keywords']  # стилевой паспорт шаблона: цвета, шрифты, форма, движение
+    if proj.get('dna'):  # стиль тремя слоями: ядро, приёмы, структура — читают spec_build.py и compare_dna.py
+        os.makedirs(reel, exist_ok=True); json.dump(proj['dna'], open(os.path.join(reel, 'style_dna.json'), 'w'), ensure_ascii=False, indent=1)
     spec = proj.get('spec')
     if spec:  # шаблон с глубоким разбором: спецификация стиля едет в ролик, дальше tools/spec_build.py
         os.makedirs(reel, exist_ok=True); json.dump(spec, open(os.path.join(reel, 'style_spec.json'), 'w'), ensure_ascii=False, indent=1)

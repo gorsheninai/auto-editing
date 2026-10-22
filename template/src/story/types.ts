@@ -29,14 +29,16 @@ export type Row = {
   crop?: number;           // кадрирование спикера в A: 1 — как снято, 1.3 — крупнее (смена крупности через склейку)
   hook?: {top?: string; big: string[]}; // заголовок-хук из размытия поверх сегмента; под ним мелко — текущее слово речи
   grade?: string;
-  clean?: boolean;         // сцена без своих подписей: текст даёт только субтитр (монтаж по спецификации)
+  clean?: boolean;
+  tech?: string[];          // приёмы стиля из словаря шаблона (HOOK, WORD, NUM, KEY, CROP, BURST, LIST, BW, CARD)
+  keys?: number[];          // номера слов, которые идут крупно         // сцена без своих подписей: текст даёт только субтитр (монтаж по спецификации)
   stack?: {w: number; big?: boolean}[]; // заголовок-стопка: слова (индексы в words) появляются в момент произнесения, big — крупно          // грейд сегмента: 'кино' | 'чб'        // индексы слов (в words), на которых появляются пункты моушн-сцены
 };
 export type Story = {
   fps: number; duration: number;
   settings: {bg: 'светлая' | 'тёмная' | string; accent?: string; subWords?: number; subColor?: string; win?: Win;
     subAnim?: AnimParams | null; titleAnim?: AnimParams | null; backdrop?: string; passport?: import('../blocks/style').Passport | null; sfx?: boolean; wipe?: boolean;
-    subStyle?: {fontSize?: number; top?: number; topInsert?: number; color?: string; case?: 'lower' | 'upper' | 'as_is'; keywords?: string[]; keyScale?: number; leadMs?: number}; // субтитры по спецификации стиля
+    subStyle?: {fontSize?: number; top?: number; topInsert?: number; color?: string; case?: 'lower' | 'upper' | 'as_is'; keywords?: string[]; keyIdx?: number[]; keyScale?: number; leadMs?: number}; // субтитры по спецификации стиля
     sfxList?: {t: number; src: string; vol: number}[]; // звуки по плану из спецификации (секунды)
     insertZoomPerS?: number; insertGrain?: number;      /* «камера» во вставках и зерно поверх графики */ music?: string | null; musicVolume?: number; punch?: boolean; progress?: boolean; avatar?: string; avatarCut?: string; speed?: number};
   words: Word[]; rows: Row[];
