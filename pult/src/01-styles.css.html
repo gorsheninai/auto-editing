@@ -120,13 +120,14 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .empty{border:1px dashed var(--line);border-radius:var(--r);padding:28px;text-align:center;color:var(--muted)}
 .empty strong{display:block;color:var(--ink);margin-bottom:4px;font-weight:600}
 
-.projrow{display:grid;grid-template-columns:minmax(0,1fr) 180px auto;gap:16px;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line);cursor:pointer;background:var(--surface)}
+.projrow{display:grid;grid-template-columns:minmax(0,1fr) 180px auto auto;gap:16px;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line);cursor:pointer;background:var(--surface)}
 .projrow:hover{background:var(--sunken)}
 .projlist{border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
 .projlist .projrow:last-child{border-bottom:0}
 .projrow h3{font-size:15.5px;font-weight:600}
 .projrow .sub{font-size:13px;color:var(--muted)}
-@media (max-width:640px){.projrow{grid-template-columns:minmax(0,1fr) auto}.projrow .strip{display:none}}
+@media (max-width:640px){.projrow{grid-template-columns:minmax(0,1fr) auto auto}.projrow .strip{display:none}}
+.rowdel .btn{padding:6px 8px}.rowdel .confirm{flex-wrap:nowrap}
 
 .s-draft{color:var(--muted)} .s-story{color:var(--mode-b)} .s-images{color:var(--warn)} .s-edit{color:var(--mode-c)} .s-done{color:var(--ok)}
 .swatches{display:flex;gap:4px}

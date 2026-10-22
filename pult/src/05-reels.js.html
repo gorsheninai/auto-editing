@@ -14,13 +14,27 @@ function renderReels(){
       <div style="min-width:0"><h3>${esc(p.title||'Без названия')}</h3>
       <div class="sub">${esc(t?t.name:'без шаблона')} · обновлён ${esc((p.updatedAt||'').slice(0,10))}</div></div>
       ${sh?strip(sh.a,sh.b,sh.c):'<span></span>'}
-      <span class="pill s-${esc(st[0])}">${esc(st[1])}</span></div>`;
+      <span class="pill s-${esc(st[0])}">${esc(st[1])}</span>
+      ${canWrite?`<span class="rowdel" data-delbox="${esc(p.id)}"><button class="btn ghost danger" type="button" data-del="${esc(p.id)}" aria-label="Удалить ролик">Удалить</button></span>`:''}</div>`;
   }).join('');
   L.innerHTML = `<div class="projlist">${rows}</div>`;
   L.querySelectorAll('[data-open]').forEach(r=>{
     const go=()=>openReel(S.projects.find(p=>p.id===r.dataset.open));
-    r.addEventListener('click',go); r.addEventListener('keydown',e=>{ if(e.key==='Enter') go(); });
+    r.addEventListener('click',e=>{ if(e.target.closest('.rowdel')) return; go(); });
+    r.addEventListener('keydown',e=>{ if(e.key==='Enter' && !e.target.closest('.rowdel')) go(); });
   });
+  L.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',e=>{
+    e.stopPropagation();
+    const p=S.projects.find(x=>x.id===b.dataset.del), box=b.parentElement; if(!p) return;
+    box.innerHTML=`<span class="confirm">Удалить? <button class="btn danger" type="button" data-yes>Да</button><button class="btn ghost" type="button" data-no>Нет</button></span>`;
+    box.querySelector('[data-no]').onclick=ev=>{ ev.stopPropagation(); renderReels(); };
+    box.querySelector('[data-yes]').onclick=async ev=>{
+      ev.stopPropagation(); ev.currentTarget.disabled=true;
+      const ed=$('#reelEditor'); if(ed.dataset.pid===p.id){ ed.hidden=true; ed.innerHTML=''; }
+      const r=await deleteProjects([p]);
+      toast(r.docs ? (r.files?`Ролик удалён вместе с файлами (${r.files})`:'Ролик удалён') : 'Не получилось удалить');
+    };
+  }));
 }
 /* удаление черновиков: документ проекта + его файлы на пульте (видео аватара, референсы), если они больше нигде не используются */
 const plural=(n,one,few,many)=>{ const m10=n%10, m100=n%100; return m10===1&&m100!==11?one:m10>=2&&m10<=4&&(m100<12||m100>14)?few:many; };
