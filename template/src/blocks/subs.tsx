@@ -8,10 +8,11 @@ import {CaptionStamp} from '../remocn/caption-stamp';
 import {CaptionStack} from '../remocn/caption-stack';
 import {CaptionDrop} from '../remocn/caption-drop';
 import type {Caption} from '../remocn/caption-core';
+import {SubKino} from './kino';
 
 /* Стили субтитров из remocn. На пульте — пункты «Анимации субтитров» с id = код (SubKaraoke…),
    в story.json — settings.subAnim = {style: 'SubKaraoke'}. */
-export type SubCode = 'SubPop' | 'SubWord' | 'SubBox' | 'SubKaraoke' | 'SubMarker' | 'SubStamp' | 'SubStack' | 'SubDrop';
+export type SubCode = 'SubPop' | 'SubWord' | 'SubBox' | 'SubKaraoke' | 'SubMarker' | 'SubStamp' | 'SubStack' | 'SubDrop' | 'SubKino';
 export type SubLook = {captions: Caption[]; keywords: string[]; color: string; accent: string; onDark: boolean; fontSize?: number};
 
 export const SUBS: Record<SubCode, {name: string; summary: string; render: (l: SubLook) => React.ReactNode}> = {
@@ -31,6 +32,8 @@ export const SUBS: Record<SubCode, {name: string; summary: string; render: (l: S
     render: (l) => <CaptionStack captions={l.captions} keywords={l.keywords} color={l.color} emphasisColor={l.accent} fontSize={l.fontSize ?? 64} shadow={l.onDark} />},
   SubDrop: {name: 'Слова падают', summary: 'Слова падают сверху и подпрыгивают при приземлении',
     render: (l) => <CaptionDrop captions={l.captions} color={l.color} fontSize={l.fontSize ?? 64} shadow={l.onDark} />},
+  SubKino: {name: 'Слово за словом + ключевое стопкой', summary: 'По одному слову; во фразе с ключевым словом служебные мелко сверху и снизу, ключевое — крупно',
+    render: (l) => <SubKino captions={l.captions} keywords={l.keywords} color={l.onDark ? '#F2EDE4' : l.color} accent={l.accent} fontSize={(l.fontSize ?? 64) * 0.85} />},
 };
 export const isSubCode = (s: unknown): s is SubCode => typeof s === 'string' && s in SUBS;
 

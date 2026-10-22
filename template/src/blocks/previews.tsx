@@ -9,6 +9,7 @@ import {TransitionSeries, linearTiming} from '@remotion/transitions';
 import {BgGrain, FX, FxConfetti, FxVhs, OVERLAYS, Overlay, TRANSITIONS} from './text-fx';
 import {KenBurns, ProgressBar, Punch, Shake} from './essentials';
 import {Flash, FreezeAt} from './shotcraft';
+import {FxGrade} from './kino';
 import {Img, staticFile} from 'remotion';
 
 /* Стенд превью: каждый блок — композиция P_<код> 1080×1920 (рендер со --scale=0.4 → 432×768 для пульта). */
@@ -59,6 +60,9 @@ export const MOTION_DEMO: Record<string, {note: string; dur: number}> = {
   MProductCard: {note: 'MProductCard: Курс по монтажу рилсов | цена: 9 900 ₽ → 4 900 ₽ | онлайн | текст: 12 уроков, шаблоны и разбор твоих роликов | кнопка: Купить', dur: 130},
   TxtRotate: {note: 'TxtRotate: это для | блогеров, экспертов, бизнеса', dur: 120},
   MGallery: {note: 'MGallery: demo/g1.jpg | demo/g2.jpg | demo/g3.jpg | demo/g4.jpg', dur: 110},
+  TxtNumberTitle: {note: 'TxtNumberTitle: 1 | Выучи один денежный навык | demo/g2.jpg', dur: 90},
+  MBurst: {note: 'MBurst: demo/g1.jpg | demo/g3.jpg | demo/g4.jpg | demo/g2.jpg | заголовок: 300 000 ₽ | текст: на счету | чб', dur: 72},
+  CardWord: {note: 'CardWord: текст: поэтому | белая', dur: 60},
 };
 
 const SUB_TEXT = 'Большинство людей переплачивают за рекламу, потому что не знают одну простую вещь.';
@@ -128,5 +132,6 @@ export const Previews: React.FC = () => <>
   {Object.keys(MOTION).map((c) => <Composition key={c} id={`P-${c}`} component={() => <MotionPreview code={c} />} durationInFrames={MOTION_DEMO[c].dur} fps={FPS} width={1080} height={1920} />)}
   {Object.keys(TRANSITIONS).map((c) => <Composition key={c} id={`P-${c}`} component={() => <TrPreview code={c} />} durationInFrames={90} fps={FPS} width={1080} height={1920} />)}
   {Object.keys(OVERLAYS).map((c) => <Composition key={c} id={`P-${c}`} component={() => <OvPreview code={c} />} durationInFrames={90} fps={FPS} width={1080} height={1920} />)}
+  <Composition id="P-FxGrade" component={() => <AbsoluteFill><AbsoluteFill style={{opacity: 1}}><FxGrade mode="чб"><Img src={staticFile('demo/g1.jpg')} style={{width: '100%', height: '100%', objectFit: 'cover'}} /></FxGrade></AbsoluteFill></AbsoluteFill>} durationInFrames={60} fps={FPS} width={1080} height={1920} />
   {Object.keys(FX).map((c) => <Composition key={c} id={`P-${c}`} component={() => <FxPreview code={c} />} durationInFrames={90} fps={FPS} width={1080} height={1920} />)}
 </>;

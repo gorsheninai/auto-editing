@@ -9,3 +9,4 @@ reels/*/work/matte/
 reels/*/work/stills/
 reels/*/work/*.log
 /work/
+reels/*/node_modules

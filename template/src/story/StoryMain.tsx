@@ -16,6 +16,7 @@ import {Flash, FreezeAt} from '../blocks/shotcraft';
 import {SANS as KSANS, themeFrom} from '../blocks/kit';
 import {STY, fontVars, setPassport} from '../blocks/style';
 import {BgPaper} from '../blocks/text-fx';
+import {BgSwap, FxGrade} from '../blocks/kino';
 
 /* Ролик целиком по раскадровке с пульта: src/story.json (tools/pult_to_story.py). */
 export const STORY = storyJson as unknown as Story;
@@ -55,7 +56,7 @@ const Content: React.FC<{r: Row; from: number; dur: number; zoneH: number; full:
 const TEX = STORY.settings.backdrop === 'BgGrain' ? 'grain' : STORY.settings.passport?.texture || 'dots';
 const Bg: React.FC = () => TEX === 'grain' ? <BgGrain theme={themeFrom(T)} /> : TEX === 'paper' ? <BgPaper theme={themeFrom(T)} /> : TEX === 'clean' ? <AbsoluteFill style={{background: T.bg}} /> : <Backdrop bg={T.bg} dot={T.dot} />;
 const SegmentBody: React.FC<{r: Row; from: number; dur: number}> = ({r, from, dur}) => {
-  if (r.mode === 'A') return <SpeakerFull from={from} src={AV} />;
+  if (r.mode === 'A') return r.fx === 'BgSwap' ? <BgSwap from={from} cut={CUT} bg={r.fxText} /> : <SpeakerFull from={from} src={AV} />;
   if (r.mode === 'B') {
     const win = winOf(r); const h = ZONES[win].h;
     return <AbsoluteFill>
@@ -78,7 +79,7 @@ const Segment: React.FC<{r: Row; from: number; dur: number; lead?: number}> = ({
   if (r.fx === 'FxFlash') body = <Flash at={lead + 4}>{body}</Flash>;
   if (r.fx === 'FxFreeze') body = <FreezeAt at={lead + Math.min(20, Math.round(dur * 0.4))} text={r.fxText} theme={themeFrom(T)}>{body}</FreezeAt>;
   return <AbsoluteFill>
-    {r.fx === 'FxVhs' ? <FxVhs>{body}</FxVhs> : body}
+    {r.fx === 'FxVhs' ? <FxVhs>{body}</FxVhs> : r.fx === 'FxGrade' ? <FxGrade mode={r.fxText}>{body}</FxGrade> : body}
     {r.fx === 'FxConfetti' ? <FxConfetti theme={themeFrom(T)} at={lead + 4} /> : null}
     {(r.ov || []).map((o, k) => <Overlay key={k} ov={{...o, at: (o.at ?? 6) + lead}} theme={themeFrom(T)} />)}
   </AbsoluteFill>;
@@ -125,7 +126,7 @@ const Captions: React.FC = () => {
   if (r.scene && /^Txt/.test(r.scene)) return null; // текстовая сцена уже показывает эти слова
   if (r.mode === 'C' && (kind === 'kinetic' || ((kind === 'motion' || kind === 'd3') && !(r.scene && REG[r.scene])))) return null; // текст уже на экране
   const win = winOf(r);
-  const y = r.mode === 'A' ? 1500 : r.mode === 'C' ? 1540 : win === 'circle' ? 1350 : win === 'strip' ? 1160 : 1150;
+  const y = SUB_STYLE === 'SubKino' ? (r.mode === 'B' ? 1300 : 1120) : r.mode === 'A' ? 1500 : r.mode === 'C' ? 1540 : win === 'circle' ? 1350 : win === 'strip' ? 1160 : 1150;
   const p = STORY.settings.subAnim;
   if (SUB_STYLE) {
     const onDark = r.mode === 'A' || T.dark;
@@ -167,6 +168,27 @@ const Transitions: React.FC = () => <TransitionSeries>{ROWS.flatMap(({r, i, from
   return out;
 })}</TransitionSeries>;
 
+/* Звук по рецепту: вжух на смене режима и входе во вставку, удар на карточке/номере пункта, поп на ключевых словах, подложка */
+const SFX = (() => {
+  if (!STORY.settings.sfx) return [] as {f: number; src: string; vol: number}[];
+  const out: {f: number; src: string; vol: number}[] = [];
+  ROWS.forEach(({r, i, from}) => {
+    const prev = ROWS[i - 1]?.r;
+    if (r.scene === 'CardWord' || r.scene === 'TxtNumberTitle') out.push({f: from, src: 'sfx/hit.wav', vol: 0.55});
+    else if (i > 0 && (prev?.mode !== r.mode || r.scene === 'MBurst') && i % 2 === 1) out.push({f: Math.max(0, from - 8), src: 'sfx/whoosh.wav', vol: 0.4});
+    else if (i > 0 && prev?.mode !== r.mode) out.push({f: Math.max(0, from - 8), src: 'sfx/whoosh.wav', vol: 0.28});
+  });
+  if (SUB_STYLE === 'SubKino') {
+    const ks = new Set(KEYS.map((k) => k.toLowerCase()));
+    STORY.words.forEach((w) => { if (ks.has(bareW(w.w))) out.push({f: Math.round(w.s * FPS), src: 'sfx/pop.wav', vol: 0.22}); });
+  }
+  return out;
+})();
+const Sounds: React.FC = () => <>
+  {STORY.settings.music ? <Audio src={staticFile(STORY.settings.music)} volume={STORY.settings.musicVolume ?? 0.12} loop /> : null}
+  {SFX.map((x, k) => <Sequence key={k} from={x.f} durationInFrames={45} layout="none"><Audio src={staticFile(x.src)} volume={x.vol} /></Sequence>)}
+</>;
+
 export const StoryMain: React.FC = () => {
   useStoryFonts();
   return <AbsoluteFill style={{background: T.bg, ...fontVars(STORY.settings.passport)}}>
@@ -175,5 +197,6 @@ export const StoryMain: React.FC = () => {
     {STORY.settings.progress ? <ProgressBar total={STORY_TOTAL} theme={themeFrom(T)} /> : null}
     <Wipe />
     <Audio src={staticFile(AV)} />
+    <Sounds />
   </AbsoluteFill>;
 };
