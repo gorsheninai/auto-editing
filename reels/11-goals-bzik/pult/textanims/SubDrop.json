@@ -1,0 +1,13 @@
+{
+  "createdAt": "2026-10-22T01:15:00+05:00",
+  "group": "Пословные",
+  "name": "Слова падают",
+  "order": 7,
+  "params": {},
+  "previewId": "bfa63ce27a4a67f829679726a84b0b67",
+  "previewKind": "video",
+  "role": "subtitle",
+  "source": "remocn (MIT)",
+  "style": "SubDrop",
+  "summary": "Слова падают сверху и подпрыгивают при приземлении"
+}

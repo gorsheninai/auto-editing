@@ -1,0 +1,13 @@
+{
+  "createdAt": "2026-10-22T01:15:00+05:00",
+  "group": "С подложкой",
+  "name": "Плашка за словом",
+  "order": 2,
+  "params": {},
+  "previewId": "cd9834a627e9db1d1d0f2144ff0d7bae",
+  "previewKind": "video",
+  "role": "subtitle",
+  "source": "remocn (MIT)",
+  "style": "SubBox",
+  "summary": "Цветная плашка переезжает за произносимым словом"
+}

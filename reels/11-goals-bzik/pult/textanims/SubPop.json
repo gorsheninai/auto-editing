@@ -1,0 +1,13 @@
+{
+  "createdAt": "2026-10-22T01:15:00+05:00",
+  "group": "Пословные",
+  "name": "Подпрыгивает слово",
+  "order": 0,
+  "params": {},
+  "previewId": "02164acbe7cf5935a121650609a7ada0",
+  "previewKind": "video",
+  "role": "subtitle",
+  "source": "remocn (MIT)",
+  "style": "SubPop",
+  "summary": "Произносимое слово окрашивается в акцентный цвет и чуть подпрыгивает"
+}

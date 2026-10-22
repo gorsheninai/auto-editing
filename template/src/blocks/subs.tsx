@@ -21,7 +21,7 @@ export const SUBS: Record<SubCode, {name: string; summary: string; render: (l: S
   SubWord: {name: 'Одно крупное слово', summary: 'На экране одно крупное слово, каждое выпрыгивает в момент произнесения',
     render: (l) => <CaptionWordPop captions={l.captions} color={l.color} fontSize={(l.fontSize ?? 64) * 1.6} shadow={l.onDark} />},
   SubBox: {name: 'Плашка за словом', summary: 'Цветная плашка переезжает за произносимым словом',
-    render: (l) => <CaptionHighlightBox captions={l.captions} color={l.color} activeColor={l.onDark ? '#111' : '#fff'} boxColor={l.accent} fontSize={l.fontSize ?? 64} shadow={false} />},
+    render: (l) => <CaptionHighlightBox captions={l.captions} color={l.color} activeColor={l.onDark ? '#111' : l.color} boxColor={l.accent} fontSize={l.fontSize ?? 64} shadow={false} />},
   SubKaraoke: {name: 'Караоке', summary: 'Слово заливается цветом слева направо в темпе речи',
     render: (l) => <CaptionKaraoke captions={l.captions} color={l.onDark ? 'rgba(255,255,255,.55)' : 'rgba(28,27,34,.35)'} activeColor={l.onDark ? '#fff' : l.accent} fontSize={l.fontSize ?? 64} shadow={l.onDark} />},
   SubMarker: {name: 'Маркер на ключевых словах', summary: 'Ключевые слова подчёркиваются маркером в момент произнесения',

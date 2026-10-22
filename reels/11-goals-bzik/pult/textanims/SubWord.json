@@ -1,0 +1,13 @@
+{
+  "createdAt": "2026-10-22T01:15:00+05:00",
+  "group": "Пословные",
+  "name": "Одно крупное слово",
+  "order": 1,
+  "params": {},
+  "previewId": "16e40a1e73c086166659d3358b48808f",
+  "previewKind": "video",
+  "role": "subtitle",
+  "source": "remocn (MIT)",
+  "style": "SubWord",
+  "summary": "На экране одно крупное слово, каждое выпрыгивает в момент произнесения"
+}

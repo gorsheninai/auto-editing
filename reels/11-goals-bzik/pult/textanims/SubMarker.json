@@ -1,0 +1,13 @@
+{
+  "createdAt": "2026-10-22T01:15:00+05:00",
+  "group": "С подложкой",
+  "name": "Маркер на ключевых словах",
+  "order": 4,
+  "params": {},
+  "previewId": "6fb04aed8e5b7302524c50590c713242",
+  "previewKind": "video",
+  "role": "subtitle",
+  "source": "remocn (MIT)",
+  "style": "SubMarker",
+  "summary": "Ключевые слова подчёркиваются маркером в момент произнесения"
+}

@@ -1,0 +1,13 @@
+{
+  "createdAt": "2026-10-22T01:15:00+05:00",
+  "group": "Акцентные",
+  "name": "Ключевое слово крупно",
+  "order": 6,
+  "params": {},
+  "previewId": "be92c98bb5de48d71e991c5f36879dd8",
+  "previewKind": "video",
+  "role": "subtitle",
+  "source": "remocn (MIT)",
+  "style": "SubStack",
+  "summary": "Пара слов в строке, ключевое слово отдельной крупной строкой"
+}

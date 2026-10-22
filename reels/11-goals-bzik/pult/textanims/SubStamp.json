@@ -1,0 +1,13 @@
+{
+  "createdAt": "2026-10-22T01:15:00+05:00",
+  "group": "Акцентные",
+  "name": "Печать на ключевых словах",
+  "order": 5,
+  "params": {},
+  "previewId": "1342a79897300a0facf20a096fbbdcaf",
+  "previewKind": "video",
+  "role": "subtitle",
+  "source": "remocn (MIT)",
+  "style": "SubStamp",
+  "summary": "Ключевые слова падают как резиновая печать"
+}

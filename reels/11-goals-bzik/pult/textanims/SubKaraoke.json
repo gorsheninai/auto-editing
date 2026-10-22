@@ -1,0 +1,13 @@
+{
+  "createdAt": "2026-10-22T01:15:00+05:00",
+  "group": "С подложкой",
+  "name": "Караоке",
+  "order": 3,
+  "params": {},
+  "previewId": "98c1f0327f4288a9e1e8dcf8107f78b0",
+  "previewKind": "video",
+  "role": "subtitle",
+  "source": "remocn (MIT)",
+  "style": "SubKaraoke",
+  "summary": "Слово заливается цветом слева направо в темпе речи"
+}

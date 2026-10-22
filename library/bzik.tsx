@@ -262,5 +262,6 @@ export const TxtKey: React.FC<SceneProps> = (p) => {
   </Sheet>;
 };
 
+export {C, FPS, useAt, snap, Sheet, W, SPR, Pix, Frame, ln, Sneaker, Tee, Phone, Cursor};
 export const BZIK: Record<string, React.FC<SceneProps>> = {BzHook, BzNike, BzAthlete, BzStarbucks, BzType, BzApple, BzClick, BzGodin, TxtAside, CardWord, TxtKey};
 export type {Word};
