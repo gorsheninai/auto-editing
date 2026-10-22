@@ -28,11 +28,12 @@ export type Row = {
   marks?: number[];
   crop?: number;           // кадрирование спикера в A: 1 — как снято, 1.3 — крупнее (смена крупности через склейку)
   hook?: {top?: string; big: string[]}; // заголовок-хук из размытия поверх сегмента; под ним мелко — текущее слово речи
-  grade?: string;          // грейд сегмента: 'кино' | 'чб'        // индексы слов (в words), на которых появляются пункты моушн-сцены
+  grade?: string;
+  stack?: {w: number; big?: boolean}[]; // заголовок-стопка: слова (индексы в words) появляются в момент произнесения, big — крупно          // грейд сегмента: 'кино' | 'чб'        // индексы слов (в words), на которых появляются пункты моушн-сцены
 };
 export type Story = {
   fps: number; duration: number;
   settings: {bg: 'светлая' | 'тёмная' | string; accent?: string; subWords?: number; subColor?: string; win?: Win;
-    subAnim?: AnimParams | null; titleAnim?: AnimParams | null; backdrop?: string; passport?: import('../blocks/style').Passport | null; sfx?: boolean; music?: string | null; musicVolume?: number; punch?: boolean; progress?: boolean; avatar?: string; avatarCut?: string; speed?: number};
+    subAnim?: AnimParams | null; titleAnim?: AnimParams | null; backdrop?: string; passport?: import('../blocks/style').Passport | null; sfx?: boolean; wipe?: boolean; music?: string | null; musicVolume?: number; punch?: boolean; progress?: boolean; avatar?: string; avatarCut?: string; speed?: number};
   words: Word[]; rows: Row[];
 };

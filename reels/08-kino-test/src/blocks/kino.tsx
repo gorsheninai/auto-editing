@@ -130,13 +130,24 @@ export const BgSwap: React.FC<{from: number; cut: string; bg?: string}> = ({from
 /* ---------- HookTitle: заголовок-хук из размытия; под ним справа мелким капсом — текущее слово речи ---------- */
 export const HookTitle: React.FC<{top?: string; big: string[]; words: {w: string; f: number}[]; dur: number; color?: string}> = ({top, big, words, dur, color = '#EFE7DA'}) => {
   const f = useCurrentFrame();
-  const inn = interpolate(f, [2, 14], [0, 1], clamp), out = interpolate(f, [dur - 8, dur - 1], [0, 1], clamp);
+  const inn = interpolate(f, [1, 9], [0, 1], clamp), out = interpolate(f, [dur - 6, dur - 1], [0, 1], clamp);
   const blur = (1 - inn) * 26 + out * 22, op = Math.min(1, inn * 1.4) * (1 - out);
   let cur = ''; for (const w of words) if (f >= w.f) cur = w.w.replace(/[.,:;!?—…«»]/g, '');
   return <div style={{position: 'absolute', left: 150, top: 820, filter: `blur(${blur}px)`, opacity: op, color, fontFamily: SANS, textShadow: '0 4px 30px rgba(0,0,0,.35)'}}>
     {top ? <div style={{fontWeight: 800, fontSize: 34, letterSpacing: 1, textTransform: 'uppercase', marginLeft: 6, marginBottom: 2}}>{top}</div> : null}
     {big.map((l, i) => <div key={i} style={{fontWeight: 800, fontSize: 170, lineHeight: 0.8, letterSpacing: -9, textTransform: 'lowercase', marginLeft: i * 34}}>{l}</div>)}
     <div style={{textAlign: 'right', fontWeight: 800, fontSize: 30, letterSpacing: 1, textTransform: 'uppercase', marginTop: 14}}>{cur}</div>
+  </div>;
+};
+
+/* ---------- StackBuild: стопка слов поверх кадра, как «it was / SLOW / as / F*CK»: каждое слово проявляется из размытия в момент произнесения ---------- */
+export const StackBuild: React.FC<{items: {w: string; f: number; big: boolean}[]; color?: string; left?: number; top?: number}> = ({items, color = '#EFE7DA', left = 0, top = 380}) => {
+  const f = useCurrentFrame();
+  return <div style={{position: 'absolute', left: left || undefined, right: left ? undefined : 70, width: 520, top, display: 'flex', flexDirection: 'column', alignItems: 'center', color, fontFamily: SANS, textShadow: '0 4px 26px rgba(0,0,0,.35)'}}>
+    {items.map((it, i) => { const k = interpolate(f, [it.f, it.f + 5], [0, 1], clamp); if (f < it.f) return null;
+      const txt = it.w.replace(/[.,:;!?—…«»]/g, '');
+      return <div key={i} style={{fontWeight: 800, fontSize: it.big ? Math.min(150, 500 / Math.max(1, txt.length * 0.56)) : 36, lineHeight: it.big ? 0.86 : 1.1, letterSpacing: it.big ? -6 : 0,
+        textTransform: it.big ? 'lowercase' : 'lowercase', filter: `blur(${(1 - k) * 14}px)`, opacity: Math.min(1, k * 1.6), scale: String(1.08 - 0.08 * k)}}>{txt}</div>; })}
   </div>;
 };
 

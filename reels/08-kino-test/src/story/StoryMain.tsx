@@ -16,7 +16,7 @@ import {Flash, FreezeAt} from '../blocks/shotcraft';
 import {SANS as KSANS, themeFrom} from '../blocks/kit';
 import {STY, fontVars, setPassport} from '../blocks/style';
 import {BgPaper} from '../blocks/text-fx';
-import {BgSwap, FxGrade, HookTitle} from '../blocks/kino';
+import {BgSwap, FxGrade, HookTitle, StackBuild} from '../blocks/kino';
 
 /* Ролик целиком по раскадровке с пульта: src/story.json (tools/pult_to_story.py). */
 export const STORY = storyJson as unknown as Story;
@@ -80,6 +80,7 @@ const Segment: React.FC<{r: Row; from: number; dur: number; lead?: number}> = ({
   if (r.fx === 'FxFreeze') body = <FreezeAt at={lead + Math.min(20, Math.round(dur * 0.4))} text={r.fxText} theme={themeFrom(T)}>{body}</FreezeAt>;
   return <AbsoluteFill>
     {r.fx === 'FxVhs' ? <FxVhs>{body}</FxVhs> : r.fx === 'FxGrade' ? <FxGrade mode={r.fxText}>{body}</FxGrade> : r.grade ? <FxGrade mode={r.grade}>{body}</FxGrade> : body}
+    {r.stack ? <StackBuild items={r.stack.map((x) => ({w: STORY.words[x.w]?.w || '', f: Math.round(((STORY.words[x.w]?.s ?? r.s) - r.s) * FPS) + lead, big: !!x.big}))} /> : null}
     {r.hook ? <HookTitle top={r.hook.top} big={r.hook.big} words={wordsIn(r).map((w) => ({w: w.w, f: Math.round((w.s - r.s) * FPS) + lead}))} dur={dur} /> : null}
     {r.fx === 'FxConfetti' ? <FxConfetti theme={themeFrom(T)} at={lead + 4} /> : null}
     {(r.ov || []).map((o, k) => <Overlay key={k} ov={{...o, at: (o.at ?? 6) + lead}} theme={themeFrom(T)} />)}
@@ -124,7 +125,7 @@ const Captions: React.FC = () => {
   if (ci < 0) return null;
   const ch = CHUNKS[ci]; const seg = rowAt(fr); const r = seg.r;
   const kind = r.kind || (r.mode === 'C' ? 'kinetic' : '');
-  if (r.hook) return null; // хук сам показывает текущее слово
+  if (r.hook || r.stack) return null; // хук и стопка сами показывают слова
   if (r.scene && (/^Txt/.test(r.scene) || /^Card/.test(r.scene))) return null; // текстовая сцена уже показывает эти слова
   if (r.mode === 'C' && (kind === 'kinetic' || ((kind === 'motion' || kind === 'd3') && !(r.scene && REG[r.scene])))) return null; // текст уже на экране
   const win = winOf(r);
@@ -201,7 +202,7 @@ export const StoryMain: React.FC = () => {
     {ROWS.some((x) => trOf(x.r)) ? <Transitions /> : ROWS.map(({r, i, from, dur}) => <Sequence key={i} from={from} durationInFrames={dur}><Segment r={r} from={from} dur={dur} /></Sequence>)}
     <Captions />
     {STORY.settings.progress ? <ProgressBar total={STORY_TOTAL} theme={themeFrom(T)} /> : null}
-    <Wipe />
+    {STORY.settings.wipe === false || STORY.settings.subAnim?.style === 'SubTom' ? null : <Wipe />}
     <Audio src={staticFile(AV)} />
     <Sounds />
   </AbsoluteFill>;
