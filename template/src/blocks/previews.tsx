@@ -1,6 +1,7 @@
 import React from 'react';
-import {AbsoluteFill, Composition} from 'remotion';
-import {LIGHT, SANS, parseData, type Theme} from './kit';
+import {AbsoluteFill, Composition, getInputProps} from 'remotion';
+import {fontVars, setPassport, type Passport} from './style';
+import {LIGHT, SANS, parseData, themeFrom, type Theme} from './kit';
 import {SUBS, type SubCode, pickKeywords, toCaptions} from './subs';
 import {SCENES} from './library';
 import {useStoryFonts} from '../story/fonts';
@@ -78,7 +79,12 @@ const SubPreview: React.FC<{code: SubCode}> = ({code}) => {
 const MotionPreview: React.FC<{code: string}> = ({code}) => {
   useStoryFonts();
   const C = MOTION[code]; const d = MOTION_DEMO[code];
-  return <AbsoluteFill><Backdrop t={LIGHT} /><C data={parseData(d.note)} theme={LIGHT} zoneH={1920} full dur={d.dur} /></AbsoluteFill>;
+  /* паспорт для проверки: --props='{"passport":{…}}' */
+  const pp = (getInputProps() as {passport?: Passport}).passport;
+  setPassport(pp);
+  const c = pp?.colors || {}; const dark = !!c.bg && parseInt(c.bg.slice(1, 3), 16) + parseInt(c.bg.slice(3, 5), 16) + parseInt(c.bg.slice(5, 7), 16) < 300;
+  const th = pp ? themeFrom({dark, bg: c.bg || LIGHT.bg, ink: c.ink || LIGHT.ink, accent: c.accent || LIGHT.accent}) : LIGHT;
+  return <AbsoluteFill style={fontVars(pp)}><Backdrop t={th} /><C data={parseData(d.note)} theme={th} zoneH={1920} full dur={d.dur} /></AbsoluteFill>;
 };
 
 /* Макет сцены для переходов и эффектов */

@@ -1,6 +1,6 @@
 import React from 'react';
-import {AbsoluteFill, Easing, interpolate, spring, useCurrentFrame, useVideoConfig} from 'remotion';
-import {BlockProps, SANS, SERIF, clamp, fmtNum, ramp} from './kit';
+import {AbsoluteFill, Easing, interpolate, useCurrentFrame, useVideoConfig} from 'remotion';
+import {BlockProps, SANS, SERIF, clamp, fmtNum, ramp, spring, rad, shd} from './kit';
 
 /* Графики (идеи: remotion-ui bar-chart-race / funnel / sparkline-row, onda stat-card, GitHub-активность), написаны для студии. */
 
@@ -30,7 +30,7 @@ export const MBarRace: React.FC<BlockProps> = (p) => {
       {cur.map((r, i) => { const rank = order.indexOf(r); const w = Math.max(0.04, r.v / max) * 640;
         return <div key={i} style={{position: 'absolute', left: 0, top: rank * (H + 18), height: H, display: 'flex', alignItems: 'center', gap: 18, width: 920, transition: 'none'}}>
           <div style={{width: 210, textAlign: 'right', fontFamily: SANS, fontWeight: 700, fontSize: 40, color: T.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>{r.l}</div>
-          <div style={{width: w, height: H - 20, borderRadius: 18, background: cols[i % cols.length]}} />
+          <div style={{width: w, height: H - 20, borderRadius: rad(18), background: cols[i % cols.length]}} />
           <div style={{fontFamily: SANS, fontWeight: 800, fontSize: 40, color: T.ink, fontVariantNumeric: 'tabular-nums'}}>{fmtNum(r.v, r.like)}</div></div>; })}
       <div style={{position: 'absolute', right: 0, bottom: -110, fontFamily: SERIF, fontStyle: 'italic', fontWeight: 600, fontSize: 120, color: T.ink, opacity: 0.18}}>{year}</div>
     </div>
@@ -65,7 +65,7 @@ export const MKpi: React.FC<BlockProps> = (p) => {
     <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22, width: 920}}>
       {ks.map((k, i) => { const at = 8 + i * 7; const s = spring({frame: f - at, fps, config: {damping: 14}}); const pr = ramp(f, at + 4, at + 30);
         const pts = Array.from({length: 9}, (_, j) => 0.2 + 0.7 * Math.pow(j / 8, 1.6) + 0.12 * Math.sin(j * 1.7 + i)); const d = pts.map((y, j) => `${j ? 'L' : 'M'} ${j * 46} ${100 - y * 90}`).join(' ');
-        return <div key={i} style={{borderRadius: 34, background: T.card, padding: 30, boxShadow: '0 10px 30px rgba(0,0,0,.07)', scale: String(0.9 + 0.1 * s), opacity: s, fontFamily: SANS}}>
+        return <div key={i} style={{borderRadius: rad(34), background: T.card, padding: 30, boxShadow: shd('0 10px 30px rgba(0,0,0,.07)'), scale: String(0.9 + 0.1 * s), opacity: s, fontFamily: SANS}}>
           <div style={{fontSize: 32, color: T.muted, fontWeight: 600}}>{k.label}</div>
           <div style={{fontSize: 70, fontWeight: 800, color: T.ink, letterSpacing: -2, fontVariantNumeric: 'tabular-nums'}}>{fmtNum(interpolate(f, [at, at + 24], [0, k.value as number], {...clamp, easing: Easing.out(Easing.cubic)}), k.shown)}</div>
           <div style={{display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 8}}>
@@ -86,7 +86,7 @@ export const MHeatmap: React.FC<BlockProps> = (p) => {
     <Title t={p.data.title || `${n} дней подряд`} c={T.ink} a={T.accent} f={f} />
     <div style={{display: 'grid', gridTemplateColumns: `repeat(7, ${S}px)`, gap: 14}}>
       {Array.from({length: cells}, (_, i) => { const on = i < filled; const just = i === filled - 1;
-        return <div key={i} style={{width: S, height: S, borderRadius: 20, background: on ? T.accent : T.dark ? 'rgba(255,255,255,.08)' : 'rgba(28,27,34,.07)', opacity: on ? lv(i) : 1, scale: just ? '1.15' : '1', boxShadow: just ? `0 0 24px ${T.accent}` : 'none'}} />; })}
+        return <div key={i} style={{width: S, height: S, borderRadius: rad(20), background: on ? T.accent : T.dark ? 'rgba(255,255,255,.08)' : 'rgba(28,27,34,.07)', opacity: on ? lv(i) : 1, scale: just ? '1.15' : '1', boxShadow: just ? `0 0 24px ${T.accent}` : 'none'}} />; })}
     </div>
     <div style={{fontFamily: SANS, fontWeight: 800, fontSize: 64, color: T.ink, fontVariantNumeric: 'tabular-nums'}}>{filled} <span style={{fontWeight: 600, fontSize: 40, color: T.muted}}>из {n}</span></div>
   </Col>;
@@ -106,7 +106,7 @@ export const MCompareBars: React.FC<BlockProps> = (p) => {
           {[[r.a, r.la, T.muted, 'было'], [r.b, r.lb, T.accent, 'стало']].map(([v, l, c, tag], j) =>
             <div key={j} style={{display: 'flex', alignItems: 'center', gap: 14, marginTop: 8}}>
               <span style={{width: 96, fontSize: 26, color: T.muted}}>{tag as string}</span>
-              <div style={{height: 44, width: Math.max(10, ((v as number) / mx) * 600 * k), borderRadius: 14, background: c as string, opacity: j ? 1 : 0.45}} />
+              <div style={{height: 44, width: Math.max(10, ((v as number) / mx) * 600 * k), borderRadius: rad(14), background: c as string, opacity: j ? 1 : 0.45}} />
               <span style={{fontSize: 32, fontWeight: 800, color: T.ink, opacity: ramp(f, at + 10, at + 20)}}>{(l as string) || fmtNum(v as number, '')}</span></div>)}
         </div>; })}
     </div>

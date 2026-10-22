@@ -113,6 +113,7 @@ def main():
     if proj.get('progress'): st['settings']['progress'] = True
     if 'градиент' in (proj.get('bg') or '') or proj.get('backdrop') == 'BgGrain': st['settings']['backdrop'] = 'BgGrain'
     if proj.get('accent'): st['settings']['accent'] = proj['accent']
+    if proj.get('passport'): st['settings']['passport'] = proj['passport']  # стилевой паспорт шаблона: цвета, шрифты, форма, движение
     os.makedirs(os.path.join(reel, 'src'), exist_ok=True)
     json.dump(st, open(os.path.join(reel, 'src', 'story.json'), 'w'), ensure_ascii=False, indent=1)
     json.dump(words, open(os.path.join(reel, 'src', 'words.json'), 'w'), ensure_ascii=False)

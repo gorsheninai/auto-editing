@@ -1,7 +1,7 @@
 import React from 'react';
 import {AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig} from 'remotion';
 import {evolvePath} from '@remotion/paths';
-import {BlockProps, SANS, SERIF, beats, clamp, fmtNum, pop, ramp} from './kit';
+import {BlockProps, SANS, SERIF, beats, clamp, fmtNum, pop, ramp, rad} from './kit';
 
 /* Моушн-сцены с цифрами. Написаны для студии (идеи — remocn, remotion-scenes), вертикаль 1080 × zoneH. */
 
@@ -39,7 +39,7 @@ export const MBars: React.FC<BlockProps> = (p) => {
         const big = (it.value || 0) === max;
         return <div key={i} style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14}}>
           <div style={{fontFamily: SANS, fontWeight: 800, fontSize: 58, color: big ? T.accent : T.ink, opacity: Math.min(1, k * 2), letterSpacing: -2}}><Count v={it.value || 0} like={it.shown} at={at[i]} /></div>
-          <div style={{width: W, height: h, borderRadius: 26, background: big ? T.accent : i % 2 ? T.soft : T.accent2, boxShadow: big ? `0 20px 50px ${T.accent}55` : 'none'}} />
+          <div style={{width: W, height: h, borderRadius: rad(26), background: big ? T.accent : i % 2 ? T.soft : T.accent2, boxShadow: big ? `0 20px 50px ${T.accent}55` : 'none'}} />
           <div style={{fontFamily: SANS, fontWeight: 600, fontSize: 40, color: T.muted, opacity: ramp(f, at[i], at[i] + 10), maxWidth: W + 30, textAlign: 'center', lineHeight: 1.05}}>{it.label}</div>
         </div>;
       })}
@@ -72,7 +72,7 @@ export const MGrowth: React.FC<BlockProps> = (p) => {
       <circle cx={head[0]} cy={head[1]} r={22} fill={T.card} stroke={col} strokeWidth={10} />
       <g transform={`translate(${head[0]} ${head[1] - 70}) scale(${endK})`} opacity={endK}>
         <rect x={-120} y={-52} width={240} height={88} rx={44} fill={col} />
-        <text x={0} y={8} textAnchor="middle" fontFamily="InterTight" fontWeight={800} fontSize={46} fill="#fff">{last && last.value != null ? last.shown : down ? '↓' : '↑ рост'}</text>
+        <text x={0} y={8} textAnchor="middle" style={{fontFamily: SANS}} fontWeight={800} fontSize={46} fill="#fff">{last && last.value != null ? last.shown : down ? '↓' : '↑ рост'}</text>
       </g>
     </svg>
   </Zone>;
@@ -103,7 +103,7 @@ export const MShare: React.FC<BlockProps> = (p) => {
     </div>
     <div style={{display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'flex-start'}}>
       {items.map((it, i) => <div key={i} style={{display: 'flex', alignItems: 'center', gap: 18, fontFamily: SANS, fontWeight: 600, fontSize: 42, color: T.ink, opacity: ramp(f, at[i] + 6, at[i] + 16)}}>
-        <i style={{width: 30, height: 30, borderRadius: 8, background: cols[i], display: 'block'}} />{it.label}<span style={{color: T.muted}}>{it.shown !== it.label ? it.shown : ''}</span></div>)}
+        <i style={{width: 30, height: 30, borderRadius: rad(8), background: cols[i], display: 'block'}} />{it.label}<span style={{color: T.muted}}>{it.shown !== it.label ? it.shown : ''}</span></div>)}
     </div>
   </Zone>;
 };
@@ -119,7 +119,7 @@ export const MTop: React.FC<BlockProps> = (p) => {
     <div style={{display: 'flex', flexDirection: 'column', gap: 18, width: 860}}>
       {items.map((it, i) => {
         const k = pop(f, fps, at[i], 14); const first = i === 0;
-        return <div key={i} style={{height: rowH, display: 'flex', alignItems: 'center', gap: 26, padding: '0 34px', borderRadius: 30, background: first ? T.accent : T.card, color: first ? '#fff' : T.ink,
+        return <div key={i} style={{height: rowH, display: 'flex', alignItems: 'center', gap: 26, padding: '0 34px', borderRadius: rad(30), background: first ? T.accent : T.card, color: first ? '#fff' : T.ink,
           boxShadow: first ? `0 18px 44px ${T.accent}55` : `0 6px 20px rgba(0,0,0,.06)`, opacity: Math.min(1, k * 1.5), translate: `${(1 - k) * 160}px 0`, scale: first ? '1.03' : '1'}}>
           <span style={{fontFamily: SERIF, fontStyle: 'italic', fontWeight: 600, fontSize: rowH * 0.55, width: rowH * 0.6, opacity: first ? 1 : 0.5}}>{i + 1}</span>
           <span style={{flex: 1, fontFamily: SANS, fontWeight: 700, fontSize: rowH * 0.36, letterSpacing: -1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>{it.label}</span>
@@ -140,8 +140,8 @@ export const MTimeline: React.FC<BlockProps> = (p) => {
   return <Zone full={p.full} h={p.zoneH} gap={40}>
     <Title text={p.data.title} color={T.ink} accent={T.accent} />
     <div style={{position: 'relative', width: 860, height: L + 80}}>
-      <div style={{position: 'absolute', left: 300, top: 40, width: 10, height: L, borderRadius: 5, background: T.line}} />
-      <div style={{position: 'absolute', left: 300, top: 40, width: 10, height: L * draw, borderRadius: 5, background: T.accent}} />
+      <div style={{position: 'absolute', left: 300, top: 40, width: 10, height: L, borderRadius: rad(5), background: T.line}} />
+      <div style={{position: 'absolute', left: 300, top: 40, width: 10, height: L * draw, borderRadius: rad(5), background: T.accent}} />
       {items.map((it, i) => {
         const k = pop(f, fps, at[i], 11); const now = i === items.length - 1;
         return <div key={i} style={{position: 'absolute', left: 0, top: 40 + i * gap - 40, height: 80, width: 860, display: 'flex', alignItems: 'center'}}>
@@ -192,8 +192,8 @@ export const MVersus: React.FC<BlockProps> = (p) => {
       {cols.map((c, ci) => {
         const hk = pop(f, fps, 4 + ci * 5, 13);
         return <div key={ci} style={{width: 420, display: 'flex', flexDirection: 'column', gap: 16}}>
-          <div style={{height: 120, borderRadius: 30, background: colors[ci], color: '#fff', display: 'grid', placeItems: 'center', fontFamily: SANS, fontWeight: 800, fontSize: 54, letterSpacing: -1.5, scale: String(hk)}}>{c.head}</div>
-          {c.rows.map((r, ri) => { const k = pop(f, fps, at[ri * 2 + ci], 14); return <div key={ri} style={{minHeight: 104, borderRadius: 24, background: T.card, border: `4px solid ${colors[ci]}33`, display: 'flex', alignItems: 'center', gap: 14, padding: '14px 24px',
+          <div style={{height: 120, borderRadius: rad(30), background: colors[ci], color: '#fff', display: 'grid', placeItems: 'center', fontFamily: SANS, fontWeight: 800, fontSize: 54, letterSpacing: -1.5, scale: String(hk)}}>{c.head}</div>
+          {c.rows.map((r, ri) => { const k = pop(f, fps, at[ri * 2 + ci], 14); return <div key={ri} style={{minHeight: 104, borderRadius: rad(24), background: T.card, border: `4px solid ${colors[ci]}33`, display: 'flex', alignItems: 'center', gap: 14, padding: '14px 24px',
             fontFamily: SANS, fontWeight: 600, fontSize: 38, lineHeight: 1.1, color: T.ink, opacity: Math.min(1, k * 1.5), translate: `${(1 - k) * (ci ? 90 : -90)}px 0`}}>
             <span style={{color: colors[ci], fontWeight: 800, fontSize: 44}}>•</span>{r}</div>; })}
         </div>;

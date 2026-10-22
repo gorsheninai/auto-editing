@@ -13,13 +13,16 @@ import {SUBS, isSubCode, pickKeywords, toCaptions} from '../blocks/subs';
 import {BgGrain, FxConfetti, FxVhs, Overlay, TRANSITIONS} from '../blocks/text-fx';
 import {ProgressBar, Punch, Shake} from '../blocks/essentials';
 import {Flash, FreezeAt} from '../blocks/shotcraft';
-import {themeFrom} from '../blocks/kit';
+import {SANS as KSANS, themeFrom} from '../blocks/kit';
+import {STY, fontVars, setPassport} from '../blocks/style';
+import {BgPaper} from '../blocks/text-fx';
 
 /* Ролик целиком по раскадровке с пульта: src/story.json (tools/pult_to_story.py). */
 export const STORY = storyJson as unknown as Story;
 const FPS = STORY.fps || 30;
 export const STORY_TOTAL = Math.max(1, Math.round(STORY.duration * FPS));
-const SANS = "'InterTight', sans-serif";
+setPassport(STORY.settings.passport);
+const SANS = KSANS;
 const T = theme(STORY);
 const AV = STORY.settings.avatar || 'avatar.mp4';
 const CUT = STORY.settings.avatarCut || 'avatar_cut.webm';
@@ -49,7 +52,8 @@ const Content: React.FC<{r: Row; from: number; dur: number; zoneH: number; full:
 };
 
 /* Подложка: точки или живой градиент (settings.backdrop = 'BgGrain') */
-const Bg: React.FC = () => STORY.settings.backdrop === 'BgGrain' ? <BgGrain theme={themeFrom(T)} /> : <Backdrop bg={T.bg} dot={T.dot} />;
+const TEX = STORY.settings.backdrop === 'BgGrain' ? 'grain' : STORY.settings.passport?.texture || 'dots';
+const Bg: React.FC = () => TEX === 'grain' ? <BgGrain theme={themeFrom(T)} /> : TEX === 'paper' ? <BgPaper theme={themeFrom(T)} /> : TEX === 'clean' ? <AbsoluteFill style={{background: T.bg}} /> : <Backdrop bg={T.bg} dot={T.dot} />;
 const SegmentBody: React.FC<{r: Row; from: number; dur: number}> = ({r, from, dur}) => {
   if (r.mode === 'A') return <SpeakerFull from={from} src={AV} />;
   if (r.mode === 'B') {
@@ -165,7 +169,7 @@ const Transitions: React.FC = () => <TransitionSeries>{ROWS.flatMap(({r, i, from
 
 export const StoryMain: React.FC = () => {
   useStoryFonts();
-  return <AbsoluteFill style={{background: T.bg}}>
+  return <AbsoluteFill style={{background: T.bg, ...fontVars(STORY.settings.passport)}}>
     {ROWS.some((x) => trOf(x.r)) ? <Transitions /> : ROWS.map(({r, i, from, dur}) => <Sequence key={i} from={from} durationInFrames={dur}><Segment r={r} from={from} dur={dur} /></Sequence>)}
     <Captions />
     {STORY.settings.progress ? <ProgressBar total={STORY_TOTAL} theme={themeFrom(T)} /> : null}

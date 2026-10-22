@@ -1,6 +1,6 @@
 import React from 'react';
 import {AbsoluteFill, interpolate, random, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
-import {BlockProps, HAND, SANS, SERIF, beats, clamp, pop, ramp} from './kit';
+import {BlockProps, HAND, SANS, SERIF, beats, clamp, pop, ramp, rad, shd} from './kit';
 import {CheckList} from '../remocn/check-list';
 import {SpeedLines} from '../remocn/speed-lines';
 import {Reel} from '../remocn/reel';
@@ -48,11 +48,11 @@ export const MHub: React.FC<BlockProps> = (p) => {
     </svg>
     {sats.map((s, i) => {
       const a = -Math.PI / 2 + i / sats.length * Math.PI * 2; const k = pop(f, fps, at[i], 11);
-      return <div key={i} style={{position: 'absolute', left: cx + rx * Math.cos(a), top: cy + ry * Math.sin(a), translate: '-50% -50%', scale: String(k), padding: '18px 30px', borderRadius: 999, background: T.card,
-        border: `5px solid ${i % 2 ? T.accent2 : T.accent}`, fontFamily: SANS, fontWeight: 700, fontSize: p.full ? 52 : 42, color: T.ink, whiteSpace: 'nowrap', boxShadow: '0 10px 30px rgba(0,0,0,.08)'}}>{s}</div>;
+      return <div key={i} style={{position: 'absolute', left: cx + rx * Math.cos(a), top: cy + ry * Math.sin(a), translate: '-50% -50%', scale: String(k), padding: '18px 30px', borderRadius: rad(999), background: T.card,
+        border: `5px solid ${i % 2 ? T.accent2 : T.accent}`, fontFamily: SANS, fontWeight: 700, fontSize: p.full ? 52 : 42, color: T.ink, whiteSpace: 'nowrap', boxShadow: shd('0 10px 30px rgba(0,0,0,.08)')}}>{s}</div>;
     })}
     <div style={{position: 'absolute', left: cx, top: cy, translate: '-50% -50%', width: 270, height: 270, borderRadius: '50%', background: T.accent, display: 'grid', placeItems: 'center', scale: String(ck),
-      boxShadow: `0 0 0 ${18 + Math.sin(f / 6) * 8}px ${T.accent}33`, fontFamily: SERIF, fontStyle: 'italic', fontWeight: 600, fontSize: center.length > 8 ? 52 : 74, color: '#fff', textAlign: 'center', lineHeight: 1}}>{center}</div>
+      boxShadow: shd(`0 0 0 ${18 + Math.sin(f / 6) * 8}px ${T.accent}33`), fontFamily: SERIF, fontStyle: 'italic', fontWeight: 600, fontSize: center.length > 8 ? 52 : 74, color: '#fff', textAlign: 'center', lineHeight: 1}}>{center}</div>
   </AbsoluteFill>;
 };
 
@@ -78,8 +78,8 @@ export const MFlow: React.FC<BlockProps> = (p) => {
       })}
     </svg>
     {[[ax, ay, from, ka, T.accent2], [bx, by, to, kb, T.accent]].map(([x, y, s, k, c], i) =>
-      <div key={i} style={{position: 'absolute', left: x as number, top: y as number, translate: '-50% -50%', scale: String(k), padding: '24px 40px', borderRadius: 34, background: c as string, color: '#fff',
-        fontFamily: SANS, fontWeight: 800, fontSize: 54, letterSpacing: -1.5, whiteSpace: 'nowrap', boxShadow: `0 16px 40px ${c}55`}}>{s as string}</div>)}
+      <div key={i} style={{position: 'absolute', left: x as number, top: y as number, translate: '-50% -50%', scale: String(k), padding: '24px 40px', borderRadius: rad(34), background: c as string, color: '#fff',
+        fontFamily: SANS, fontWeight: 800, fontSize: 54, letterSpacing: -1.5, whiteSpace: 'nowrap', boxShadow: shd(`0 16px 40px ${c}55`)}}>{s as string}</div>)}
   </AbsoluteFill>;
 };
 
@@ -91,7 +91,7 @@ export const MSpeed: React.FC<BlockProps> = (p) => {
   return <AbsoluteFill style={{height: p.zoneH}}>
     <Frame zoneH={p.zoneH}>
       <SpeedLines mode="trail" from={{x: -0.4, y: 0.5}} x={0.5} y={0.5} count={14} weight={3} spread={80} duration={16} bounce={0.55} color={T.accent} delay={6}>
-        <div style={{padding: '34px 60px', borderRadius: 48, background: T.accent2, color: '#fff', fontFamily: SANS, fontWeight: 800, fontSize: text.length > 12 ? 84 : 110, letterSpacing: -3, whiteSpace: 'nowrap', boxShadow: `0 24px 60px ${T.accent2}66`}}>{text}</div>
+        <div style={{padding: '34px 60px', borderRadius: rad(48), background: T.accent2, color: '#fff', fontFamily: SANS, fontWeight: 800, fontSize: text.length > 12 ? 84 : 110, letterSpacing: -3, whiteSpace: 'nowrap', boxShadow: shd(`0 24px 60px ${T.accent2}66`)}}>{text}</div>
       </SpeedLines>
     </Frame>
   </AbsoluteFill>;

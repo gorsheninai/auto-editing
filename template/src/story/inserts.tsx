@@ -3,7 +3,7 @@ import {AbsoluteFill, Img, OffthreadVideo, interpolate, spring, staticFile, useC
 import {AnimText} from './textanim';
 import type {AnimParams, Word} from './types';
 
-const SANS = "'InterTight', 'Inter Tight', sans-serif";
+const SANS = "var(--f-sans, 'InterTight'), sans-serif";
 const clamp = {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'} as const;
 
 /* Кинетический текст: ключевые слова сегмента крупно, по 1–3 слова на экран, в ритм речи */

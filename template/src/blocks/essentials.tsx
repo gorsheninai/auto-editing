@@ -1,6 +1,6 @@
 import React from 'react';
-import {AbsoluteFill, Easing, interpolate, random, spring, useCurrentFrame, useVideoConfig} from 'remotion';
-import {BlockProps, SANS, SERIF, Theme, clamp, ramp} from './kit';
+import {AbsoluteFill, Easing, interpolate, random, useCurrentFrame, useVideoConfig} from 'remotion';
+import {BlockProps, SANS, SERIF, Theme, clamp, ramp, spring, rad, shd} from './kit';
 
 /* Базовые приёмы монтажа (по мотивам onda, snapcn, reactvideoeditor, video-shotcraft), написаны для студии. */
 
@@ -24,8 +24,8 @@ export const Shake: React.FC<{at?: number; children: React.ReactNode; power?: nu
 /* ---------- Полоса прогресса ролика вверху (settings.progress) ---------- */
 export const ProgressBar: React.FC<{total: number; theme: Theme}> = ({total, theme}) => {
   const f = useCurrentFrame(); const p = Math.min(1, f / Math.max(1, total - 1));
-  return <div style={{position: 'absolute', left: 40, right: 40, top: 46, height: 12, borderRadius: 6, background: 'rgba(255,255,255,.35)', boxShadow: '0 2px 10px rgba(0,0,0,.12)', overflow: 'hidden'}}>
-    <div style={{width: `${p * 100}%`, height: '100%', borderRadius: 6, background: theme.accent}} /></div>;
+  return <div style={{position: 'absolute', left: 40, right: 40, top: 46, height: 12, borderRadius: rad(6), background: 'rgba(255,255,255,.35)', boxShadow: shd('0 2px 10px rgba(0,0,0,.12)'), overflow: 'hidden'}}>
+    <div style={{width: `${p * 100}%`, height: '100%', borderRadius: rad(6), background: theme.accent}} /></div>;
 };
 
 /* ---------- Ken Burns: медленный наезд и панорама по картинке ---------- */
@@ -49,8 +49,8 @@ export const Callout: React.FC<{ov: Ov; theme: Theme}> = ({ov, theme}) => {
       <rect x={x - w / 2} y={y - h / 2} width={w} height={h} rx={22} fill="none" stroke={theme.accent2} strokeWidth={9} strokeDasharray={P} strokeDashoffset={P * (1 - draw)} />
       <rect x={x - w / 2} y={y - h / 2} width={w} height={h} rx={22} fill={theme.accent2} opacity={0.08 * draw} />
     </svg>
-    {ov.text ? <div style={{position: 'absolute', left: x - w / 2, top: y - h / 2 - 96, scale: String(k), transformOrigin: '0 100%', padding: '14px 26px', borderRadius: 20, background: theme.accent2, color: '#fff',
-      fontFamily: SANS, fontWeight: 800, fontSize: 46, letterSpacing: -1, whiteSpace: 'nowrap', boxShadow: '0 10px 30px rgba(0,0,0,.18)'}}>{ov.text}</div> : null}
+    {ov.text ? <div style={{position: 'absolute', left: x - w / 2, top: y - h / 2 - 96, scale: String(k), transformOrigin: '0 100%', padding: '14px 26px', borderRadius: rad(20), background: theme.accent2, color: '#fff',
+      fontFamily: SANS, fontWeight: 800, fontSize: 46, letterSpacing: -1, whiteSpace: 'nowrap', boxShadow: shd('0 10px 30px rgba(0,0,0,.18)')}}>{ov.text}</div> : null}
   </AbsoluteFill>;
 };
 
@@ -58,7 +58,7 @@ export const Callout: React.FC<{ov: Ov; theme: Theme}> = ({ov, theme}) => {
 export const BlurBox: React.FC<{ov: Ov}> = ({ov}) => {
   const f = useCurrentFrame(); const at = ov.at ?? 0; const k = ramp(f, at, at + 6);
   const x = ov.x ?? 540, y = ov.y ?? 900, w = ov.w ?? 520, h = ov.h ?? 110;
-  return <div style={{position: 'absolute', left: x - w / 2, top: y - h / 2, width: w, height: h, borderRadius: 18, backdropFilter: `blur(${30 * k}px)`, WebkitBackdropFilter: `blur(${30 * k}px)`,
+  return <div style={{position: 'absolute', left: x - w / 2, top: y - h / 2, width: w, height: h, borderRadius: rad(18), backdropFilter: `blur(${30 * k}px)`, WebkitBackdropFilter: `blur(${30 * k}px)`,
     background: `rgba(200,200,210,${0.35 * k})`, pointerEvents: 'none'}} />;
 };
 
@@ -68,9 +68,9 @@ export const Notify: React.FC<{ov: Ov; theme: Theme}> = ({ov, theme}) => {
   const [title, ...rest] = (ov.text || 'Банк — Поступление 15 000 ₽').split(/\s+[—–-]\s+/); const body = rest.join(' — ') || title;
   const inK = spring({frame: f - at, fps, config: {damping: 14, stiffness: 160}}); const out = ramp(f, at + 75, at + 88);
   const y = interpolate(inK, [0, 1], [-260, 70]) - out * 330;
-  return <div style={{position: 'absolute', left: 40, right: 40, top: y, padding: '26px 30px', borderRadius: 40, background: theme.dark ? 'rgba(40,42,50,.94)' : 'rgba(255,255,255,.94)',
-    boxShadow: '0 20px 60px rgba(0,0,0,.25)', display: 'flex', gap: 24, alignItems: 'center', fontFamily: SANS}}>
-    <div style={{width: 96, height: 96, borderRadius: 24, background: theme.accent, display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 800, fontSize: 52, flex: 'none'}}>{title.trim().charAt(0).toUpperCase()}</div>
+  return <div style={{position: 'absolute', left: 40, right: 40, top: y, padding: '26px 30px', borderRadius: rad(40), background: theme.dark ? 'rgba(40,42,50,.94)' : 'rgba(255,255,255,.94)',
+    boxShadow: shd('0 20px 60px rgba(0,0,0,.25)'), display: 'flex', gap: 24, alignItems: 'center', fontFamily: SANS}}>
+    <div style={{width: 96, height: 96, borderRadius: rad(24), background: theme.accent, display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 800, fontSize: 52, flex: 'none'}}>{title.trim().charAt(0).toUpperCase()}</div>
     <div style={{flex: 1, minWidth: 0}}>
       <div style={{display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 36, color: theme.ink}}><span>{title}</span><span style={{fontWeight: 500, color: theme.muted, fontSize: 30}}>сейчас</span></div>
       <div style={{fontWeight: 500, fontSize: 40, color: theme.ink, lineHeight: 1.15, marginTop: 4}}>{body}</div>
@@ -106,11 +106,11 @@ export const MChat: React.FC<BlockProps> = (p) => {
   const typing = f > qEnd + 4 && f < aStart;
   const W = 920, zoom = p.full ? 1 : 0.85;
   return <AbsoluteFill style={{height: p.zoneH, display: 'grid', placeItems: 'center'}}>
-    <div style={{width: W, zoom, borderRadius: 48, background: T.card, boxShadow: '0 30px 80px rgba(0,0,0,.14)', padding: 40, display: 'flex', flexDirection: 'column', gap: 26, fontFamily: SANS, scale: String(0.94 + 0.06 * card), opacity: card}}>
+    <div style={{width: W, zoom, borderRadius: rad(48), background: T.card, boxShadow: shd('0 30px 80px rgba(0,0,0,.14)'), padding: 40, display: 'flex', flexDirection: 'column', gap: 26, fontFamily: SANS, scale: String(0.94 + 0.06 * card), opacity: card}}>
       <div style={{display: 'flex', alignItems: 'center', gap: 16, fontWeight: 700, fontSize: 34, color: T.muted}}><i style={{width: 22, height: 22, borderRadius: '50%', background: T.accent, display: 'block'}} />ИИ-ассистент</div>
       <div style={{alignSelf: 'flex-end', maxWidth: '82%', padding: '24px 30px', borderRadius: '34px 34px 8px 34px', background: T.accent, color: '#fff', fontSize: 44, fontWeight: 600, lineHeight: 1.2}}>
         {q.slice(0, Math.max(0, Math.floor((f - 8) / 1.1)))}{f < qEnd ? <span style={{opacity: f % 16 < 8 ? 1 : 0}}>|</span> : null}</div>
-      {typing ? <div style={{alignSelf: 'flex-start', padding: '24px 30px', borderRadius: 34, background: T.bg, display: 'flex', gap: 10}}>{[0, 1, 2].map((i) => <i key={i} style={{width: 16, height: 16, borderRadius: '50%', background: T.muted, display: 'block', opacity: 0.4 + 0.6 * Math.abs(Math.sin((f + i * 5) / 6))}} />)}</div> : null}
+      {typing ? <div style={{alignSelf: 'flex-start', padding: '24px 30px', borderRadius: rad(34), background: T.bg, display: 'flex', gap: 10}}>{[0, 1, 2].map((i) => <i key={i} style={{width: 16, height: 16, borderRadius: '50%', background: T.muted, display: 'block', opacity: 0.4 + 0.6 * Math.abs(Math.sin((f + i * 5) / 6))}} />)}</div> : null}
       {f >= aStart ? <div style={{alignSelf: 'flex-start', maxWidth: '88%', padding: '24px 30px', borderRadius: '34px 34px 34px 8px', background: T.bg, color: T.ink, fontSize: 44, fontWeight: 500, lineHeight: 1.25}}>
         {aw.slice(0, shown + 1).map((w, i) => <span key={i} style={{opacity: i === shown ? 0.5 : 1}}>{w} </span>)}</div> : null}
     </div>

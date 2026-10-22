@@ -1,7 +1,7 @@
 import React from 'react';
-import {AbsoluteFill, Easing, Freeze, Img, OffthreadVideo, interpolate, random, spring, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
+import {AbsoluteFill, Easing, Freeze, Img, OffthreadVideo, interpolate, random, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
 import type {TransitionPresentation, TransitionPresentationComponentProps} from '@remotion/transitions';
-import {BlockProps, SANS, SERIF, Theme, clamp, fmtNum, pop, ramp} from './kit';
+import {BlockProps, SANS, SERIF, Theme, clamp, fmtNum, pop, ramp, spring, rad, shd} from './kit';
 import {Confetti} from '../remocn/confetti';
 
 /* Приёмы из video-shotcraft (Apache-2.0, github.com/Vincentwei1021/video-shotcraft, он же getshotpack.com),
@@ -35,7 +35,7 @@ export const FreezeAt: React.FC<{at?: number; text?: string; theme: Theme; child
     {on ? <AbsoluteFill style={{background: '#fff', opacity: Math.max(0, 1 - (f - at) / 4) * 0.7}} /> : null}
     {on ? <svg width={1080} height={1920} style={{position: 'absolute', inset: 0, opacity: k, scale: String(1.06 - 0.06 * k)}}>
       {br(pad, pad + 120, 1, 1)}{br(1080 - pad, pad + 120, -1, 1)}{br(pad, 1920 - pad - 200, 1, -1)}{br(1080 - pad, 1920 - pad - 200, -1, -1)}</svg> : null}
-    {on && text ? <div style={{position: 'absolute', left: 0, right: 0, top: 260, textAlign: 'center'}}><span style={{display: 'inline-block', scale: String(lab), padding: '18px 36px', borderRadius: 18, background: theme.accent2, color: '#fff',
+    {on && text ? <div style={{position: 'absolute', left: 0, right: 0, top: 260, textAlign: 'center'}}><span style={{display: 'inline-block', scale: String(lab), padding: '18px 36px', borderRadius: rad(18), background: theme.accent2, color: '#fff',
       fontFamily: SANS, fontWeight: 800, fontSize: 64, letterSpacing: -1.5}}>{text}</span></div> : null}
   </AbsoluteFill>;
 };
@@ -59,13 +59,13 @@ export const ScanFocus: React.FC<{ov: Ov; theme: Theme}> = ({ov, theme}) => {
   const lock = spring({frame: f - at - 18, fps, config: {damping: 13, stiffness: 200}});
   const arm = 50, c = theme.accent, g = 1 + (1 - lock) * 0.5, X = x - (w / 2) * g, Y = y - (h / 2) * g, W = w * g, H = h * g;
   return <AbsoluteFill style={{pointerEvents: 'none'}}>
-    {scan < 1 ? <div style={{position: 'absolute', left: 0, right: 0, top: lineY - 3, height: 6, background: c, boxShadow: `0 0 30px 8px ${c}88`}} /> : null}
+    {scan < 1 ? <div style={{position: 'absolute', left: 0, right: 0, top: lineY - 3, height: 6, background: c, boxShadow: shd(`0 0 30px 8px ${c}88`)}} /> : null}
     {scan < 1 ? <div style={{position: 'absolute', left: 0, right: 0, top: 0, height: lineY, background: `linear-gradient(transparent 70%, ${c}22)`}} /> : null}
     {f >= at + 18 ? <svg width={1080} height={1920} style={{position: 'absolute', inset: 0, opacity: lock}}>
       {[[X, Y, 1, 1], [X + W, Y, -1, 1], [X, Y + H, 1, -1], [X + W, Y + H, -1, -1]].map(([px, py, sx, sy], i) =>
         <path key={i} d={`M ${px} ${py + sy * arm} L ${px} ${py} L ${px + sx * arm} ${py}`} stroke={c} strokeWidth={9} fill="none" strokeLinecap="round" />)}
     </svg> : null}
-    {ov.text && f >= at + 22 ? <div style={{position: 'absolute', left: X, top: Y + H + 18, padding: '10px 22px', background: c, color: '#fff', borderRadius: 12, fontFamily: SANS, fontWeight: 700, fontSize: 40, opacity: ramp(f, at + 22, at + 30), whiteSpace: 'nowrap'}}>
+    {ov.text && f >= at + 22 ? <div style={{position: 'absolute', left: X, top: Y + H + 18, padding: '10px 22px', background: c, color: '#fff', borderRadius: rad(12), fontFamily: SANS, fontWeight: 700, fontSize: 40, opacity: ramp(f, at + 22, at + 30), whiteSpace: 'nowrap'}}>
       {ov.text.slice(0, Math.max(1, Math.floor((f - at - 22) * 1.5)))}</div> : null}
   </AbsoluteFill>;
 };
@@ -94,12 +94,12 @@ export const MBeforeAfter: React.FC<BlockProps & {images?: string[]}> = (p) => {
   const [a, b] = [files[0] || 'demo/g1.jpg', files[1] || 'demo/g3.jpg'];
   const W = 900, H = Math.min(p.zoneH * 0.78, 1300);
   const t = interpolate(f, [10, p.dur * 0.45, p.dur * 0.62, p.dur * 0.8], [0.92, 0.12, 0.3, 0.5], {...clamp, easing: Easing.inOut(Easing.cubic)});
-  const lab = (s: string, left: boolean) => <div style={{position: 'absolute', top: 30, [left ? 'left' : 'right']: 30, padding: '10px 24px', borderRadius: 999, background: 'rgba(0,0,0,.55)', color: '#fff', fontFamily: SANS, fontWeight: 700, fontSize: 40}}>{s}</div>;
+  const lab = (s: string, left: boolean) => <div style={{position: 'absolute', top: 30, [left ? 'left' : 'right']: 30, padding: '10px 24px', borderRadius: rad(999), background: 'rgba(0,0,0,.55)', color: '#fff', fontFamily: SANS, fontWeight: 700, fontSize: 40}}>{s}</div>;
   return <AbsoluteFill style={{height: p.zoneH, display: 'grid', placeItems: 'center'}}>
-    <div style={{position: 'relative', width: W, height: H, borderRadius: 40, overflow: 'hidden', boxShadow: '0 30px 80px rgba(0,0,0,.2)', opacity: ramp(f, 0, 8)}}>
+    <div style={{position: 'relative', width: W, height: H, borderRadius: rad(40), overflow: 'hidden', boxShadow: shd('0 30px 80px rgba(0,0,0,.2)'), opacity: ramp(f, 0, 8)}}>
       <Img src={src(b)} style={{position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover'}} />{lab('после', false)}
       <div style={{position: 'absolute', inset: 0, clipPath: `inset(0 ${(1 - t) * 100}% 0 0)`}}><Img src={src(a)} style={{width: '100%', height: '100%', objectFit: 'cover'}} />{lab('до', true)}</div>
-      <div style={{position: 'absolute', top: 0, bottom: 0, left: `${t * 100}%`, width: 8, translate: '-50% 0', background: '#fff', boxShadow: '0 0 20px rgba(0,0,0,.3)'}} />
+      <div style={{position: 'absolute', top: 0, bottom: 0, left: `${t * 100}%`, width: 8, translate: '-50% 0', background: '#fff', boxShadow: shd('0 0 20px rgba(0,0,0,.3)')}} />
       <div style={{position: 'absolute', top: '50%', left: `${t * 100}%`, width: 96, height: 96, translate: '-50% -50%', borderRadius: '50%', background: '#fff', display: 'grid', placeItems: 'center', fontSize: 44, color: T.ink, fontFamily: SANS, fontWeight: 800}}>‹ ›</div>
     </div>
   </AbsoluteFill>;
@@ -122,7 +122,7 @@ export const TxtFly: React.FC<BlockProps> = (p) => {
         fontFamily: it.serif ? SERIF : SANS, fontStyle: it.serif ? 'italic' : 'normal', fontWeight: it.serif ? 600 : 800, fontSize: 52, color: i % 5 === 0 ? T.accent : T.ink, whiteSpace: 'nowrap'}}>{it.w}</div>;
     })}
     <AbsoluteFill style={{height: p.zoneH, display: 'grid', placeItems: 'center'}}>
-      <div style={{padding: '30px 50px', borderRadius: 40, background: `${T.bg}E6`, fontFamily: SANS, fontWeight: 800, fontSize: p.full ? 104 : 88, letterSpacing: -3, color: T.ink, textAlign: 'center', lineHeight: 1, opacity: ramp(f, 6, 18), scale: String(0.94 + 0.06 * ramp(f, 6, 18))}}>{title}</div>
+      <div style={{padding: '30px 50px', borderRadius: rad(40), background: `${T.bg}E6`, fontFamily: SANS, fontWeight: 800, fontSize: p.full ? 104 : 88, letterSpacing: -3, color: T.ink, textAlign: 'center', lineHeight: 1, opacity: ramp(f, 6, 18), scale: String(0.94 + 0.06 * ramp(f, 6, 18))}}>{title}</div>
     </AbsoluteFill>
   </AbsoluteFill>;
 };
@@ -168,7 +168,7 @@ export const TxtMask: React.FC<BlockProps & {speaker?: {src: string; from: numbe
     : <div style={{width: '100%', height: '100%', background: `linear-gradient(${f * 3}deg, ${T.accent}, ${T.accent2}, #F2B53B)`}} />;
   return <AbsoluteFill style={{height: p.zoneH, display: 'grid', placeItems: 'center', overflow: 'hidden'}}>
     <svg width={0} height={0} style={{position: 'absolute'}}><defs><clipPath id="txtmask" clipPathUnits="userSpaceOnUse">
-      <text x={540} y={p.zoneH / 2 + fs * 0.36} textAnchor="middle" fontFamily="InterTight" fontWeight={900} fontSize={fs} letterSpacing={-fs * 0.04}>{word}</text></clipPath></defs></svg>
+      <text x={540} y={p.zoneH / 2 + fs * 0.36} textAnchor="middle" style={{fontFamily: SANS}} fontWeight={900} fontSize={fs} letterSpacing={-fs * 0.04}>{word}</text></clipPath></defs></svg>
     <AbsoluteFill style={{height: p.zoneH, clipPath: 'url(#txtmask)', scale: String(k)}}>{fill}</AbsoluteFill>
     <div style={{position: 'absolute', top: p.zoneH / 2 + fs * 0.55, width: '100%', textAlign: 'center', fontFamily: SERIF, fontStyle: 'italic', fontWeight: 600, fontSize: 64, color: T.ink, opacity: ramp(f, 18, 30)}}>{p.data.title || ''}</div>
   </AbsoluteFill>;

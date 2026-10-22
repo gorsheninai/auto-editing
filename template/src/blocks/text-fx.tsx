@@ -1,7 +1,7 @@
 import React from 'react';
 import {AbsoluteFill, Sequence, interpolate, random, useCurrentFrame} from 'remotion';
 import type {TransitionPresentation, TransitionPresentationComponentProps} from '@remotion/transitions';
-import {BlockProps, SANS, Theme, clamp, ramp} from './kit';
+import {BlockProps, SANS, Theme, clamp, ramp, HAND, STY} from './kit';
 import {SoftBlurIn} from '../remocn/soft-blur-in';
 import {KineticCenterBuild} from '../remocn/kinetic-center-build';
 import {MarkerHighlight} from '../remocn/marker-highlight';
@@ -99,7 +99,7 @@ export const Overlay: React.FC<{ov: Ov; theme: Theme}> = ({ov, theme}) => {
   if (ov.code === 'InkCircle') return <div style={{position: 'absolute', left: x - w / 2, top: y - h / 2}}><ScribbleCircle width={w} height={h} color={theme.accent2} strokeWidth={14} delay={at} /></div>;
   if (ov.code === 'InkArrow') return <AbsoluteFill><InkArrow from={{x, y}} to={{x: ov.to?.[0] ?? x + 260, y: ov.to?.[1] ?? y - 200}} color={theme.accent2} strokeWidth={16} delay={at} headSize={60} /></AbsoluteFill>;
   if (ov.code === 'PaperSticker') return <div style={{position: 'absolute', left: x, top: y, translate: '-50% -50%'}}><PaperSticker at={at} background="#FFF6D6" borderColor="rgba(0,0,0,.12)" padding="22px 34px">
-    <span style={{fontFamily: "'Caveat', cursive", fontWeight: 700, fontSize: 76, color: theme.ink, whiteSpace: 'nowrap'}}>{ov.text || 'важно!'}</span></PaperSticker></div>;
+    <span style={{fontFamily: HAND, fontWeight: 700, fontSize: 76, color: theme.ink, whiteSpace: 'nowrap'}}>{ov.text || 'важно!'}</span></PaperSticker></div>;
   return null;
 };
 export const OVERLAYS: Record<string, {name: string; summary: string}> = {
@@ -121,7 +121,7 @@ export const OVERLAYS: Record<string, {name: string; summary: string}> = {
 const GRAIN = `url("data:image/svg+xml;utf8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/><feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.55 0"/></filter><rect width="100%" height="100%" filter="url(#n)"/></svg>')}")`;
 export const BgGrain: React.FC<{theme: Theme}> = ({theme}) => {
   const f = useCurrentFrame(); const t = f / 30;
-  const blobs = theme.dark ? ['#7B61FF', '#FF6A2B', '#2F9BEA'] : ['#B9AAFF', '#FFB48A', '#FFE3A3'];
+  const blobs = STY.passport.colors?.accent ? [theme.accent, theme.accent2, theme.soft] : theme.dark ? ['#7B61FF', '#FF6A2B', '#2F9BEA'] : ['#B9AAFF', '#FFB48A', '#FFE3A3'];
   const pos = [[0.25, 0.22, 0.9], [0.78, 0.55, 0.8], [0.35, 0.86, 1]].map(([x, y, k], i) => [x + Math.sin(t * 0.35 + i * 2) * 0.12, y + Math.cos(t * 0.28 + i * 1.7) * 0.08, k]);
   return <AbsoluteFill style={{background: theme.bg, overflow: 'hidden'}}>
     {pos.map(([x, y, k], i) => <div key={i} style={{position: 'absolute', left: `${x * 100}%`, top: `${y * 100}%`, width: 1300 * k, height: 1300 * k, translate: '-50% -50%', borderRadius: '50%',
@@ -129,6 +129,13 @@ export const BgGrain: React.FC<{theme: Theme}> = ({theme}) => {
     <AbsoluteFill style={{backgroundImage: GRAIN, opacity: theme.dark ? 0.35 : 0.22, mixBlendMode: 'multiply', backgroundPosition: `${(f * 37) % 240}px ${(f * 53) % 240}px`}} />
   </AbsoluteFill>;
 };
+/* BgPaper — бумага: цвет фона паспорта, волокна и лёгкая неровность освещения (texture = 'paper'). Статичный — не отвлекает. */
+const FIBERS = `url("data:image/svg+xml;utf8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="420" height="420"><filter id="p"><feTurbulence type="fractalNoise" baseFrequency="0.035 0.6" numOctaves="3" seed="7"/><feColorMatrix values="0 0 0 0 0.35  0 0 0 0 0.3  0 0 0 0 0.25  0 0 0 0.5 -0.12"/></filter><rect width="100%" height="100%" filter="url(#p)"/></svg>')}")`;
+export const BgPaper: React.FC<{theme: Theme}> = ({theme}) => <AbsoluteFill style={{background: theme.bg}}>
+  <AbsoluteFill style={{backgroundImage: FIBERS, opacity: theme.dark ? 0.25 : 0.45, mixBlendMode: theme.dark ? 'screen' : 'multiply'}} />
+  <AbsoluteFill style={{backgroundImage: GRAIN, opacity: theme.dark ? 0.25 : 0.14, mixBlendMode: 'multiply'}} />
+  <AbsoluteFill style={{background: `radial-gradient(ellipse at 40% 30%, ${theme.dark ? 'rgba(255,255,255,.05)' : 'rgba(255,255,255,.35)'} 0%, transparent 55%), radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,${theme.dark ? 0.35 : 0.1}))`}} />
+</AbsoluteFill>;
 /* FxVhs — сцена как с видеокассеты: дрожание строк, цветной сдвиг, полосы, шум (row.fx = 'FxVhs') */
 export const FxVhs: React.FC<{children: React.ReactNode}> = ({children}) => {
   const f = useCurrentFrame(); const jx = (random(`j${f}`) - 0.5) * 6; const band = (f * 23) % 2100 - 100;
