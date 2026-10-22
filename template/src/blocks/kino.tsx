@@ -119,7 +119,7 @@ const Sunset: React.FC = () => {
 };
 export const BgSwap: React.FC<{from: number; cut: string; bg?: string}> = ({from, cut, bg}) => <AbsoluteFill>
   {bg && isMedia(bg) ? <Media s={bg} /> : <Sunset />}
-  <OffthreadVideo src={staticFile(cut)} transparent muted startFrom={from} style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+  <AbsoluteFill><OffthreadVideo src={staticFile(cut)} transparent muted startFrom={from} style={{width: '100%', height: '100%', objectFit: 'cover'}} /></AbsoluteFill>
 </AbsoluteFill>;
 
 export const KINO_SCENES = {TxtNumberTitle, MBurst, CardWord};

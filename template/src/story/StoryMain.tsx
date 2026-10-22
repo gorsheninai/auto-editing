@@ -123,10 +123,10 @@ const Captions: React.FC = () => {
   if (ci < 0) return null;
   const ch = CHUNKS[ci]; const seg = rowAt(fr); const r = seg.r;
   const kind = r.kind || (r.mode === 'C' ? 'kinetic' : '');
-  if (r.scene && /^Txt/.test(r.scene)) return null; // текстовая сцена уже показывает эти слова
+  if (r.scene && (/^Txt/.test(r.scene) || r.scene === 'CardWord')) return null; // текстовая сцена уже показывает эти слова
   if (r.mode === 'C' && (kind === 'kinetic' || ((kind === 'motion' || kind === 'd3') && !(r.scene && REG[r.scene])))) return null; // текст уже на экране
   const win = winOf(r);
-  const y = SUB_STYLE === 'SubKino' ? (r.mode === 'B' ? 1300 : 1120) : r.mode === 'A' ? 1500 : r.mode === 'C' ? 1540 : win === 'circle' ? 1350 : win === 'strip' ? 1160 : 1150;
+  const y = SUB_STYLE === 'SubKino' ? (r.mode === 'B' ? 1300 : r.mode === 'C' ? (/^Phone/.test(r.scene || '') ? 1810 : 1520) : 1120) : r.mode === 'A' ? 1500 : r.mode === 'C' ? 1540 : win === 'circle' ? 1350 : win === 'strip' ? 1160 : 1150;
   const p = STORY.settings.subAnim;
   if (SUB_STYLE) {
     const onDark = r.mode === 'A' || T.dark;

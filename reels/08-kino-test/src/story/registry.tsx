@@ -17,4 +17,5 @@ const lib = Object.fromEntries(Object.entries(SCENES).map(([code, C]) => [code, 
   return <C data={parseData(p.row.note || code, p.row.text)} theme={themeFrom(p.theme || {dark: false, bg: '#F4F1EA', ink: '#1C1B22', accent: '#7B61FF'})} zoneH={p.zoneH} full={p.full} dur={p.dur} marks={marks} speaker={p.speaker} />;
 }) as React.FC<SceneProps>]));
 /* Свои сцены ролика добавляются сюда и перекрывают библиотечные с тем же кодом */
-export const REG: Record<string, React.FC<SceneProps>> = {...lib};
+import {AiCard, PhoneNotes} from './custom';
+export const REG: Record<string, React.FC<SceneProps>> = {...lib, AiCard, PhoneNotes};
