@@ -666,6 +666,7 @@ function openReel(p){
       <div class="row" style="margin-top:14px">
         <button class="btn primary" type="submit"${ro}>Сохранить</button>
         <button class="btn" type="button" id="r-copy">Скопировать задание для чата</button>
+        <span class="hint" id="r-fast" style="flex-basis:100%"></span>
         <button class="btn ghost" type="button" id="r-close">Закрыть</button>
         ${canWrite?'<span style="margin-left:auto" id="r-delBox"><button class="btn ghost danger" type="button" id="r-del">Удалить</button></span>':''}
       </div>
@@ -704,30 +705,50 @@ function openReel(p){
     const fb=()=>{ const ta=$('#r-gpt'); ta.focus(); ta.select(); toast('Скопируй выделенный текст вручную'); };
     if(navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(done, fb); else fb();
   });
+  /* Быстрый режим: как reel_go соберёт каждую строку (та же логика, что pult_to_story --auto) */
+  function fastPlan(rows){
+    const codes=new Set(S.blocks.map(b=>b.code||b.id)), c={blk:0, lay:0, pic:0, kin:0, spk:0}, kinRows=[];
+    (rows||[]).forEach((r,i)=>{
+      if(!r.mode) return;
+      const k=r.kind||(r.mode==='A'?'speaker':'l2d'), lead=((r.note||'').match(/^\s*(?:\[[^\]]*\]\s*)?([A-Z][A-Za-z0-9]+)/)||[])[1];
+      if(k==='speaker'||r.mode==='A') c.spk++;
+      else if(r.scene||(lead&&codes.has(lead))) c.blk++;
+      else if(k==='l2d') c.lay++;
+      else if(k==='gen'||k==='media') c.pic++;
+      else { c.kin++; kinRows.push(i+1); }
+    });
+    return {c, kinRows};
+  }
+  function fastNote(){
+    const n=$('#r-fast'); if(!n) return;
+    if(!curRows.length){ n.textContent=''; return; }
+    const {c,kinRows}=fastPlan(curRows);
+    n.textContent=`Быстрый режим: спикер ${c.spk}, блоки библиотеки ${c.blk}, 2D из материалов ${c.lay}, картинки ${c.pic}, кинетический текст ${c.kin}${kinRows.length?` (строки ${kinRows.join(', ')} — поставь код блока в начало описания, если нужен блок)`:''}. 2D без подходящих материалов и картинки без файла тоже станут кинетическим текстом. Свои сцены Claude не пишет.`;
+  }
+  window.fastNote=fastNote; fastNote();
+  F.addEventListener('input', ()=>setTimeout(fastNote, 0)); F.addEventListener('change', ()=>setTimeout(fastNote, 0));
   $('#r-copy').addEventListener('click', ()=>{
-    const d = collect(), sh = rowShares(curRows), cnt = kindCounts(curRows);
+    const d = collect();
+    if(!curRows.length){ toast('Сначала раскадровка'); return; }
+    const slug=(d.title||'reel').toLowerCase().replace(/[^a-zа-яё0-9]+/gi,'-').replace(/^-|-$/g,'').slice(0,24)||'reel';
+    const name=`reels/${slug}-${String(p.id).slice(-5)}`;
+    const anims=[d.subAnim,d.titleAnim].some(a=>a&&a!=='static'&&!/^Sub/.test(a));
+    const parts=p.mediaPack?.parts||[];
+    const reads=[curAvatar?.id, ...parts].filter(Boolean);
+    const cmd=`python3 tools/reel_go.py work/db/projects/${p.id}.json ${name} --files work/files${anims?' --anims work/db/textanims':''}${curAvatar?.id?'':' --avatar <путь к присланному видео>'}${parts.length?'':' --media <папка с присланными материалами>'}`;
     const text = [
-      ...chatHead(`Новый ролик по проекту с пульта.`),
-      `Проект: «${d.title}» — projects/${p.id}. Текст, стиль, раскадровку и материалы бери оттуда.`,
-      ...(tplOf(p.templateId) ? (t=>[`Монтаж по шаблону «${t.name}» (templates/${t.id}), режим: ${p.mode==='own'?'свои настройки':'авто'}.`,
-        tplAllowed(t) ? `Блоки — только разрешённые шаблоном: ${tplAllowed(t).join(', ')}.` : '',
-        p.passport ? `Стилевой паспорт (цвета, шрифты, движение) лежит в проекте, поле passport: ${ppSummary(p.passport)}.` : '',
-        t.rules?.assets ? `Базовые ассеты шаблона на Диске: ${t.rules.assets} — скачать в public/media/ вместе с картинками ролика.` : '',
-        (p.dna||t.rules?.dna) ? `Стиль шаблона тремя слоями лежит в проекте (поле dna: ${dnaSummary(p.dna||t.rules.dna)}): ядро держать во всём ролике, приёмы — коды в поле tech у сегментов раскадровки.` : '',
-        (p.spec||t.spec) ? `У шаблона есть цифры ядра стиля (поле spec проекта: ${specSummary(p.spec||t.spec)}). После pult_to_story.py запусти tools/spec_build.py <ролик> --src <исходник> — реальные тайминги слов, ритм и крупность спикера, грейд, звуки и субтитры по референсам; после рендера — замкнутая проверка compare_spec.py.` : ''])(tplOf(p.templateId)) : []),
-      ``,
-      sh?`Раскадровка: ${curRows.length} сегментов, A ${sh.a}% / B ${sh.b}% / C ${sh.c}%. ${cnt}`:'Раскадровки ещё нет.',
-      `Окно спикера по умолчанию: ${winName(d.win)}. Подложка: ${d.bg}. Звук: ${d.sound}.`,
-      `Наезды камеры: ${d.punch?'да':'нет'}. Полоса прогресса: ${d.progress?'да':'нет'}.`,
-      `Ускорение ×${d.speed}. Субтитры: ${d.subWords} сл., цвет ${d.subColor}, анимация: ${animName(d.subAnim)}. Заголовки: ${animName(d.titleAnim)}.`,
-      d.ctaOn ? `Призыв в конце: ${d.ctaText||'да'}.` : `Призыва в конце нет — финал по тексту.`,
-      d.drive?`Папка на Диске (вставки и картинки): ${d.drive}`:'',
-      curAvatar?.id ? `Видео аватара загружено на пульт: ${curAvatar.name}, id ${curAvatar.id}.` : `Видео аватара пришлю файлом в чат.`,
-      p.mediaPack?.parts?.length ? `Материалы с Диска упакованы на пульте: части ${p.mediaPack.parts.join(', ')} (${p.mediaPack.files.length} файлов). Диск не открывай.` : `Пакета материалов нет: попроси нажать «Собрать пакет для монтажа» в разделе «Материалы».`,
-      ``,
-      `Подготовка — одной командой, без ручных шагов: 1) ArtifactData get projects/${p.id} с out_dir=work/db; 2) Artifact read с path=<id> и out_dir=work/files — для видео аватара и каждой части пакета; 3) python3 tools/reel_prep.py work/db/projects/${p.id}.json reels/NN-name --files work/files (--anims, если выбраны анимации текста; запускать в фоне и ждать окончания). Скрипт сам соберёт папку, разложит материалы, вырежет фон и спикера, соберёт story.json и выдаст отчёт: какие сцены писать. Дальше — только сцены, проверка и рендер.`
+      `Ролик «${d.title}» по проекту пульта, быстрый режим: всё делает одна команда, ты только запускаешь и ждёшь. Каждый лишний шаг стоит лимита — делай ровно эти шаги.`,
+      `0) Репозиторий GitHub gorsheninai/auto-editing: add_repo (access push) → клонировать → register_repo_root. Дальше все пути — от корня репозитория. Ничего не читай: ни скилл, ни docs, ни README.`,
+      `1) ArtifactData get projects/${p.id} с out_dir=work/db${anims?'; ArtifactData list textanims с out_dir=work/db/textanims':''}. Пульт: ${PULT_URL}`,
+      reads.length?`2) Artifact read (url пульта) с out_dir=work/files для каждого id: ${reads.join(', ')}. Файлы не открывай и не декодируй.`:`2) Файлов на пульте нет — видео аватара и материалы пришлю в чат.`,
+      `3) Bash в фоне (run_in_background, timeout 7200000): ${cmd}`,
+      `4) Жди уведомления о завершении. Лог по ходу не смотри.`,
+      `5) В конце «Проверка цифрами пройдена» → SendUserFile ${name}/out.mp4 и одна строка итога. Упало или «Не сошлось» → исправь причину и запусти ту же команду (сделанное пропустится).`,
+      `Нельзя: писать свои сцены, смотреть кадры, ставить модули вручную (их ставит команда), открывать Google Диск, коммитить папку ролика, менять status проекта.`,
+      !curAvatar?.id?`Видео аватара пришлю файлом в чат.`:'',
+      !parts.length?`Пакета материалов на пульте нет — материалы пришлю в чат.`:''
     ].filter(x=>x!=='').join('\n');
-    const done=()=>toast('Задание скопировано: вставь его в чат');
+    const done=()=>toast('Задание скопировано: вставь его в новый чат');
     if(navigator.clipboard?.writeText){ navigator.clipboard.writeText(text).then(done, ()=>fallbackCopy(text)); } else fallbackCopy(text);
   });
   function updateSteps(){
@@ -915,6 +936,7 @@ function wireTiming(p){
   $('#r-manual').addEventListener('input', ()=>{ renderPresets(); showShares(); });
   renderPresets();
   function renderSb(){
+    setTimeout(()=>window.fastNote?.(), 0);
     showShares();
     const el=$('#r-sb');
     if(!curRows.length){ el.innerHTML=`<div class="empty" style="padding:16px">Таблица появится после «Отправить» в шаге «Материалы»: пульт разобьёт текст на слова с таймкодами из видео.</div>`; reelHooks.updateSteps(); reelHooks.renderSummary(); return; }

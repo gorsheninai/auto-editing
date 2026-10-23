@@ -155,6 +155,7 @@ function wireTiming(p){
   $('#r-manual').addEventListener('input', ()=>{ renderPresets(); showShares(); });
   renderPresets();
   function renderSb(){
+    setTimeout(()=>window.fastNote?.(), 0);
     showShares();
     const el=$('#r-sb');
     if(!curRows.length){ el.innerHTML=`<div class="empty" style="padding:16px">Таблица появится после «Отправить» в шаге «Материалы»: пульт разобьёт текст на слова с таймкодами из видео.</div>`; reelHooks.updateSteps(); reelHooks.renderSummary(); return; }

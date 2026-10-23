@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """Проект пульта → src/story.json + src/words.json для композиции Story.
 
-usage: python3 tools/pult_to_story.py project.json <reel_dir> [--anims textanims.json]
+usage: python3 tools/pult_to_story.py project.json <reel_dir> [--anims textanims.json] [--auto]
+
+--auto — быстрый режим: строки без готового блока не ждут своей сцены. 2D-сцена без слоёв собирается
+из материалов (фон 04_, поза 01_, предметы 02_/03_ — по совпадению слов описания с именами файлов),
+картинка без файла и motion/3D без сцены — кинетический текст. Заглушек в ролике не остаётся.
 
 project.json — документ projects/<id> (ArtifactData get, сохранённый в файл; обёртка {data:…} допускается).
 textanims.json — список документов textanims (ArtifactData list), нужен, если выбраны анимации текста.
@@ -48,6 +52,25 @@ def main():
     have = {}
     for fp in glob.glob(os.path.join(media_dir, '**', '*'), recursive=True):
         if os.path.isfile(fp): have.setdefault(os.path.basename(fp), os.path.relpath(fp, os.path.join(reel, 'public')))
+    IMGX = ('.png', '.jpg', '.jpeg', '.webp')
+    pool = {k: sorted(v for f, v in have.items() if f.lower().endswith(IMGX) and f'/{k}' in '/' + v.replace(os.sep, '/'))
+            for k in ('01_', '02_', '03_', '04_')}
+    def toks(t): return {w[:5] for w in re.findall(r'[a-zа-яё0-9]{3,}', (t or '').lower())}
+    def rank(files, text, n):
+        tt = toks(text)
+        sc = sorted(files, key=lambda v: -len(tt & toks(os.path.splitext(os.path.basename(v))[0].replace('_', ' '))))
+        return [v for v in sc if tt & toks(os.path.splitext(os.path.basename(v))[0].replace('_', ' '))][:n]
+    used = {'01_': 0, '04_': 0}
+    def auto_layer(text, note):
+        t = f'{text} {note}'; L = {}
+        for k, key in (('04_', 'bg'), ('01_', 'pose')):
+            if pool[k]:
+                hit = rank(pool[k], t, 1)
+                L[key] = hit[0] if hit else pool[k][used[k] % len(pool[k])]; used[k] += 1
+        pr = rank(pool['02_'] + pool['03_'], t, 3)
+        if pr: L['props'] = pr
+        return L if (L.get('pose') or L.get('props')) else None
+    auto = '--auto' in a
     def find_media(name):
         if not name: return None
         name = os.path.basename(name.strip())
@@ -96,11 +119,16 @@ def main():
             name = r.get('media') or (f'pic_{i + 1}' if kind == 'gen' else '')
             m = find_media(name)
             if m: row['media'] = m
+            elif auto: row['kind'] = kind = 'kinetic'; warn.append(f'{i + 1}: нет файла «{name or "?"}» — кинетический текст')
             else: warn.append(f'{i + 1}: нет файла «{name or "?"}» в public/media ({kind})')
         if kind == 'l2d' and not row.get('scene'):
             if r.get('layer'): row['layer'] = r['layer']
+            elif auto:
+                L = auto_layer(row['text'], row['note'])
+                if L: row['layer'] = L
+                else: row['kind'] = kind = 'kinetic'; warn.append(f'{i + 1}: 2D-сцена без материалов — кинетический текст')
             else: warn.append(f'{i + 1}: 2D-сцена «{row["text"][:40]}» — собрать слоями (layer) или своей сценой в registry.tsx')
-        if kind in ('motion', 'd3') and not row.get('scene'):
+        if kind in ('motion', 'd3') and not row.get('scene') and not auto:
             warn.append(f'{i + 1}: {kind} «{row["text"][:40]}» — нужна сцена в registry.tsx (пока кинетический текст)')
         out.append(row)
     out.sort(key=lambda x: x['s'])

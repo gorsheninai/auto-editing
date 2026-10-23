@@ -12,9 +12,12 @@
   --anims P      textanims: папка из ArtifactData list с out_dir или один JSON.
   --no-matte     не вырезать спикера (окно без выхода головы за край).
   --plate-fix    после вырезки спикера убрать прилипший над головой фон (tools/matte/plate_fix.py).
+  --auto         быстрый режим (его включает reel_go.py): строки без готового блока собираются из материалов
+                 или идут кинетическим текстом — своих сцен писать не нужно.
   --redo ЭТАП    переделать этап, даже если он уже сделан (scaffold, media, cutout, story, avatar, matte).
 
 Этапы (каждый пишет одну строку; полный вывод инструментов — <ролик>/work/prep.log):
+  0. env       tools/setup.sh — ставит недостающие модули и модели (повторно — секунда)
   1. scaffold  папка из template/, пакеты — ссылка на template/node_modules (ставятся один раз на все ролики)
   2. media     пакеты пульта или --media → public/media/<подпапки как на Диске>
   3. cutout    позы, люди и предметы (01_, 02_, 03_) без прозрачности → вырезка фона rembg (isnet-general-use)
@@ -31,7 +34,7 @@ import base64, glob, hashlib, json, os, shutil, subprocess, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 TPL = os.path.join(ROOT, 'template')
-STAGES = ['scaffold', 'media', 'cutout', 'story', 'avatar', 'matte', 'report']
+STAGES = ['env', 'scaffold', 'media', 'cutout', 'story', 'avatar', 'matte', 'report']
 CUT_DIRS = ('01_', '02_', '03_')            # персонаж, предметы, люди — им нужен прозрачный фон
 IMG = ('.png', '.jpg', '.jpeg', '.webp')
 
@@ -110,6 +113,10 @@ class Prep:
         return os.path.abspath(p) if p else None
 
     # ---------- 1. папка ролика ----------
+    def env(self):
+        self.run('bash', os.path.join(HERE, 'setup.sh'))
+        self.say('env', 'окружение готово')
+
     def scaffold(self):
         s = self.sig(self.fsig(os.path.join(TPL, 'package-lock.json')))
         nm = os.path.join(self.reel, 'node_modules')
@@ -239,7 +246,7 @@ class Prep:
     # ---------- 4. раскадровка ----------
     def story(self):
         sj = os.path.join(self.reel, 'src', 'story.json')
-        s = self.sig(self.fsig(self.proj_path), self.state.get('media'), self.state.get('cutout'), self.opt('--anims'))
+        s = self.sig(self.fsig(self.proj_path), self.state.get('media'), self.state.get('cutout'), self.opt('--anims'), self.flag('--auto'))
         if self.done('story', s) and os.path.exists(sj):
             self.scene_todo = self.state.get('scene_todo', [])
             self.say('story', 'уже готово'); return
@@ -253,6 +260,7 @@ class Prep:
                     if isinstance(d, dict): d.setdefault('id', os.path.splitext(os.path.basename(f))[0]); docs.append(d)
                 an = os.path.join(self.work, 'textanims.json'); json.dump(docs, open(an, 'w'), ensure_ascii=False)
             cmd += ['--anims', an]
+        if self.flag('--auto'): cmd.append('--auto')
         out = self.run(*cmd, out=True)
         lines = [l for l in out.strip().splitlines() if l.strip()]
         head = next((l for l in lines if l.startswith('story.json')), '')
@@ -396,6 +404,7 @@ class Prep:
         if self.warn:
             print('Проверить:')
             for w in self.warn: print('  !', w)
+        if self.flag('--auto'): return
         print('Дальше: свои сцены в template/src/story/registry.tsx по списку выше → стоп-кадры листом → '
               f'COMP=Story tools/render.sh {os.path.relpath(self.reel, ROOT)} out.mp4 (запускать в фоне).')
         print(f'Полный лог: {os.path.relpath(os.path.join(self.work, "prep.log"), ROOT)}')

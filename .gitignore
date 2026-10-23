@@ -17,3 +17,6 @@ reels/*/work/stills/
 reels/_pult/
 render.log
 work/
+
+# ролики в git не хранятся (старые, уже закоммиченные, остаются как есть)
+reels/*
