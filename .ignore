@@ -1,0 +1,4 @@
+# Поиск (Grep/rg) это не читает: дубли и служебное
+**/package-lock.json
+**/node_modules/
+reels/*/public/

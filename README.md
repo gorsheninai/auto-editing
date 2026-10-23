@@ -23,7 +23,7 @@ pult/src/              исходник пульта по разделам; tool
 
 ## Новый ролик
 
-1. Скопировать `template` в `reels/NN-name`, затем выполнить `npm ci`.
+1. Скопировать `template` в `reels/NN-name`, затем выполнить `npm ci`. После рендера — `python3 tools/reel_slim.py reels/NN-name`: в git остаются только свои файлы ролика.
 2. Нарезать картинки с Диска и положить их в `public/` (items, poses, hands, ppl, img).
 3. Обработать видео:
    - `python3 tools/cut_pauses.py src.mp4 public/avatar.mp4`;
