@@ -1,0 +1,239 @@
+{
+ "bw_share": 0.24,
+ "camera": {
+  "insert_pan": 0.0054,
+  "insert_zoom_per_s": 0.0044,
+  "shake": 0.0026,
+  "speaker_zoom_per_s": -0.0014
+ },
+ "composition": {
+  "shot_sizes": {
+   "close": 8,
+   "medium": 11,
+   "wide": 2
+  },
+  "speaker_face_h": 0.152,
+  "speaker_face_x": 0.511,
+  "speaker_face_y": 0.356
+ },
+ "engine": {
+  "bwShare": 0.24,
+  "crop": {
+   "base": 1,
+   "jump": 1.61,
+   "jumpShare": 0.64
+  },
+  "cutsOnWords": 0.69,
+  "grade": {
+   "C": 0.233,
+   "L": 0.3939,
+   "S": 0.3264,
+   "black": 0.0509,
+   "grain": 2.878,
+   "sharp": 902.5488,
+   "skin_L": 0.4129,
+   "skin_S": 0.475,
+   "skin_warm": 0.2184,
+   "vign": 0.8676,
+   "warm_hi": 0.0529,
+   "warm_sh": 0.219,
+   "white": 0.981
+  },
+  "insertCamera": {
+   "pan": 0.0054,
+   "zoomPerS": 0.0044
+  },
+  "keywords": {
+   "note": "ключевое слово не увеличивается в субтитре — уходит в двухъярусный заголовок над головой (TxtNeonTitle); субтитр в это время мелко в скобках под заголовком",
+   "perMin": 0,
+   "scale": 1
+  },
+  "shots": {
+   "burstShot": 0.23,
+   "burstsPerMin": 0.6,
+   "insertMedian": 1,
+   "speakerMedian": 2.79,
+   "speakerShare": 0.547
+  },
+  "sound": {
+   "bedRelVoiceDb": -10.2,
+   "hitRelVoiceDb": -2.8,
+   "hitShare": 0.11,
+   "lufs": -14.3,
+   "music": true,
+   "whooshPerMin": 16.1,
+   "whooshRelVoiceDb": -21.4
+  },
+  "subtitle": {
+   "anim": "cut",
+   "case": "upper",
+   "color": "#FFF7FF",
+   "fontSize": 64,
+   "leadMs": 0,
+   "style": "SubTom",
+   "top": 985,
+   "words": 1
+  },
+  "title": {
+   "anim": "blur",
+   "layout": "two_tier",
+   "ms": 240,
+   "note": "по листам: ~13–25 заголовков в минуту (OCR дробит строки — 32.75 завышено); верхняя строка белая проявляется из размытия, нижняя красная неоновая собирается из букв вразнобой со свечением, уход — размытие",
+   "perMin": 20
+  },
+  "transitions": {
+   "blur_dissolve": 0.13,
+   "flash": 0.04,
+   "hard": 0.74,
+   "whip_blur": 0.04,
+   "zoom": 0.04
+  }
+ },
+ "grade_all": {
+  "C": 0.222,
+  "L": 0.3599,
+  "S": 0.3377,
+  "black": 0.0502,
+  "grain": 2.3491,
+  "sharp": 534.8388,
+  "vign": 0.8446,
+  "warm_hi": 0.0505,
+  "warm_sh": 0.0196,
+  "white": 0.8823
+ },
+ "grade_speaker": {
+  "C": 0.233,
+  "L": 0.3939,
+  "S": 0.3264,
+  "black": 0.0509,
+  "grain": 2.878,
+  "sharp": 902.5488,
+  "skin_L": 0.4129,
+  "skin_S": 0.475,
+  "skin_warm": 0.2184,
+  "vign": 0.8676,
+  "warm_hi": 0.0529,
+  "warm_sh": 0.219,
+  "white": 0.981
+ },
+ "manual_check": {
+  "animations": "вход: белое из размытия 150–250 мс, красное — буквы вразнобой + вспышка свечения, числа — сдвиг с размытием; скриншоты и обложки вылетают с пружиной и размытием движения; выход — размытие",
+  "font": "жирный геометрический гротеск (Montserrat/Gilroy ExtraBold), сжатый трекинг",
+  "grade": "тёплые тени (красный), холодные/нейтральные света, умеренная виньетка; ч/б — отдельные кадры и серия",
+  "inserts": "ИИ-сцены во весь кадр (гипербола сказанного, часто со спикером внутри), карточки-видео со скруглением на красной миллиметровке, ч/б архив очередью 0.2–0.3 с, спикер на подменённом фоне (конференция, флаг)",
+  "overlays": "скриншоты профиля/комментариев/новостей, обложки рилсов с просмотрами, иконки соцсетей, 3D-пин — висят сбоку/над головой поверх спикера",
+  "shots": "границы и типы планов исправлены по листам 2 к/с: детектор пропускал склейки спикер→спикер и вспышки и считал ИИ-сцены с людьми спикером (report.auto.json — исходник)",
+  "subtitle": "одно слово, капс, белый жирный гротеск без подложки, тень; y≈0.51; во время заголовка субтитр уменьшается и встаёт в квадратных скобках под ним — [Я ОДИН], [АССОЦИАЦИЕЙ]",
+  "title": "двухъярусный: белая служебная строка + огромная красная неоновая с glow; в хуке ref3 — объёмный (экструзия) и в перспективе; числа красным неоном, деньги зелёным неоном (ref1 207.844₽ → 300.000₽); ref3: белый текст на красной плашке с белой обводкой (И СОЗДАЛИ / ПЕРЕКУПЫЧА)",
+  "transitions": "жёсткие ~75%; внутри карточки на сетке смена клипа расфокусом (blur_dissolve); флэш-вспышка (ref1 — негатив 2 кадра, ref3 — белая) и зум-размытие на переломе мысли"
+ },
+ "materials": {
+  "broll": 0.357,
+  "graphic": 0.048,
+  "speaker": 0.547
+ },
+ "refs": [
+  "ref1.mp4",
+  "ref2.mp4",
+  "ref3.mp4"
+ ],
+ "rhythm": {
+  "burst_shot_len": 0.23,
+  "bursts_per_min": 0.6,
+  "crop_jump_ratio": 1.61,
+  "crop_jump_share": 0.64,
+  "cut_on_word_share": 0.69,
+  "cuts_per_min": 26.7,
+  "insert_shot_median": 1,
+  "speaker_share": 0.547,
+  "speaker_shot_median": 2.79,
+  "transitions": {
+   "blur_dissolve": 0.13,
+   "flash": 0.04,
+   "hard": 0.74,
+   "whip_blur": 0.04,
+   "zoom": 0.04
+  }
+ },
+ "sound": {
+  "bed_low_rel_voice_db": -10.2,
+  "bed_rel_db_median": -13.5,
+  "hit_level_rel_voice_db": -2.8,
+  "hit_share_of_cuts": 0.11,
+  "lufs": -14.3,
+  "music": true,
+  "sfx_on_cut_share": 0.38,
+  "speech_max_pause": 0.58,
+  "speech_wpm": 178,
+  "tempo": 123,
+  "true_peak": -0.7,
+  "whoosh_level_rel_voice_db": -21.4,
+  "whoosh_per_min": 16.1
+ },
+ "substitutes": {
+  "broll": "живой B-roll → 2D-сцена по смыслу во весь кадр с той же камерой (медленный наезд/дрейф как insert_zoom_per_s), в том же грейде и с зерном",
+  "bw_series": "ч/б серия → FxGrade чб на вставках",
+  "card_black": "CardWords тёмный: чёрный фон, мелкое белое слово",
+  "card_white": "CardWords: светлый фон, одно слово за раз",
+  "flicker_bg": "фон за спикером мигает → мир-флик (смена 2D-миров каждые 2–3 кадра)",
+  "graphic": "плоская графика → блок библиотеки той же подгруппы",
+  "person": "человек в кадре → 2D-персонаж/силуэт в сцене по смыслу",
+  "screenshot": "скриншот → PhoneFrame/PhoneScroll/наш интерфейс-блок с текстом по смыслу"
+ },
+ "text": {
+  "subtitle": {
+   "anim": {
+    "cut": 18,
+    "fade": 15,
+    "scale": 2,
+    "slide": 1
+   },
+   "case": "upper",
+   "color": "#FFF7FF",
+   "dur": 0.33,
+   "h_px": 42,
+   "key_h_px": 107,
+   "key_per_min": 22.6,
+   "lead_ms": null,
+   "words_per_screen": 1,
+   "x_rel": 0.503,
+   "xh_px": 35,
+   "y_rel": 0.513
+  },
+  "title": {
+   "anim_in": {
+    "blur": 2,
+    "cut": 28,
+    "fade": 15,
+    "scale": 9,
+    "slide": 1
+   },
+   "anim_in_ms": 240,
+   "anim_out": {
+    "blur": 6,
+    "cut": 25,
+    "fade": 14,
+    "scale": 6,
+    "slide": 1
+   },
+   "count_per_min": 32.75,
+   "dur": 0.67,
+   "examples": [
+    "GW3HEC",
+    "KOTOPOMy",
+    "COUCET",
+    "MEH93OBYT",
+    "AHATONMM",
+    "10 PWACOB",
+    "114.769",
+    "290.7272",
+    "300.000P",
+    "21.577.486",
+    "40.000.000",
+    "29.70"
+   ],
+   "h_px": 106,
+   "y_rel": 0.298
+  }
+ }
+}
