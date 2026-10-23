@@ -22,19 +22,29 @@ chk onnxruntime onnxruntime
 chk rembg rembg
 chk librosa librosa
 chk sherpa_onnx sherpa-onnx
+chk rapidocr_onnxruntime rapidocr-onnxruntime
 if (( ${#need[@]} )); then
   log "ставлю ${need[*]}"
   python3 -m pip install -q --break-system-packages "${need[@]}" 2>&1 | grep -v -i "warning\|notice" | tail -3 || true
 fi
 
 # 2. Модель распознавания речи (tools/asr.py)
-ASR="$HOME/asr/sherpa-onnx-zipformer-ru-2024-09-18"
+# все модели — в одной папке ASR_HOME (её читают asr.py, ref_analyze.py, grade_match.py)
+AH="${ASR_HOME:-/home/claude/asr}"; mkdir -p "$AH/haar"
+[[ -d "$HOME/asr/sherpa-onnx-zipformer-ru-2024-09-18" && ! -e "$AH/sherpa-onnx-zipformer-ru-2024-09-18" ]] && mv "$HOME/asr/sherpa-onnx-zipformer-ru-2024-09-18" "$AH/"
+ASR="$AH/sherpa-onnx-zipformer-ru-2024-09-18"
 if [[ ! -f "$ASR/tokens.txt" ]]; then
   log "качаю модель распознавания речи"
-  mkdir -p "$HOME/asr" && cd "$HOME/asr"
+  cd "$AH"
   curl -sSL -o zf.tar.bz2 https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-zipformer-ru-2024-09-18.tar.bz2
   tar xjf zf.tar.bz2 && rm -f zf.tar.bz2
   cd "$ROOT"
+fi
+
+# 2б. Детектор лиц YuNet (крупность спикера, грейд — ref_analyze.py)
+if [[ ! -s "$AH/haar/yunet.onnx" ]]; then
+  log "качаю детектор лиц"
+  curl -sSL -o "$AH/haar/yunet.onnx" https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx
 fi
 
 # 3. Модели вырезки фона (предметы и спикер)
@@ -52,6 +62,6 @@ if [[ ! -d "$ROOT/template/node_modules" ]]; then
 fi
 
 # проверка
-python3 -c "import numpy, PIL, scipy, cv2, rembg, librosa, sherpa_onnx" && command -v ffmpeg >/dev/null && command -v node >/dev/null
+python3 -c "import numpy, PIL, scipy, cv2, rembg, librosa, sherpa_onnx" && [[ -f "$ASR/tokens.txt" && $(stat -c%s "$AH/haar/yunet.onnx") -gt 100000 ]] && command -v ffmpeg >/dev/null && command -v node >/dev/null
 echo "$SIG" > "$MARK"
 log "готово"
