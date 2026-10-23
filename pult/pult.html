@@ -275,7 +275,7 @@ const $ = (s, r=document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const blob = id => id ? '/_blob/' + id : '';
 let db = null, assets = null, user = null, sample = null, mcp = null, canWrite = true, canEdit = false;
-const S = {projects:[], templates:[], blocks:[], presets:[], textanims:[], assets:[]};
+const S = {projects:[], templates:[], blocks:[], presets:[], textanims:[], assets:[], refanalyses:[]};
 let kindFilter = 'all', groupFilter = 'all', assetSec = 'all', assetGroup = 'all';
 
 const GOALS = ['слово в директ','охват','подписка','продажа'];
@@ -331,6 +331,14 @@ document.querySelectorAll('.tab[data-view]').forEach(b=>b.addEventListener('clic
 show((location.hash||'').slice(1));
 
 /* ---------- helpers ---------- */
+/* платный повтор: первое нажатие спрашивает, второе в течение 4 с запускает */
+function armed(btn, has, label){
+  if(!has) return true;
+  if(btn.dataset.armed==='1'){ btn.dataset.armed=''; btn.textContent=btn.dataset.lbl; return true; }
+  btn.dataset.lbl=btn.textContent; btn.dataset.armed='1'; btn.textContent=label||'Уже есть. Пересоздать?';
+  setTimeout(()=>{ if(btn.dataset.armed==='1'){ btn.dataset.armed=''; btn.textContent=btn.dataset.lbl; } },4000);
+  return false;
+}
 const presetOf = id => S.presets.find(p=>p.id===id);
 const tplOf = id => S.templates.find(t=>t.id===id);
 function strip(a,b,c,big){
@@ -1038,7 +1046,7 @@ function wireTiming(p){
     let done=false;
     try{
       ctl=new AbortController();
-      const res = await sample.json(prompt, {signal:ctl.signal, cache:false});
+      const res = await sample.json(prompt, {signal:ctl.signal, cache:true});
       if(!Array.isArray(res)) throw {code:'invalid_json'};
       const W=curWords, N=W.length, names=new Set(files.map(f=>f.name));
       const segs=res.map(x=>({a:Math.round(Number(x.from)), b:Math.round(Number(x.to)), mode:String(x.mode||''), kind:String(x.kind||''), win:String(x.win||''), media:String(x.media||''), note:String(x.visual||x.note||''), tech:(Array.isArray(x.tech)?x.tech:[]).map(c=>String(c).toUpperCase()).filter(c=>/^[A-Z0-9_]{2,12}$/.test(c))}))
@@ -1201,7 +1209,7 @@ function wireStyle(p){
       say('Снимаю кадры…');
       const {sheet, full} = await captureAnim(blob(r.id), t);
       say('Claude разбирает анимацию… до минуты.');
-      const res = await sample.json(TEXTANIM_PROMPT.replace('{ROLE}', role==='title'?'заголовок или крупный текст':'субтитры'), {images:[sheet, full], cache:false});
+      const res = await sample.json(TEXTANIM_PROMPT.replace('{ROLE}', role==='title'?'заголовок или крупный текст':'субтитры'), {images:[sheet, full], cache:true});
       if(!res || !res.summary) throw {code:'invalid_json'};
       let previewId=null; if(assets){ try{ previewId=(await assets.upload(sheet,{type:'image/jpeg'})).id; }catch(e){} }
       const doc={name:String(res.name||'Анимация из референса').slice(0,60), role, summary:String(res.summary), params:res.params||{}, font:String(res.font||''), source:r.name, refId:r.id, projectId:p.id, at:+t.toFixed(2), previewId, createdAt:new Date().toISOString()};
@@ -1259,6 +1267,7 @@ function wireStyle(p){
     if(!sample){ toast('Claude недоступен в этом просмотре'); return; }
     if(!refs.length){ toast('Сначала загрузи референсы'); return; }
     const note=$('#r-styleNote'), out=$('#r-style'), go=$('#r-styleGo'), stop=$('#r-styleStop');
+    if(!armed(go, out.value.trim(), 'Стиль уже есть. Пересоздать?')) return;
     go.disabled=true; stop.hidden=false;
     try{
       const lim = await sample.limits().catch(()=>null);
@@ -1282,7 +1291,7 @@ function wireStyle(p){
         .replace('{SCRIPT}', (d.script||'(текст ещё не вставлен)').slice(0,4000));
       note.textContent='Claude создаёт стиль… обычно 20–60 секунд.'; out.value='';
       ctlS=new AbortController();
-      const {text, truncated} = await sample(prompt, {images:imgs, signal:ctlS.signal, cache:false, onText:({text})=>{ out.value=text; }});
+      const {text, truncated} = await sample(prompt, {images:imgs, signal:ctlS.signal, cache:true, onText:({text})=>{ out.value=text; }});
       out.value=text; note.textContent = truncated ? 'Ответ оборвался по длине: сохранил то, что успело прийти.' : 'Готово. Стиль сохранён в ролике, его можно править.';
       await write(()=>docRef.update({styleAnalysis:text, refs, updatedAt:new Date().toISOString()}));
     }catch(e){
@@ -1299,12 +1308,13 @@ function wireStyle(p){
     const d=collect(), note=$('#r-gptNote'), out=$('#r-gpt'), go=$('#r-gptGo'), stop=$('#r-gptStop'), planBox=$('#r-plan');
     if(!d.script.trim()){ toast('Вставь текст сценария'); $('#r-script').focus(); return; }
     if(!d.styleAnalysis.trim()){ toast('Сначала создай стиль'); return; }
+    if(!armed(go, d.gptPrompt.trim(), 'Промпт уже есть. Пересоздать?')) return;
     go.disabled=true; stop.hidden=false; ctlG=new AbortController();
     try{
       /* шаг 1: смысловой план по тексту и кадрам референсов */
-      note.textContent='Шаг 1 из 2: готовлю кадры референсов…';
+      note.textContent='Шаг 1 из 2: готовлю план…';
       const imgs=[]; const lim=await sample.limits().catch(()=>null);
-      if(lim?.images) for(const r of refs.slice(0,6)){ try{ const sh=await contactSheet(r); if(sh) imgs.push(sh); }catch(e){} }
+      /* кадры референсов не отправляем: стиль по ним уже описан текстом в поле «Стиль» */
       if(lim?.images?.maxCount && imgs.length>lim.images.maxCount) imgs.length=lim.images.maxCount;
       note.textContent='Шаг 1 из 2: Claude разбирает текст на смысловые блоки… до минуты.';
       const rows2d = curRows.filter(r=>r.kind==='l2d'), rowsGen = curRows.filter(r=>r.kind==='gen');
@@ -1313,16 +1323,16 @@ function wireStyle(p){
         ? (rows2d.length?'2D-СЦЕНЫ (для них — позы, предметы, фоны):\n'+rowsText(rows2d):'2D-сцен нет — позы, предметы и фоны не нужны.')+'\n\n'+(rowsGen.length?'КАРТИНКИ ПО СМЫСЛУ (для каждого сегмента — одно цельное изображение; режим B — зона сцены, C — весь экран):\n'+rowsText(rowsGen):'Картинок по смыслу нет.')
         : (curRows.length ? rowsText(curRows) : '(раскадровки нет)');
       const planPrompt = PLAN_PROMPT.replace('{SCRIPT}', d.script.slice(0,8000)).replace('{STORY}', story.slice(0,8000)).replace('{STYLE}', d.styleAnalysis.slice(0,8000));
-      const plan = await sample.json(planPrompt, {images: imgs.length?imgs:undefined, signal:ctlG.signal, cache:false, modelTier:'complex'});
+      const plan = await sample.json(planPrompt, {images: imgs.length?imgs:undefined, signal:ctlG.signal, cache:true});
       if(!plan || ((!Array.isArray(plan.blocks)||!plan.blocks.length) && !(plan.pictures||[]).length)) throw {code:'invalid_json'};
       const pt = planText(plan); planBox.value = pt; $('#r-planWrap').hidden=false; $('#r-planWrap').open=true;
       await write(()=>docRef.update({assetPlan:plan, updatedAt:new Date().toISOString()}));
       /* шаг 2: промпт строго по плану */
       note.textContent='Шаг 2 из 2: Claude пишет промпт по плану… до минуты.'; out.value='';
-      const prompt = GPT_PROMPT.replace('{PLAN}', JSON.stringify(plan, null, 1).slice(0,30000)).replace('{STYLE}', d.styleAnalysis.slice(0,12000))
+      const prompt = GPT_PROMPT.replace('{PLAN}', JSON.stringify(plan).slice(0,30000)).replace('{STYLE}', d.styleAnalysis.slice(0,12000))
         .replace('{REFS}', refs.map((r,i)=>`Референс ${i+1}: ${r.name} (${r.kind==='video'?'видео':'картинка'})`).join('\n')||'нет')
         .replace('{SAVE}', SAVE_BLOCK(folderName(d)));
-      const {text, truncated} = await sample(prompt, {signal:ctlG.signal, cache:false, onText:({text})=>{ out.value=text; }});
+      const {text, truncated} = await sample(prompt, {signal:ctlG.signal, cache:true, onText:({text})=>{ out.value=text; }});
       out.value=text.replace(/^```[a-z]*\n?|\n?```$/g,'');
       note.textContent = truncated ? 'Промпт оборвался по длине: нажми ещё раз или сократи текст.' : 'Готово. Каждая картинка привязана к куску текста. Скопируй промпт и отправь в ChatGPT вместе со своим фото и референсами.';
       await write(()=>docRef.update({gptPrompt:out.value, updatedAt:new Date().toISOString()}));
@@ -1487,6 +1497,12 @@ $('#newReel').addEventListener('click', ()=>createReel());
 
 
 /* ---------- ПРЕМОНТАЖ ИЗ РЕФЕРЕНСОВ ---------- */
+/* ключ файла для кэша разборов: имя + размер + дата */
+function refKey(str){ let h=5381; for(let i=0;i<str.length;i++) h=((h<<5)+h+str.charCodeAt(i))>>>0; return h.toString(36)+str.length.toString(36); }
+/* в сводку — разбор без длинных описаний кадров */
+function slimAnalysis(a){ if(!a||typeof a!=='object') return a; const o={...a};
+  if(Array.isArray(o.shots)) o.shots=o.shots.map(sh=>{ const {what,text,...rest}=sh||{}; return rest; });
+  return o; }
 function copyText(text, msg){
   const done=()=>toast(msg||'Скопировано');
   if(navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(done, ()=>fallbackCopy(text)); else fallbackCopy(text);
@@ -1503,7 +1519,8 @@ function deepTask(t){
   if(!t) return '';
   return [...chatHead(`Глубокий разбор премонтажа «${t.name}» (templates/${t.id}).`),
     `Референсы — видео на пульте: ${(t.refs||[]).map((r,i)=>`${i+1}) ${r.name} — id ${r.id}`).join('; ')}.`,
-    `Скачай их (Artifact read с path=id) и прогони конвейер из CLAUDE.md «Глубокий разбор»: tools/ref_analyze.py по каждому → tools/style_spec.py → проверь листы глазами (шрифт, анимации, переходы, вставки).`,
+    `Скачай их (Artifact read с path=id) и прогони конвейер из CLAUDE.md «Глубокий разбор»: tools/ref_analyze.py по каждому → tools/style_spec.py.`,
+    `Кадры каждого референса пульт уже разобрал: templates/${t.id}.refs[].analysis (подача, хук, планы, субтитры, заголовки, оверлеи) и refs[].metrics. Описание бери оттуда, а не по картинкам заново. Листы смотри, только если поле пустое или отчёт ref_analyze с ним расходится, и не больше одного листа-сетки на референс. report.json и данные пульта в чат целиком не выводи: сохраняй в файл и читай скриптом.`,
     `Затем tools/style_dna.py по тем же отчётам (--timeline) → сравни референсы между собой и опиши стиль тремя слоями: ядро (одинаково у всех), приёмы с правилом «когда» по смыслу текста, структура и диапазоны; формат — tools/dna_text.py; запиши в rules.dna.`,
     `Уточни и запиши обратно в templates/${t.id}: rules.dna, spec (style_spec.json целиком — цифры ядра), rules.style, recipe, sound, speech, rules.passport, rules.target, rules.subAnim, rules.allowed, blockMap, gaps; поставь deep: true. С полем spec «Создать монтаж» сам собирает раскадровку по ритму референсов, а tools/spec_build.py — тайминги, грейд, звук и субтитры.`,
     `Чего нет в библиотеке (gaps) — предложи блоки, после согласования сделай их и добавь в allowed.`].join('\n');
@@ -1647,23 +1664,27 @@ function openPremont(){
         try{ const u=URL.createObjectURL(f.file); try{ f.m=await refMeasure(u, q=>{ f.state=`кадры ${Math.round(q*100)}%`; show(); }); } finally{ URL.revokeObjectURL(u); } }catch(e){ f.state='браузер не читает видео — нужен mp4'; show(); continue; }
         f.state='звук'; show();
         try{ f.snd=await refSound(await f.file.arrayBuffer(), f.m.cuts); }catch(e){ f.snd=null; }
+        f.key='r'+refKey(`${f.file.name}|${f.file.size}|${f.file.lastModified}`);
+        const cached=S.refanalyses.find(x=>x.id===f.key);
+        if(cached?.analysis){ f.analysis=cached.analysis; f.state='разобран раньше'; show(); continue; }
         f.state='Claude смотрит'; show(); note.textContent=`Разбираю ролик ${i+1} из ${files.length}…`;
         const imgs=f.m.sheets.slice(0, Math.max(1,(lim.images.maxCount||2)));
         const measure={duration:f.m.duration, планов:f.m.shots, склеекВМинуту:f.m.cutsPerMin, средняяДлинаПлана:f.m.avgShot, мин:f.m.minShot, макс:f.m.maxShot, склейки:f.m.cuts, палитра:f.m.palette, формат:`${f.m.w}×${f.m.h}`, звук:f.snd};
         const prompt=REF_PROMPT.replace('{BLOCKS}',blocksTxt).replace('{SUBS}',subsTxt).replace('{NAME}',f.file.name).replace('{MEASURE}',JSON.stringify(measure))
           .replace('{KEYS}', `Секунды кадров: ${f.m.keyTimes.join(', ')}. Картинок: ${imgs.length}.`);
-        f.analysis=await sample.json(prompt,{images:imgs, signal:ctl.signal, cache:false, modelTier:'complex'});
+        f.analysis=await sample.json(prompt,{images:imgs, signal:ctl.signal, cache:true});
+        try{ await db.collection('refanalyses').doc(f.key).set({name:f.file.name, size:f.file.size, analysis:f.analysis, at:new Date().toISOString()}); }catch(e){}
         f.state='разобран'; show();
       }
       const done=files.filter(f=>f.analysis);
       if(!done.length){ note.textContent='Ни один ролик не разобрался.'; return; }
       note.textContent='Собираю общий рецепт по всем роликам… до пары минут.';
       const prompt=SYNTH_PROMPT.replace('{N}',done.length)
-        .replace('{ANALYSES}', done.map((f,i)=>`#${i+1} «${f.file.name}»: ${JSON.stringify(f.analysis)}`).join('\n').slice(0,60000))
+        .replace('{ANALYSES}', done.map((f,i)=>`#${i+1} «${f.file.name}»: ${JSON.stringify(slimAnalysis(f.analysis))}`).join('\n').slice(0,40000))
         .replace('{METRICS}', done.map((f,i)=>`#${i+1}: видео ${JSON.stringify({dur:f.m.duration,cpm:f.m.cutsPerMin,avgShot:f.m.avgShot,palette:f.m.palette})}; звук ${JSON.stringify(f.snd)}`).join('\n'))
         .replace('{BLOCKS}', blocksTxt).replace('{SUBS}', subsTxt)
         .replace('{FSANS}', PP_FONTS.sans.map(x=>x[0]).join(', ')).replace('{FSERIF}', PP_FONTS.serif.map(x=>x[0]).join(', ')).replace('{FHAND}', PP_FONTS.hand.map(x=>x[0]).join(', '));
-      result=await sample.json(prompt,{signal:ctl.signal, cache:false, modelTier:'complex'});
+      result=await sample.json(prompt,{signal:ctl.signal, cache:true, modelTier:'complex'});
       if(!result||typeof result!=='object') throw {code:'invalid_json'};
       note.textContent='Готово. Проверь и сохрани премонтаж.'; renderResult();
     }catch(e){ note.textContent = e&&e.code==='cancelled' ? 'Остановлено. Разобранные ролики сохранятся при следующем запуске.' : e&&e.code==='invalid_json' ? 'Claude ответил не в том формате. Нажми «Разобрать» ещё раз — готовые ролики повторно не разбираются.' : sampleErr(e); }
@@ -1840,7 +1861,7 @@ ${t.fonts?'Шрифты из карточки: '+t.fonts:''}
 Шрифты — только id из списков. sans (основной, заголовки и цифры): ${ids(PP_FONTS.sans)}. serif (акцентные слова): ${ids(PP_FONTS.serif)}. hand (рукописные пометки): ${ids(PP_FONTS.hand)}.
 radius — одно из 0.3, 0.6, 1, 1.6. motion — soft | spring | snappy. texture — dots | clean | paper | grain. shadow — true/false.
 Ответь только JSON: {"colors":{"bg","ink","muted","accent","accent2","card","soft"},"fonts":{"sans","serif","hand"},"radius","motion","texture","shadow","why":"одно предложение, почему так"}`;
-    try{ ppCtl=new AbortController(); const res=await sample.json(prompt,{signal:ppCtl.signal, cache:false});
+    try{ ppCtl=new AbortController(); const res=await sample.json(prompt,{signal:ppCtl.signal, cache:true});
       if(!res||typeof res!=='object') throw {code:'invalid_json'}; setPP(res); note.textContent=(res.why?res.why+' ':'')+'Проверь и нажми «Сохранить правила».'; }
     catch(e){ note.textContent = e&&e.code==='cancelled' ? 'Остановлено.' : 'Не получилось собрать паспорт, нажми ещё раз.'; }
     finally{ go.disabled=false; $('#tr-ppStop').hidden=true; }
@@ -2284,7 +2305,7 @@ renderAll();
   mcp = canEdit ? await window.claude.use('mcp') : null;
   status('');
   let loaded = 0;
-  for(const col of ['projects','templates','blocks','presets','textanims','assets']){
+  for(const col of ['projects','templates','blocks','presets','textanims','assets','refanalyses']){
     db.collection(col).onSnapshot(snap=>{
       S[col] = snap.docs.filter(d=>d.exists).map(d=>({id:d.id, ...d.data()}));
       if(++loaded>=0) renderAll();

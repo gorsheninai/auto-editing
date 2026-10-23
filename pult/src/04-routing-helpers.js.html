@@ -9,6 +9,14 @@ document.querySelectorAll('.tab[data-view]').forEach(b=>b.addEventListener('clic
 show((location.hash||'').slice(1));
 
 /* ---------- helpers ---------- */
+/* платный повтор: первое нажатие спрашивает, второе в течение 4 с запускает */
+function armed(btn, has, label){
+  if(!has) return true;
+  if(btn.dataset.armed==='1'){ btn.dataset.armed=''; btn.textContent=btn.dataset.lbl; return true; }
+  btn.dataset.lbl=btn.textContent; btn.dataset.armed='1'; btn.textContent=label||'Уже есть. Пересоздать?';
+  setTimeout(()=>{ if(btn.dataset.armed==='1'){ btn.dataset.armed=''; btn.textContent=btn.dataset.lbl; } },4000);
+  return false;
+}
 const presetOf = id => S.presets.find(p=>p.id===id);
 const tplOf = id => S.templates.find(t=>t.id===id);
 function strip(a,b,c,big){

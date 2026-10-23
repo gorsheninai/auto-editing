@@ -124,7 +124,7 @@ ${t.fonts?'Шрифты из карточки: '+t.fonts:''}
 Шрифты — только id из списков. sans (основной, заголовки и цифры): ${ids(PP_FONTS.sans)}. serif (акцентные слова): ${ids(PP_FONTS.serif)}. hand (рукописные пометки): ${ids(PP_FONTS.hand)}.
 radius — одно из 0.3, 0.6, 1, 1.6. motion — soft | spring | snappy. texture — dots | clean | paper | grain. shadow — true/false.
 Ответь только JSON: {"colors":{"bg","ink","muted","accent","accent2","card","soft"},"fonts":{"sans","serif","hand"},"radius","motion","texture","shadow","why":"одно предложение, почему так"}`;
-    try{ ppCtl=new AbortController(); const res=await sample.json(prompt,{signal:ppCtl.signal, cache:false});
+    try{ ppCtl=new AbortController(); const res=await sample.json(prompt,{signal:ppCtl.signal, cache:true});
       if(!res||typeof res!=='object') throw {code:'invalid_json'}; setPP(res); note.textContent=(res.why?res.why+' ':'')+'Проверь и нажми «Сохранить правила».'; }
     catch(e){ note.textContent = e&&e.code==='cancelled' ? 'Остановлено.' : 'Не получилось собрать паспорт, нажми ещё раз.'; }
     finally{ go.disabled=false; $('#tr-ppStop').hidden=true; }

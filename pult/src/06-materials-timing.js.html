@@ -292,7 +292,7 @@ function wireTiming(p){
     let done=false;
     try{
       ctl=new AbortController();
-      const res = await sample.json(prompt, {signal:ctl.signal, cache:false});
+      const res = await sample.json(prompt, {signal:ctl.signal, cache:true});
       if(!Array.isArray(res)) throw {code:'invalid_json'};
       const W=curWords, N=W.length, names=new Set(files.map(f=>f.name));
       const segs=res.map(x=>({a:Math.round(Number(x.from)), b:Math.round(Number(x.to)), mode:String(x.mode||''), kind:String(x.kind||''), win:String(x.win||''), media:String(x.media||''), note:String(x.visual||x.note||''), tech:(Array.isArray(x.tech)?x.tech:[]).map(c=>String(c).toUpperCase()).filter(c=>/^[A-Z0-9_]{2,12}$/.test(c))}))

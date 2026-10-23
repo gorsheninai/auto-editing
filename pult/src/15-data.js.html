@@ -13,7 +13,7 @@
   mcp = canEdit ? await window.claude.use('mcp') : null;
   status('');
   let loaded = 0;
-  for(const col of ['projects','templates','blocks','presets','textanims','assets']){
+  for(const col of ['projects','templates','blocks','presets','textanims','assets','refanalyses']){
     db.collection(col).onSnapshot(snap=>{
       S[col] = snap.docs.filter(d=>d.exists).map(d=>({id:d.id, ...d.data()}));
       if(++loaded>=0) renderAll();
