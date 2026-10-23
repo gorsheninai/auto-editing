@@ -27,15 +27,15 @@ def recognize(x):
         encoder=f'{MODEL}/encoder.int8.onnx', decoder=f'{MODEL}/decoder.onnx', joiner=f'{MODEL}/joiner.int8.onnx',
         tokens=f'{MODEL}/tokens.txt', num_threads=4, decoding_method='greedy_search')
     words = []
-    # куски по 25 с с перекрытием нет — режем по тишине, чтобы не рвать слова
+    # куски до 18 с с перекрытием нет — режем по тишине, чтобы не рвать слова
     hop = 160; n = len(x) // hop
     rms = np.sqrt((x[:n * hop].reshape(n, hop) ** 2).mean(1) + 1e-12)
     quiet = rms < max(1e-4, np.percentile(rms, 20) * 1.5)
     bounds, start = [], 0
     while start < len(x):
-        end = min(len(x), start + 16000 * 25)
+        end = min(len(x), start + 16000 * 18)  # модель с sherpa-onnx 2.x падает на кусках длиннее ~20 с
         if end < len(x):
-            a, b = (start + 16000 * 15) // hop, end // hop
+            a, b = (start + 16000 * 10) // hop, end // hop
             q = np.where(quiet[a:b])[0]
             if len(q): end = (a + q[len(q) // 2]) * hop
         bounds.append((start, end)); start = end
