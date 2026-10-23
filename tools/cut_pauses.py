@@ -1,22 +1,31 @@
-# usage: python3 cut_pauses.py src.mp4 out.mp4 [noise_db=-38] [min_sil=0.12] [speed=1.2]
+# usage: python3 cut_pauses.py src.mp4 out.mp4 [noise_db=-38] [min_sil=0.12] [speed=1.2] [--segs segs.json]
 # Cuts pauses, speeds up voice+video, loudnorm -14 LUFS. Writes segs.json next to out (for align.py).
+# --segs: готовые куски речи [[a,b],…] в секундах исходника (поле segs проекта пульта) — тогда паузы не ищутся
+# заново и видео совпадает с таймингами слов пульта.
 import json, re, subprocess, sys, os
-src, out = sys.argv[1], sys.argv[2]
-noise = sys.argv[3] if len(sys.argv) > 3 else '-38'
-dmin = sys.argv[4] if len(sys.argv) > 4 else '0.12'
-speed = float(sys.argv[5]) if len(sys.argv) > 5 else 1.2
+argv = sys.argv[1:]
+given = None
+if '--segs' in argv:
+    i = argv.index('--segs'); given = json.load(open(argv[i + 1])); del argv[i:i + 2]
+src, out = argv[0], argv[1]
+noise = argv[2] if len(argv) > 2 else '-38'
+dmin = argv[3] if len(argv) > 3 else '0.12'
+speed = float(argv[4]) if len(argv) > 4 else 1.2
 PAD = 0.05
 dur = float(subprocess.check_output(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', src]).decode())
-log = subprocess.run(['ffmpeg', '-i', src, '-af', f'silencedetect=noise={noise}dB:d={dmin}', '-f', 'null', '-'], capture_output=True, text=True).stderr
-st = [float(x) for x in re.findall(r'silence_start: ([\d.]+)', log)]
-en = [float(x) for x in re.findall(r'silence_end: ([\d.]+)', log)]
-sil = list(zip(st, en + [dur] * (len(st) - len(en))))
-segs, t = [], 0.0
-for a, b in sil:
-    if a > t: segs.append([max(0, t - PAD if t else 0), min(dur, a + PAD)])
-    t = b
-if t < dur: segs.append([max(0, t - PAD), dur])
-segs = [s for s in segs if s[1] - s[0] > 0.18]  # drop breaths/clicks
+if given is not None:
+    segs = [[max(0.0, float(a)), min(dur, float(b))] for a, b in given if float(b) - float(a) > 0.02]
+else:
+    log = subprocess.run(['ffmpeg', '-i', src, '-af', f'silencedetect=noise={noise}dB:d={dmin}', '-f', 'null', '-'], capture_output=True, text=True).stderr
+    st = [float(x) for x in re.findall(r'silence_start: ([\d.]+)', log)]
+    en = [float(x) for x in re.findall(r'silence_end: ([\d.]+)', log)]
+    sil = list(zip(st, en + [dur] * (len(st) - len(en))))
+    segs, t = [], 0.0
+    for a, b in sil:
+        if a > t: segs.append([max(0, t - PAD if t else 0), min(dur, a + PAD)])
+        t = b
+    if t < dur: segs.append([max(0, t - PAD), dur])
+    segs = [s for s in segs if s[1] - s[0] > 0.18]  # drop breaths/clicks
 fc = []
 for i, (a, b) in enumerate(segs):
     d = b - a
@@ -29,6 +38,6 @@ fc.append(f'[ac]atempo={speed},loudnorm=I=-14:TP=-1.5:LRA=11[ao]')
 fcp = os.path.splitext(out)[0] + '_fc.txt'
 open(fcp, 'w').write(';'.join(fc))
 subprocess.run(['ffmpeg', '-y', '-i', src, '-filter_complex_script', fcp, '-map', '[vo]', '-map', '[ao]',
-                '-c:v', 'libx264', '-crf', '16', '-preset', 'medium', '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', out], check=True)
+                '-c:v', 'libx264', '-crf', '16', '-preset', 'medium', '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-loglevel', 'error', out], check=True)
 json.dump(segs, open(os.path.join(os.path.dirname(out) or '.', 'segs.json'), 'w'))
 print('segments', len(segs), 'out', out)

@@ -13,7 +13,7 @@ def unwrap(d):
     while isinstance(d, dict) and 'data' in d and isinstance(d['data'], (dict, list)) and len(d) <= 3: d = d['data']
     return d
 
-HEAVY = {'gptPrompt', 'assetPlan', 'words', 'segs', 'sbRows', 'refs', 'storyboard', 'spec', 'timing', 'mediaList'}
+HEAVY = {'gptPrompt', 'assetPlan', 'words', 'segs', 'sbRows', 'refs', 'storyboard', 'spec', 'timing', 'mediaList', 'mediaPack'}
 LONG = {'script': 4000, 'styleAnalysis': 1500, 'dna': 1500, 'rules': 2500, 'recipe': 800, 'passport': 600}
 
 a = sys.argv[1:]
@@ -24,6 +24,8 @@ if '--full' in a:
 def short(v, n):
     s = v if isinstance(v, str) else json.dumps(v, ensure_ascii=False)
     return s if len(s) <= n else s[:n] + f' …[ещё {len(s) - n} симв., --full]'
+pk = d.get('mediaPack') or {}
+if pk.get('parts'): print(f"пакет материалов: части {', '.join(pk['parts'])}; файлов {len(pk.get('files') or [])}; не вошло: {'; '.join(pk.get('skipped') or []) or 'нет'}")
 for k, v in d.items():
     if v in (None, '', [], {}): continue
     if k in HEAVY:

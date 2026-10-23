@@ -606,6 +606,8 @@ function openReel(p){
         <div class="row"><label class="btn" style="cursor:pointer">Выбрать видео<input type="file" id="r-avFile" accept="video/mp4,video/webm,video/quicktime" hidden></label><span class="hint" id="r-avInfo"></span></div></div>
       <div class="f wide"><div class="row"><button class="btn primary" type="button" id="r-send">Отправить</button><span class="hint" id="r-sendNote">Пульт сохранит материалы и посчитает хронометраж: паузы, длину после ускорения и время каждого слова.</span></div>
         <div id="r-timing"></div></div>
+      <div class="f wide"><label>Пакет для монтажа</label>
+        <div class="row"><button class="btn" type="button" id="r-pack">Собрать пакет для монтажа</button><span class="hint" id="r-packNote">Пульт заберёт всю папку ролика с Диска (с подпапками) и упакует для чата: чат скачает её за один-два шага, а не по файлу.</span></div></div>
     </div></section>
 
     <section class="step" id="r-sec-5"><h4>5 · Настройки</h4>
@@ -719,7 +721,10 @@ function openReel(p){
       `Ускорение ×${d.speed}. Субтитры: ${d.subWords} сл., цвет ${d.subColor}, анимация: ${animName(d.subAnim)}. Заголовки: ${animName(d.titleAnim)}.`,
       d.ctaOn ? `Призыв в конце: ${d.ctaText||'да'}.` : `Призыва в конце нет — финал по тексту.`,
       d.drive?`Папка на Диске (вставки и картинки): ${d.drive}`:'',
-      curAvatar?.id ? `Видео аватара загружено на пульт: ${curAvatar.name}.` : `Видео аватара пришлю файлом в чат.`
+      curAvatar?.id ? `Видео аватара загружено на пульт: ${curAvatar.name}, id ${curAvatar.id}.` : `Видео аватара пришлю файлом в чат.`,
+      p.mediaPack?.parts?.length ? `Материалы с Диска упакованы на пульте: части ${p.mediaPack.parts.join(', ')} (${p.mediaPack.files.length} файлов). Диск не открывай.` : `Пакета материалов нет: попроси нажать «Собрать пакет для монтажа» в разделе «Материалы».`,
+      ``,
+      `Подготовка — одной командой, без ручных шагов: 1) ArtifactData get projects/${p.id} с out_dir=work/db; 2) Artifact read с path=<id> и out_dir=work/files — для видео аватара и каждой части пакета; 3) python3 tools/reel_prep.py work/db/projects/${p.id}.json reels/NN-name --files work/files (--anims, если выбраны анимации текста; запускать в фоне и ждать окончания). Скрипт сам соберёт папку, разложит материалы, вырежет фон и спикера, соберёт story.json и выдаст отчёт: какие сцены писать. Дальше — только сцены, проверка и рендер.`
     ].filter(x=>x!=='').join('\n');
     const done=()=>toast('Задание скопировано: вставь его в чат');
     if(navigator.clipboard?.writeText){ navigator.clipboard.writeText(text).then(done, ()=>fallbackCopy(text)); } else fallbackCopy(text);
@@ -967,6 +972,66 @@ function wireTiming(p){
   }
   let sentScript = curWords.length ? (p.script||'').trim() : null;
   $('#r-send').onclick = ()=>sendMaterials();
+
+  /* пакет для монтажа: вся папка ролика с Диска → JSON-части до 19 МБ в хранилище пульта.
+     Чат читает каждую часть одним вызовом (Artifact read path=id), tools/reel_prep.py раскладывает файлы по подпапкам. */
+  const packNote=$('#r-packNote');
+  const showPack=pk=>{ if(pk&&pk.parts?.length) packNote.textContent=`Пакет собран ${new Date(pk.at).toLocaleString('ru-RU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}: ${pk.files.length} файлов, частей ${pk.parts.length}${pk.skipped?.length?`, не вошло ${pk.skipped.length}`:''}. Нажми ещё раз, если на Диске что-то поменялось.`; };
+  showPack(p.mediaPack);
+  $('#r-pack').onclick = async ()=>{
+    const btn=$('#r-pack'), url=$('#r-drive').value.trim();
+    if(!mcp){ toast('Диск недоступен в этом просмотре'); return; }
+    if(!assets){ toast('Собирать пакет может только редактор пульта'); return; }
+    const m=url.match(/folders\/([A-Za-z0-9_-]{10,})/)||url.match(/[?&]id=([A-Za-z0-9_-]{10,})/)||url.match(/^([A-Za-z0-9_-]{20,})$/);
+    if(!m){ toast('Вставь ссылку на папку ролика на Диске'); $('#r-drive').focus(); return; }
+    btn.disabled=true;
+    const LIMIT=19*1024*1024, list=[], skipped=[];
+    try{
+      packNote.textContent='Смотрю папку на Диске…';
+      const walk=async (id, path, depth)=>{
+        const res=await mcp.callTool(DRIVE,'search_files',{query:`parentId = '${id}'`, excludeContentSnippets:true, pageSize:100},{cache:false});
+        const items=res.payload?.files||[];
+        if(items.length>=100) skipped.push(`${path||'корень'}: в папке 100+ файлов, взяты первые 100`);
+        for(const f of items){
+          const name=(f.title||'файл').replace(/[\\/]/g,'_'), rel=path?path+'/'+name:name;
+          if(f.mimeType==='application/vnd.google-apps.folder'){ if(depth<3) await walk(f.id, rel, depth+1); continue; }
+          if(/^application\/vnd\.google-apps\./.test(f.mimeType||'')){ skipped.push(`${rel} — документ Google, не файл`); continue; }
+          list.push({id:f.id, path:rel, size:+f.fileSize||0});
+        }
+      };
+      await walk(m[1], '', 0);
+      if(!list.length){ packNote.textContent='В папке нет файлов.'; return; }
+      const parts=[]; let chunk=[], bytes=0, done=0;
+      const flush=async ()=>{
+        if(!chunk.length) return;
+        const body='{"kind":"reel-media","v":1,"project":'+JSON.stringify(p.id)+',"files":['+chunk.join(',')+']}';
+        const r=await upload(new File([body], `media_${parts.length+1}.json`, {type:'application/json'}));
+        if(!r) throw new Error('часть пакета не загрузилась на пульт');
+        parts.push(r.id); chunk=[]; bytes=0;
+      };
+      const files=[];
+      for(const f of list){
+        done++; packNote.textContent=`Забираю с Диска ${done} из ${list.length}: ${f.path}`;
+        if(f.size>10*1024*1024){ skipped.push(`${f.path} — больше 10 МБ: Диск отдаёт файлы до 10 МБ, пришли его в чат`); continue; }
+        let b64;
+        try{ const res=await mcp.callTool(DRIVE,'download_file_content',{fileId:f.id},{cache:false}); b64=res.payload?.content; }
+        catch(e){ skipped.push(`${f.path} — ${driveErr(e)}`); continue; }
+        if(!b64){ skipped.push(`${f.path} — пустой ответ Диска`); continue; }
+        const entry=JSON.stringify({path:f.path, b64});
+        if(bytes+entry.length>LIMIT) await flush();
+        chunk.push(entry); bytes+=entry.length; files.push({path:f.path, size:f.size});
+      }
+      await flush();
+      if(!parts.length){ packNote.textContent='Ни один файл не забрался: '+skipped.slice(0,3).join('; '); return; }
+      const old=(p.mediaPack?.parts)||[];
+      const pk={at:new Date().toISOString(), drive:url, parts, files, skipped};
+      if(await write(()=>docRef.update({mediaPack:pk, updatedAt:pk.at}),'Пакет для монтажа собран')){
+        p.mediaPack=pk; showPack(pk);
+        for(const id of old) if(!parts.includes(id)) assets.delete(id).catch(()=>{});
+      }
+    }catch(e){ packNote.textContent=(e&&e.code)?driveErr(e):'Не получилось собрать пакет: '+(e&&e.message||'ошибка'); }
+    finally{ btn.disabled=false; }
+  };
 
   /* подгонка: 1) режимы — сдвиг границ по словам, затем смена режима сегмента; 2) типы внутри B и C */
   function fitShares(){

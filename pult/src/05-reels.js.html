@@ -220,6 +220,8 @@ function openReel(p){
         <div class="row"><label class="btn" style="cursor:pointer">Выбрать видео<input type="file" id="r-avFile" accept="video/mp4,video/webm,video/quicktime" hidden></label><span class="hint" id="r-avInfo"></span></div></div>
       <div class="f wide"><div class="row"><button class="btn primary" type="button" id="r-send">Отправить</button><span class="hint" id="r-sendNote">Пульт сохранит материалы и посчитает хронометраж: паузы, длину после ускорения и время каждого слова.</span></div>
         <div id="r-timing"></div></div>
+      <div class="f wide"><label>Пакет для монтажа</label>
+        <div class="row"><button class="btn" type="button" id="r-pack">Собрать пакет для монтажа</button><span class="hint" id="r-packNote">Пульт заберёт всю папку ролика с Диска (с подпапками) и упакует для чата: чат скачает её за один-два шага, а не по файлу.</span></div></div>
     </div></section>
 
     <section class="step" id="r-sec-5"><h4>5 · Настройки</h4>
@@ -333,7 +335,10 @@ function openReel(p){
       `Ускорение ×${d.speed}. Субтитры: ${d.subWords} сл., цвет ${d.subColor}, анимация: ${animName(d.subAnim)}. Заголовки: ${animName(d.titleAnim)}.`,
       d.ctaOn ? `Призыв в конце: ${d.ctaText||'да'}.` : `Призыва в конце нет — финал по тексту.`,
       d.drive?`Папка на Диске (вставки и картинки): ${d.drive}`:'',
-      curAvatar?.id ? `Видео аватара загружено на пульт: ${curAvatar.name}.` : `Видео аватара пришлю файлом в чат.`
+      curAvatar?.id ? `Видео аватара загружено на пульт: ${curAvatar.name}, id ${curAvatar.id}.` : `Видео аватара пришлю файлом в чат.`,
+      p.mediaPack?.parts?.length ? `Материалы с Диска упакованы на пульте: части ${p.mediaPack.parts.join(', ')} (${p.mediaPack.files.length} файлов). Диск не открывай.` : `Пакета материалов нет: попроси нажать «Собрать пакет для монтажа» в разделе «Материалы».`,
+      ``,
+      `Подготовка — одной командой, без ручных шагов: 1) ArtifactData get projects/${p.id} с out_dir=work/db; 2) Artifact read с path=<id> и out_dir=work/files — для видео аватара и каждой части пакета; 3) python3 tools/reel_prep.py work/db/projects/${p.id}.json reels/NN-name --files work/files (--anims, если выбраны анимации текста; запускать в фоне и ждать окончания). Скрипт сам соберёт папку, разложит материалы, вырежет фон и спикера, соберёт story.json и выдаст отчёт: какие сцены писать. Дальше — только сцены, проверка и рендер.`
     ].filter(x=>x!=='').join('\n');
     const done=()=>toast('Задание скопировано: вставь его в чат');
     if(navigator.clipboard?.writeText){ navigator.clipboard.writeText(text).then(done, ()=>fallbackCopy(text)); } else fallbackCopy(text);
