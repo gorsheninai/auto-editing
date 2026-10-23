@@ -1513,6 +1513,7 @@ function chatHead(first){
   return [first,
     `Репозиторий: GitHub gorsheninai/auto-editing — подключи инструментом add_repo, склонируй, работай по его CLAUDE.md.`,
     `Пульт: ${PULT_URL} — данные читай и пиши инструментом ArtifactData (коллекции projects, templates, blocks), файлы пульта — Artifact read с path.`,
+    `Документы пульта читай только с out_dir (в файл), потом python3 tools/pult_brief.py <файл> — короткая выжимка; большие поля скрипты берут из файла сами.`,
     `Коннекторы не ищи и не предлагай (SearchMcpRegistry, SuggestConnectors не вызывай): всё нужное уже есть — GitHub, пульт, Google Диск.`];
 }
 function deepTask(t){
