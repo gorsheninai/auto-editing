@@ -144,7 +144,7 @@ function openPremont(){
     <p>Загрузи до 5 роликов в одной подаче. Пульт замерит склейки, звук и палитру, Claude разберёт кадры каждого ролика и соберёт общий рецепт: стиль, паспорт, правила, структуру и звук. Сохраняется как шаблон с кнопкой «Создать монтаж».</p>
     <div class="row" style="gap:8px"><label class="btn" style="cursor:pointer">Выбрать видео<input type="file" id="pm-files" accept="video/mp4,video/webm,video/quicktime" multiple hidden></label><span class="hint">До 5 файлов, каждый до 20 МБ. Лучше mp4.</span></div>
     <div id="pm-list" style="margin-top:12px"></div>
-    <div class="row" style="margin-top:12px;gap:8px"><button class="btn primary" type="button" id="pm-go" disabled>Разобрать</button><button class="btn ghost" type="button" id="pm-stop" hidden>Остановить</button><button class="btn ghost" type="button" id="pm-close">Закрыть</button><span class="hint" id="pm-note"></span></div>
+    <div class="row" style="margin-top:12px;gap:8px"><button class="btn primary" type="button" id="pm-go" disabled>Разобрать</button><button class="btn ghost" type="button" id="pm-stop" hidden>Остановить</button><button class="btn ghost" type="button" id="pm-close">Закрыть</button><span class="hint" id="pm-note"><i class="mdl">Модель: обычная для каждого ролика, повышенная для сводки · кэш вкл.</i></span></div>
     <div id="pm-out"></div></form>`;
   const list=$('#pm-list'), note=$('#pm-note');
   const show=()=>{ list.innerHTML = files.length ? `<div class="projlist">${files.map((f,i)=>`<div class="projrow" style="cursor:default;grid-template-columns:minmax(0,1fr) auto">
