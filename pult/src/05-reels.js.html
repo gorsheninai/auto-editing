@@ -80,6 +80,8 @@ function blankReel(tplId){
     styleAnalysis: tplStyle(t), mediaList: r.assetsList || '', passport: r.passport || null,
     /* глубокий разбор: цифровая спецификация референсов едет в проект целиком и задаёт ритм, субтитры, звук и грейд */
     ...(r.dna ? {dna: r.dna} : {}),
+    /* стиль кодом из чата (стилевой пакет): монтаж ставит его код, а не собирает стиль из описания */
+    ...(t.stylePack ? {stylePack: t.stylePack} : {}),
     ...(t.spec ? {spec: t.spec, speed: 1.0, punch: false, subWords: t.spec.engine?.subtitle?.words || 1} : {})};
 }
 /* ритм раскадровки по спецификации шаблона — для промпта Claude */
@@ -483,8 +485,9 @@ function openReel(p){
     const name=`reels/${slug}-${String(p.id).slice(-5)}`;
     const anims=[d.subAnim,d.titleAnim].some(a=>a&&a!=='static'&&!/^Sub/.test(a));
     const parts=p.mediaPack?.parts||[];
-    const reads=[curAvatar?.id, ...parts].filter(Boolean);
-    const cmd=`python3 tools/reel_go.py work/db/projects/${p.id}.json ${name} --files work/files${anims?' --anims work/db/textanims':''}${curAvatar?.id?'':' --avatar <путь к присланному видео или озвучке>'}${parts.length?'':' --media <папка с присланными материалами>'}`;
+    const pack=tplOf(p.templateId)?.stylePack || p.stylePack || null; /* последняя версия стиля — с карточки стиля */
+    const reads=[curAvatar?.id, ...parts, pack?.file, pack?.sheet].filter(Boolean);
+    const cmd=`python3 tools/reel_go.py work/db/projects/${p.id}.json ${name} --files work/files${anims?' --anims work/db/textanims':''}${curAvatar?.id?'':' --avatar <путь к присланному видео или озвучке>'}${parts.length?'':' --media <папка с присланными материалами>'}${pack?.file?` --pack-id ${pack.file}`:''}`;
     const text = [
       `Ролик «${d.title}» по проекту пульта, быстрый режим: всё делает одна команда, ты только запускаешь и ждёшь. Каждый лишний шаг стоит лимита — делай ровно эти шаги.`,
       `0) Репозиторий GitHub gorsheninai/auto-editing: add_repo (access push) → клонировать → register_repo_root. Дальше все пути — от корня репозитория. Ничего не читай: ни скилл, ни docs, ни README.`,
@@ -492,8 +495,9 @@ function openReel(p){
       reads.length?`2) Artifact read (url пульта) с out_dir=work/files для каждого id: ${reads.join(', ')}. Файлы не открывай и не декодируй.`:`2) Файлов на пульте нет — видео аватара и материалы пришлю в чат.`,
       `3) Bash в фоне (run_in_background, timeout 7200000): ${cmd}`,
       `4) Жди уведомления о завершении. Лог по ходу не смотри.`,
+      pack?.file?`Стиль — пакет v${pack.v||1} (код стиля из разбора в чате): команда поставит его сама. «Не сошлось со стилем» → посмотри work/style_check.jpg (сверху эталон, снизу наш) и исправь причину.`:'',
       `5) В конце «Проверка цифрами пройдена» → SendUserFile ${name}/out.mp4 и одна строка итога. Упало или «Не сошлось» → исправь причину и запусти ту же команду (сделанное пропустится).`,
-      `Нельзя: писать свои сцены, смотреть кадры, ставить модули вручную (их ставит команда), открывать Google Диск, коммитить папку ролика, менять status проекта.`,
+      `Нельзя: писать свои сцены, менять код стилевого пакета, смотреть кадры (кроме листа сверки, если не сошлось), ставить модули вручную (их ставит команда), открывать Google Диск, коммитить папку ролика, менять status проекта.`,
       !curAvatar?.id?`${curAvatar?.kind==='audio'?'Озвучку':'Видео аватара'} пришлю файлом в чат.`:'',
       !parts.length?`Пакета материалов на пульте нет — материалы пришлю в чат.`:''
     ].filter(x=>x!=='').join('\n');

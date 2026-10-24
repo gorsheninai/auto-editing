@@ -12,8 +12,11 @@
 
 Всё пишет в <ролик>/work/go.log; в чат — короткий итог. Упало — исправить причину и запустить ту же
 команду: сделанное пропускается (рендер — если out.mp4 новее story.json и видео спикера).
+Стилевой пакет проекта (stylePack, docs/style-pack.md) ставит reel_prep, этап pack; после рендера
+tools/style_pack.py check сверяет ролик с диапазонами стиля и кладёт лист work/style_check.jpg
+(сверху эталон стиля, снизу наш). Вне диапазонов — «Не сошлось».
 """
-import json, os, re, subprocess, sys, time
+import glob, json, os, re, subprocess, sys, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -96,6 +99,22 @@ def main():
         + (f'{lufs:.1f} LUFS' if lufs is not None else 'без звука')
         + f'; A {share["A"]}% / B {share["B"]}% / C {share["C"]}%; кинетический текст в {kin} из {len(rows)} строк.')
     say(f'Лист стоп-кадров: {os.path.relpath(sheet, ROOT)}. Всего {(time.time() - t0) / 60:.1f} мин.')
+    # 4. сверка со стилевым пакетом (если он стоит): цифры против диапазонов стиля + лист «эталон / наш»
+    pm = os.path.join(work, 'pack.json')
+    if os.path.exists(pm):
+        meta = json.load(open(pm, encoding='utf-8'))
+        fd = a[a.index('--files') + 1] if '--files' in a and a.index('--files') + 1 < len(a) else None
+        sheet = None
+        if fd and meta.get('sheet'):
+            hits = sorted(glob.glob(os.path.join(fd, '**', meta['sheet'] + '*'), recursive=True)); sheet = hits[0] if hits else None
+        r = sh([sys.executable, os.path.join(HERE, 'style_pack.py'), 'check', reel, out] + (['--sheet', sheet] if sheet else []), cwd=ROOT)
+        log.write(r.stdout + r.stderr)
+        lines = [l for l in r.stdout.splitlines() if l.strip()]
+        say('стиль: ' + (lines[0] if lines else 'сверка не запустилась: ' + r.stderr.strip()[-200:]))
+        if r.returncode == 2:
+            probs += [l.strip() for l in lines[2:]]
+            probs.append('лист work/style_check.jpg (сверху эталон стиля, снизу наш) — посмотри и поправь ролик')
+
     if probs:
         say('Не сошлось:\n  ' + '\n  '.join(probs)); sys.exit(2)
     say('Проверка цифрами пройдена — отправляй out.mp4 пользователю.')

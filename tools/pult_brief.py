@@ -13,7 +13,7 @@ def unwrap(d):
     while isinstance(d, dict) and 'data' in d and isinstance(d['data'], (dict, list)) and len(d) <= 3: d = d['data']
     return d
 
-HEAVY = {'gptPrompt', 'assetPlan', 'words', 'segs', 'sbRows', 'refs', 'storyboard', 'spec', 'timing', 'mediaList', 'mediaPack'}
+HEAVY = {'gptPrompt', 'assetPlan', 'words', 'segs', 'sbRows', 'refs', 'storyboard', 'spec', 'timing', 'mediaList', 'mediaPack', 'stylePacks'}
 LONG = {'script': 4000, 'styleAnalysis': 1500, 'dna': 1500, 'rules': 2500, 'recipe': 800, 'passport': 600}
 
 a = sys.argv[1:]

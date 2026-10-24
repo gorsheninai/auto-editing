@@ -15,11 +15,15 @@
   --plate-fix    после вырезки спикера убрать прилипший над головой фон (tools/matte/plate_fix.py).
   --auto         быстрый режим (его включает reel_go.py): строки без готового блока собираются из материалов
                  или идут кинетическим текстом — своих сцен писать не нужно.
-  --redo ЭТАП    переделать этап, даже если он уже сделан (scaffold, media, cutout, story, avatar, matte).
+  --pack FILE    стилевой пакет pack.json (иначе ищется в --files по id из --pack-id или поля stylePack.file проекта).
+  --pack-id ID   id файла стилевого пакета на пульте (templates/<id>.stylePack.file) — задание пульта передаёт его само.
+  --redo ЭТАП    переделать этап, даже если он уже сделан (scaffold, pack, media, cutout, story, avatar, matte).
 
 Этапы (каждый пишет одну строку; полный вывод инструментов — <ролик>/work/prep.log):
   0. env       tools/setup.sh — ставит недостающие модули и модели (повторно — секунда)
   1. scaffold  папка из template/, пакеты — ссылка на template/node_modules (ставятся один раз на все ролики)
+  1б. pack     стилевой пакет (стиль референса в коде, docs/style-pack.md) → src/story/pack/: субтитры, заголовки,
+               склейки, камера, слои — кодом пакета; без пакета — стандартные блоки шаблона
   2. media     пакеты пульта или --media → public/media/<подпапки как на Диске>
   3. cutout    позы, люди и предметы (01_, 02_, 03_) без прозрачности → вырезка фона rembg (isnet-general-use)
   3б. scenes   листы объектов анимированных сцен sc{N}.png (прозрачный фон, объекты в ряд слева направо) →
@@ -39,7 +43,7 @@ import base64, glob, hashlib, json, os, shutil, subprocess, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 TPL = os.path.join(ROOT, 'template')
-STAGES = ['env', 'scaffold', 'media', 'cutout', 'scenes', 'story', 'avatar', 'sync', 'matte', 'report']
+STAGES = ['env', 'scaffold', 'pack', 'media', 'cutout', 'scenes', 'story', 'avatar', 'sync', 'matte', 'report']
 CUT_DIRS = ('01_', '02_', '03_')            # персонаж, предметы, люди — им нужен прозрачный фон
 IMG = ('.png', '.jpg', '.jpeg', '.webp')
 
@@ -160,6 +164,35 @@ class Prep:
             os.symlink(os.path.relpath(os.path.join(TPL, 'node_modules'), self.reel), nm)
         self.mark('scaffold', s)
         self.say('scaffold', f'папка из шаблона: {n} файлов, пакеты — общие с template/')
+
+    # ---------- 1б. стилевой пакет ----------
+    def pack_src(self):
+        p = self.opt('--pack')
+        if p: return os.path.abspath(p)
+        pid = self.opt('--pack-id') or (self.proj.get('stylePack') or {}).get('file')
+        if not pid: return None
+        p = self.by_id(pid)
+        if not p: raise RuntimeError(f'нет файла стилевого пакета {pid} в --files: прочитай его с пульта (Artifact read path={pid} out_dir=work/files)')
+        return os.path.abspath(p)
+
+    def pack(self):
+        src = self.pack_src()
+        dst = os.path.join(self.reel, 'src', 'story', 'pack')
+        if not src:
+            if os.path.exists(os.path.join(self.work, 'pack.json')):   # пакет убрали — вернуть пустой слот шаблона
+                shutil.rmtree(dst, ignore_errors=True); shutil.copytree(os.path.join(TPL, 'src', 'story', 'pack'), dst)
+                os.remove(os.path.join(self.work, 'pack.json'))
+            self.say('pack', 'стилевого пакета нет — стандартные блоки шаблона'); return
+        s = self.sig(self.fsig(src), self.fsig(os.path.join(TPL, 'src', 'story', 'pack', 'types.ts')))
+        if self.done('pack', s) and os.path.exists(os.path.join(dst, 'pack.tsx')):
+            self.say('pack', 'уже стоит'); return
+        sys.path.insert(0, HERE)
+        import style_pack
+        pk = style_pack.install(src, self.reel)
+        sheet = pk.get('sheet'); sp = self.by_id(sheet) if sheet else None
+        if sheet and not sp: self.warn.append(f'нет эталонного листа стиля {sheet}: прочитай его с пульта в --files, иначе сверка будет без эталона')
+        self.mark('pack', s)
+        self.say('pack', f'стиль «{pk.get("name")}» v{pk.get("version")}: {", ".join(pk.get("slots") or []) or "только настройки"}')
 
     # ---------- 2. материалы ----------
     def media(self):

@@ -18,9 +18,14 @@ import {SANS as KSANS, themeFrom} from '../blocks/kit';
 import {STY, fontVars, setPassport} from '../blocks/style';
 import {BgPaper} from '../blocks/text-fx';
 import {BgSwap, FxGrade, HookTitle, StackBuild} from '../blocks/kino';
+import {PACK} from './pack';
+import type {WordF} from './pack/types';
 
 /* Ролик целиком по раскадровке с пульта: src/story.json (tools/pult_to_story.py). */
 export const STORY = storyJson as unknown as Story;
+/* стилевой пакет (src/story/pack): его settings поверх настроек ролика, свои сцены — в реестр */
+if (PACK.version) STORY.settings = {...STORY.settings, ...PACK.settings} as Story['settings'];
+if (PACK.scenes) Object.assign(REG, PACK.scenes);
 const FPS = STORY.fps || 30;
 export const STORY_TOTAL = Math.max(1, Math.round(STORY.duration * FPS));
 setPassport(STORY.settings.passport);
@@ -30,6 +35,8 @@ const AV = STORY.settings.avatar || 'avatar.mp4';
 const CUT = STORY.settings.avatarCut || 'avatar_cut.webm';
 const winOf = (r: Row): Win => (r.win || STORY.settings.win || 'popout') as Win;
 const wordsIn = (r: Row) => STORY.words.filter((w) => w.s >= r.s - 0.05 && w.s < r.e - 0.02);
+/* слова с номером и кадром появления относительно t0 (секунды) — для слотов пакета */
+const wordsF = (ws: Word[], t0: number, lead = 0): WordF[] => ws.map((w) => ({...w, i: STORY.words.indexOf(w), f: Math.round((w.s - t0) * FPS) + lead}));
 
 const ROWS = STORY.rows.map((r, i) => {
   const from = Math.round(r.s * FPS);
@@ -52,6 +59,7 @@ const Content: React.FC<{r: Row; from: number; dur: number; zoneH: number; full:
   if (kind === 'l2d' && r.layer && (r.layer.bg || r.layer.pose || r.layer.props?.length)) return <LayerScene layer={r.layer} zoneH={zoneH} dur={dur} />;
   if (kind === 'gen' || kind === 'media' || kind === 'l2d') return <Placeholder label={kind === 'l2d' ? '2D-сцена' : 'нет файла'} note={r.note || r.media} zoneH={zoneH} ink={T.ink} />;
   // kinetic, а также motion/d3 без своей сцены
+  if (PACK.Title) return <PACK.Title words={wordsF(ws, r.s)} row={r} dur={dur} zoneH={zoneH} full={full} theme={T} fps={FPS} />;
   return <KineticText words={ws} seg0={r.s} fps={FPS} params={STORY.settings.titleAnim} ink={T.ink} accent={T.accent} h={zoneH} />;
 };
 
@@ -87,13 +95,14 @@ const Segment: React.FC<{r: Row; from: number; dur: number; lead?: number}> = ({
     const hits = wordsIn(r).filter((w) => KEYSET.has(bareW(w.w))).map((w) => Math.round((w.s - r.s) * FPS) + lead);
     body = <Punch at={hits.length ? hits : [lead + 2]}>{body}</Punch>;
   }
+  if (PACK.Camera) { const Cam = PACK.Camera; body = <Cam row={r} index={STORY.rows.indexOf(r)} dur={dur} lead={lead} words={wordsF(wordsIn(r), r.s, lead)} theme={T} fps={FPS}>{body}</Cam>; }
   if (r.fx === 'FxShake') body = <Shake at={lead + 3}>{body}</Shake>;
   if (r.fx === 'FxFlash') body = <Flash at={lead + 4}>{body}</Flash>;
   if (r.fx === 'FxFreeze') body = <FreezeAt at={lead + Math.min(20, Math.round(dur * 0.4))} text={r.fxText} theme={themeFrom(T)}>{body}</FreezeAt>;
   return <AbsoluteFill>
     {r.fx === 'FxVhs' ? <FxVhs>{body}</FxVhs> : r.fx === 'FxGrade' ? <FxGrade mode={r.fxText}>{body}</FxGrade> : r.grade ? <FxGrade mode={r.grade}>{body}</FxGrade> : body}
     {r.stack ? <StackBuild items={r.stack.map((x) => ({w: STORY.words[x.w]?.w || '', f: Math.round(((STORY.words[x.w]?.s ?? r.s) - r.s) * FPS) + lead, big: !!x.big}))} /> : null}
-    {r.hook ? <HookTitle top={r.hook.top} big={r.hook.big} words={wordsIn(r).map((w) => ({w: w.w, f: Math.round((w.s - r.s) * FPS) + lead}))} dur={dur} /> : null}
+    {r.hook && PACK.Hook ? <PACK.Hook top={r.hook.top} big={r.hook.big} words={wordsF(wordsIn(r), r.s, lead)} row={r} dur={dur} theme={T} fps={FPS} /> : r.hook ? <HookTitle top={r.hook.top} big={r.hook.big} words={wordsIn(r).map((w) => ({w: w.w, f: Math.round((w.s - r.s) * FPS) + lead}))} dur={dur} /> : null}
     {r.fx === 'FxConfetti' ? <FxConfetti theme={themeFrom(T)} at={lead + 4} /> : null}
     {(r.ov || []).map((o, k) => <Overlay key={k} ov={{...o, at: (o.at ?? 6) + lead}} theme={themeFrom(T)} />)}
   </AbsoluteFill>;
@@ -145,6 +154,12 @@ const Captions: React.FC = () => {
   const SP = STORY.settings.subPos; const yPos = SP === 'top' ? 560 : SP === 'middle' ? 960 : null; // место субтитров по стилю
   const y = yPos ?? (SUB_STYLE === 'SubKino' ? (r.mode === 'B' ? 1300 : r.mode === 'C' ? (/^Phone/.test(r.scene || '') ? 1810 : 1520) : 1120) : r.mode === 'A' ? 1500 : r.mode === 'C' ? 1540 : win === 'circle' ? 1350 : win === 'strip' ? 1160 : 1150);
   const p = STORY.settings.subAnim;
+  if (PACK.Captions) { /* субтитры стилевого пакета */
+    const ss = STORY.settings.subStyle || {}; const ki = new Set(ss.keyIdx || []); const c0 = Math.round(ch.s * FPS);
+    const nextS = CHUNKS[ci + 1]?.s; const len = Math.max(1, Math.round(((nextS ?? ch.e + 0.3) - ch.s) * FPS));
+    return <PACK.Captions text={ch.text} words={wordsF(ch.ws, ch.s)} chunk={ci} local={Math.round(tt * FPS) - c0} len={len} row={r} y={y}
+      strong={ch.ws.some((w) => ki.has(STORY.words.indexOf(w)))} key={ci} theme={T} fps={FPS} />;
+  }
   if (p?.style === 'SubTom') { /* как у референса: по слову, мелко, кремовым, по центру груди, без анимации; ключевые слова крупнее */
     const ss = STORY.settings.subStyle || {}; const fs = ss.fontSize || 60;
     const ki = new Set(ss.keyIdx || []); // крупные слова по номерам (приёмы KEY/NUM/WORD раскадровки) — точнее, чем по написанию
@@ -213,6 +228,17 @@ const SFX = (() => {
   }
   return out;
 })();
+/* Слоты пакета на весь ролик: эффект на склейках, слой под субтитрами и поверх всего */
+const PACK_CUTS = ROWS.slice(1).map((x) => ({at: x.from, i: x.i}));
+const PackCut: React.FC = () => {
+  const fr = useCurrentFrame(); const L = PACK.cutLen ?? 4; const C = PACK.Cut!;
+  const c = PACK_CUTS.find((x) => Math.abs(fr - x.at) <= L); if (!c) return null;
+  return <AbsoluteFill style={{pointerEvents: 'none'}}><C offset={fr - c.at} index={c.i} from={STORY.rows[c.i - 1]} to={STORY.rows[c.i]} theme={T} fps={FPS} /></AbsoluteFill>;
+};
+const PackLayer: React.FC<{top?: boolean}> = ({top}) => {
+  const fr = useCurrentFrame(); const L = top ? PACK.Top! : PACK.Overlay!;
+  return <AbsoluteFill style={{pointerEvents: 'none'}}><L frame={fr} total={STORY_TOTAL} row={rowAt(fr).r} theme={T} fps={FPS} /></AbsoluteFill>;
+};
 const Sounds: React.FC = () => <>
   {STORY.settings.music ? <Audio src={staticFile(STORY.settings.music)} volume={STORY.settings.musicVolume ?? 0.12} loop /> : null}
   {SFX.map((x, k) => <Sequence key={k} from={x.f} durationInFrames={45} layout="none"><Audio src={staticFile(x.src)} volume={x.vol} /></Sequence>)}
@@ -222,7 +248,10 @@ export const StoryMain: React.FC = () => {
   useStoryFonts();
   return <AbsoluteFill style={{background: T.bg, ...fontVars(STORY.settings.passport)}}>
     {ROWS.some((x) => trOf(x.r)) ? <Transitions /> : ROWS.map(({r, i, from, dur}) => <Sequence key={i} from={from} durationInFrames={dur}><Segment r={r} from={from} dur={dur} /></Sequence>)}
+    {PACK.Cut ? <PackCut /> : null}
+    {PACK.Overlay ? <PackLayer /> : null}
     <Captions />
+    {PACK.Top ? <PackLayer top /> : null}
     {STORY.settings.progress ? <ProgressBar total={STORY_TOTAL} theme={themeFrom(T)} /> : null}
     {STORY.settings.wipe === true && STORY.settings.subAnim?.style !== 'SubTom' ? <Wipe /> : null /* шторка-круг — только если стиль её просит */}
     <Audio src={staticFile(AV)} />

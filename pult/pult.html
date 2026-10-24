@@ -477,6 +477,8 @@ function blankReel(tplId){
     styleAnalysis: tplStyle(t), mediaList: r.assetsList || '', passport: r.passport || null,
     /* глубокий разбор: цифровая спецификация референсов едет в проект целиком и задаёт ритм, субтитры, звук и грейд */
     ...(r.dna ? {dna: r.dna} : {}),
+    /* стиль кодом из чата (стилевой пакет): монтаж ставит его код, а не собирает стиль из описания */
+    ...(t.stylePack ? {stylePack: t.stylePack} : {}),
     ...(t.spec ? {spec: t.spec, speed: 1.0, punch: false, subWords: t.spec.engine?.subtitle?.words || 1} : {})};
 }
 /* ритм раскадровки по спецификации шаблона — для промпта Claude */
@@ -880,8 +882,9 @@ function openReel(p){
     const name=`reels/${slug}-${String(p.id).slice(-5)}`;
     const anims=[d.subAnim,d.titleAnim].some(a=>a&&a!=='static'&&!/^Sub/.test(a));
     const parts=p.mediaPack?.parts||[];
-    const reads=[curAvatar?.id, ...parts].filter(Boolean);
-    const cmd=`python3 tools/reel_go.py work/db/projects/${p.id}.json ${name} --files work/files${anims?' --anims work/db/textanims':''}${curAvatar?.id?'':' --avatar <путь к присланному видео или озвучке>'}${parts.length?'':' --media <папка с присланными материалами>'}`;
+    const pack=tplOf(p.templateId)?.stylePack || p.stylePack || null; /* последняя версия стиля — с карточки стиля */
+    const reads=[curAvatar?.id, ...parts, pack?.file, pack?.sheet].filter(Boolean);
+    const cmd=`python3 tools/reel_go.py work/db/projects/${p.id}.json ${name} --files work/files${anims?' --anims work/db/textanims':''}${curAvatar?.id?'':' --avatar <путь к присланному видео или озвучке>'}${parts.length?'':' --media <папка с присланными материалами>'}${pack?.file?` --pack-id ${pack.file}`:''}`;
     const text = [
       `Ролик «${d.title}» по проекту пульта, быстрый режим: всё делает одна команда, ты только запускаешь и ждёшь. Каждый лишний шаг стоит лимита — делай ровно эти шаги.`,
       `0) Репозиторий GitHub gorsheninai/auto-editing: add_repo (access push) → клонировать → register_repo_root. Дальше все пути — от корня репозитория. Ничего не читай: ни скилл, ни docs, ни README.`,
@@ -889,8 +892,9 @@ function openReel(p){
       reads.length?`2) Artifact read (url пульта) с out_dir=work/files для каждого id: ${reads.join(', ')}. Файлы не открывай и не декодируй.`:`2) Файлов на пульте нет — видео аватара и материалы пришлю в чат.`,
       `3) Bash в фоне (run_in_background, timeout 7200000): ${cmd}`,
       `4) Жди уведомления о завершении. Лог по ходу не смотри.`,
+      pack?.file?`Стиль — пакет v${pack.v||1} (код стиля из разбора в чате): команда поставит его сама. «Не сошлось со стилем» → посмотри work/style_check.jpg (сверху эталон, снизу наш) и исправь причину.`:'',
       `5) В конце «Проверка цифрами пройдена» → SendUserFile ${name}/out.mp4 и одна строка итога. Упало или «Не сошлось» → исправь причину и запусти ту же команду (сделанное пропустится).`,
-      `Нельзя: писать свои сцены, смотреть кадры, ставить модули вручную (их ставит команда), открывать Google Диск, коммитить папку ролика, менять status проекта.`,
+      `Нельзя: писать свои сцены, менять код стилевого пакета, смотреть кадры (кроме листа сверки, если не сошлось), ставить модули вручную (их ставит команда), открывать Google Диск, коммитить папку ролика, менять status проекта.`,
       !curAvatar?.id?`${curAvatar?.kind==='audio'?'Озвучку':'Видео аватара'} пришлю файлом в чат.`:'',
       !parts.length?`Пакета материалов на пульте нет — материалы пришлю в чат.`:''
     ].filter(x=>x!=='').join('\n');
@@ -1872,15 +1876,21 @@ function chatHead(first){
     `Документы пульта читай только с out_dir (в файл), потом python3 tools/pult_brief.py <файл> — короткая выжимка; большие поля скрипты берут из файла сами.`,
     `Коннекторы не ищи и не предлагай (SearchMcpRegistry, SuggestConnectors не вызывай): всё нужное уже есть — GitHub, пульт, Google Диск.`];
 }
+/* Разбор стиля в чате: чат смотрит референсы покадрово, пишет стиль кодом (стилевой пакет), сверяет тест с референсом
+   и после «да» пользователя сам сохраняет пакет в пульт (templates/<id>.stylePack). Монтаж потом берёт этот код, а не описание. */
 function deepTask(t){
   if(!t) return '';
-  return [...chatHead(`Глубокий разбор премонтажа «${t.name}» (templates/${t.id}).`),
-    `Референсы — видео на пульте: ${(t.refs||[]).map((r,i)=>`${i+1}) ${r.name} — id ${r.id}`).join('; ')}.`,
-    `Скачай их (Artifact read с path=id) и прогони конвейер из CLAUDE.md «Глубокий разбор»: tools/ref_analyze.py по каждому → tools/style_spec.py.`,
-    `Кадры каждого референса пульт уже разобрал: templates/${t.id}.refs[].analysis (подача, хук, планы, субтитры, заголовки, оверлеи) и refs[].metrics. Описание бери оттуда, а не по картинкам заново. Листы смотри, только если поле пустое или отчёт ref_analyze с ним расходится, и не больше одного листа-сетки на референс. report.json и данные пульта в чат целиком не выводи: сохраняй в файл и читай скриптом.`,
-    `Затем tools/style_dna.py по тем же отчётам (--timeline) → сравни референсы между собой и опиши стиль тремя слоями: ядро (одинаково у всех), приёмы с правилом «когда» по смыслу текста, структура и диапазоны; формат — tools/dna_text.py; запиши в rules.dna.`,
-    `Уточни и запиши обратно в templates/${t.id}: rules.dna, spec (style_spec.json целиком — цифры ядра), rules.style, recipe, sound, speech, rules.passport, rules.target, rules.subAnim, rules.allowed, blockMap, gaps; поставь deep: true. С полем spec «Создать монтаж» сам собирает раскадровку по ритму референсов, а tools/spec_build.py — тайминги, грейд, звук и субтитры.`,
-    `Чего нет в библиотеке (gaps) — предложи блоки, после согласования сделай их и добавь в allowed.`].join('\n');
+  const cur=t.stylePack, v=(cur?.v||0)+1, refs=(t.refs||[]).filter(r=>r.id);
+  return [...chatHead(`Разбор стиля в чате → стилевой пакет v${v} для стиля «${t.name}» (templates/${t.id}).`),
+    `Порядок работы — docs/style-pack.md: прочитай его целиком и иди по шагам. Цель — не описание, а стиль кодом Remotion: субтитры, заголовки, хук, склейки, камера, слои, звук.`,
+    refs.length ? `Референсы — видео на пульте: ${refs.map((r,i)=>`${i+1}) ${r.name} — id ${r.id}`).join('; ')}. Скачай: Artifact read (url пульта) с path=id и out_dir=work/refs.`
+                : `Референсов на пульте у этого стиля нет — попроси меня прислать 1–3 ролика в чат.`,
+    `Смотри видео сам: покадровые листы (tools/style_pack.py strip) текста, склеек и движения камеры, крупные вырезки текста (--crop). Разбор пульта (templates/${t.id}.refs[].analysis, rules.dna, spec) — только подсказка, что искать; где он расходится с кадрами, верь кадрам.`,
+    cur?.file ? `Сейчас у стиля пакет v${cur.v} (файл ${cur.file}${cur.sheet?`, эталон ${cur.sheet}`:''}): скачай его и улучшай, а не пиши заново, если я не попрошу иначе.` : '',
+    `Для тест-рендера попроси меня прислать 10–20 с моего сырого видео (говорящая голова); пока жду — делай замеры и листы.`,
+    `Сверка: тест рядом с референсом (tools/style_pack.py side), 2–4 круга правок, пока не совпадёт. Потом покажи мне лист и тест-mp4 и жди моего «да». Без «да» в пульт ничего не пиши.`,
+    `После «да»: tools/style_pack.py build → загрузи pack.json и эталонный лист в ассеты пульта (Artifact, action publish, url пульта, asset: true) → ArtifactData update templates/${t.id}: stylePack = {v: ${v}, file, sheet, at, summary, slots}, прошлую версию добавь в начало stylePacks (не больше 10). Заодно обнови spec и rules.dna, если замеры их уточнили.`,
+    `Если есть доступ на запись в репозиторий — положи исходники пакета в library/styles/<slug>/ и закоммить.`].filter(Boolean).join('\n');
 }
 /* замеры видео в браузере: склейки по кадрам, планы, палитра, ключевые кадры */
 async function refMeasure(src, onP){
@@ -2092,9 +2102,9 @@ function openPremont(base){
         await write(()=>db.collection('assets').doc(code).set({code, name:f.file.name.replace(/\.[^.]+$/,''), section:'ref', group:'Рилсы', when:`референс стиля «${name}»`, tags:'', license:'', source:'референс',
           drive:'', fileId:f.id, fileKind:'video', fileName:f.file.name, size:f.file.size, previewId:null, previewKind:null, previewState:'done', templateId:ref.id, createdAt:new Date().toISOString()}));
         S.assets.push({id:code, code}); }
-      $('#pm-out').innerHTML=`<div class="empty" style="margin-top:16px"><strong>Стиль «${esc(name)}» ${base?'обновлён':'сохранён'}</strong>Теперь «Новый ролик» → выбери этот стиль → вставь текст и видео аватара. Для точности можно нажать «Глубокий разбор» на карточке стиля и вставить задание в чат: я уточню рецепт по видео и звуку.
-        <div class="row" style="justify-content:center;margin-top:10px"><button class="btn primary" type="button" id="pm-deep">Скопировать задание на глубокий разбор</button></div></div>`;
-      $('#pm-deep').onclick=()=>copyText(deepTask({...body,id:ref.id}),'Задание скопировано: вставь его в чат');
+      $('#pm-out').innerHTML=`<div class="empty" style="margin-top:16px"><strong>Стиль «${esc(name)}» ${base?'обновлён':'сохранён'}</strong>Теперь «Новый ролик» → выбери этот стиль → вставь текст и видео аватара. Чтобы ролики повторяли стиль точно, нажми «Разобрать в чате» на карточке стиля и вставь задание в новый чат: там стиль разберут покадрово и запишут кодом, а пульт его запомнит.
+        <div class="row" style="justify-content:center;margin-top:10px"><button class="btn primary" type="button" id="pm-deep">Скопировать задание на разбор в чате</button></div></div>`;
+      $('#pm-deep').onclick=()=>copyText(deepTask({...body,id:ref.id}),'Задание на разбор скопировано: вставь его в новый чат');
     };
   }
 }
@@ -2273,6 +2283,10 @@ radius — одно из 0.3, 0.6, 1, 1.6. motion — soft | spring | snappy. te
   });
 }
 /* ---------- ШАБЛОНЫ ---------- */
+/* стилевой пакет (стиль кодом из чата): названия слотов и просмотр эталона «референс / тест» */
+const PACK_SLOT_NAMES={Captions:'субтитры',Title:'крупный текст',Hook:'хук',Camera:'камера',Cut:'склейки',Overlay:'слой поверх',Top:'верхний слой',scenes:'свои сцены'};
+const packSlots=sl=>(sl||[]).map(x=>PACK_SLOT_NAMES[x]||x).join(', ');
+
 function renderTemplates(){
   $('#newTpl').hidden = !canEdit; $('#newPremont').hidden = !canEdit;
   const L = $('#tplList');
@@ -2282,6 +2296,7 @@ function renderTemplates(){
     return `<article class="card">
       ${media(t.previewId, t.previewKind, t.posterId)}
       <div class="body">
+        ${t.stylePack?`<div class="row" style="gap:6px;margin-bottom:6px"><span class="chip" style="color:var(--ok)" title="${esc(t.stylePack.summary||'')}">стиль в коде v${esc(String(t.stylePack.v||1))} ✓</span></div>`:''}
         ${t.kind==='premontage'?`<div class="row" style="gap:6px"><span class="chip">Премонтаж · ${t.refs?.length||0} реф.</span>${t.deep?'<span class="chip">глубокий разбор ✓</span>':''}${t.rules?.dna?'<span class="chip">стиль в 3 слоя ✓</span>':''}${t.spec?'<span class="chip">цифры стиля ✓</span>':''}${t.gaps?.length?`<span class="chip" title="${esc(t.gaps.map(g=>g.technique).join('; '))}">нет в библиотеке: ${t.gaps.length}</span>`:''}</div>`:''}
         <h3>${esc(t.name)}</h3>
         <p class="desc">${esc(t.aesthetic)}</p>
@@ -2296,6 +2311,7 @@ function renderTemplates(){
         ${tplAllowed(t)?`<div class="meta">${tplAllowed(t).slice(0,12).map(b=>`<span class="chip code">${esc(b)}</span>`).join('')}${tplAllowed(t).length>12?`<span class="chip">ещё ${tplAllowed(t).length-12}</span>`:''}</div>`:''}
         <p class="hint" style="margin:8px 0 0">${t.rules ? `Правила: ${[t.rules.target?`доли ${t.rules.target.a}/${t.rules.target.b}/${t.rules.target.c}`:'доли по смыслу', winName(t.rules.win||'popout').toLowerCase(), tplAllowed(t)?`${tplAllowed(t).length} блоков`:'все блоки', t.rules.assets?'ассеты на Диске':''].filter(Boolean).join(' · ')}` : 'Правила не настроены — возьмутся поля карточки и вся библиотека.'}</p>
         ${t.rules?.dna?`<p class="hint" style="margin:4px 0 0">Стиль: ${esc(dnaSummary(t.rules.dna))}</p>`:''}
+        ${t.stylePack?`<p class="hint" style="margin:4px 0 0">Стиль в коде v${esc(String(t.stylePack.v||1))}${t.stylePack.at?` от ${esc(new Date(t.stylePack.at).toLocaleDateString('ru-RU'))}`:''}: ${esc(t.stylePack.summary||'')}${t.stylePack.slots?.length?` · ${esc(packSlots(t.stylePack.slots))}`:''}. Ролики в этом стиле собираются его кодом.</p>${t.stylePack.sheet?`<details style="margin-top:4px"><summary class="hint" style="cursor:pointer">Эталон: сверху референс, снизу тест</summary><img src="${blob(t.stylePack.sheet)}" alt="Эталон стиля: кадры референса и тестового рендера" loading="lazy" style="width:100%;border-radius:6px;margin-top:6px"></details>`:''}`:''}
         ${t.spec?`<p class="hint" style="margin:4px 0 0">Цифры ядра: ${esc(specSummary(t.spec))}</p>`:''}
         ${t.rules?.passport?`<div class="swatches" aria-label="Паспорт" style="margin-top:8px">${PP_COLORS.map(([k])=>t.rules.passport.colors?.[k]).filter(Boolean).map(c=>`<i style="background:${esc(c)}" title="${esc(c)}"></i>`).join('')}</div><p class="hint" style="margin:4px 0 0">${esc(ppSummary(t.rules.passport))}</p>`:''}
         <div class="actions">
@@ -2303,7 +2319,7 @@ function renderTemplates(){
           ${canEdit?`<button class="btn" type="button" data-tplcfg="${esc(t.id)}">Настроить</button>`:''}
           ${t.kind==='premontage'&&canEdit?`<button class="btn" type="button" data-more="${esc(t.id)}">Дополнить референсами</button>`:''}
           ${gapsOf(t).length?`<button class="btn ghost" type="button" data-gaps="${esc(t.id)}">Задание на недостающие блоки</button>`:''}
-          ${t.kind==='premontage'?`<button class="btn ghost" type="button" data-deep="${esc(t.id)}">Глубокий разбор</button>`:''}
+          <button class="btn${t.stylePack?' ghost':''}" type="button" data-deep="${esc(t.id)}" title="Копирует задание для нового чата: там стиль разберут покадрово, запишут кодом и сохранят в пульт">${t.stylePack?'Улучшить разбор в чате':'Разобрать в чате'}</button>
           ${canEdit?`<label class="btn ghost" style="cursor:pointer">Превью<input type="file" accept="image/*,video/mp4,video/webm" data-tplprev="${esc(t.id)}" hidden></label>`:''}
         </div>
       </div></article>`; }).join('')}</div>`;
@@ -2312,7 +2328,7 @@ function renderTemplates(){
   L.querySelectorAll('[data-more]').forEach(b=>b.addEventListener('click',()=>openPremont(tplOf(b.dataset.more))));
   L.querySelectorAll('[data-gaps]').forEach(b=>b.addEventListener('click',()=>copyText(gapsTask(tplOf(b.dataset.gaps)),'Задание на блоки скопировано: вставь его в новый чат')));
   L.querySelectorAll('[data-tplcfg]').forEach(b=>b.addEventListener('click',()=>openTplRules(tplOf(b.dataset.tplcfg))));
-  L.querySelectorAll('[data-deep]').forEach(b=>b.addEventListener('click',()=>copyText(deepTask(tplOf(b.dataset.deep)),'Задание на глубокий разбор скопировано: вставь его в чат')));
+  L.querySelectorAll('[data-deep]').forEach(b=>b.addEventListener('click',()=>copyText(deepTask(tplOf(b.dataset.deep)),'Задание на разбор скопировано: вставь его в новый чат')));
   L.querySelectorAll('[data-tplprev]').forEach(inp=>inp.addEventListener('change', async ()=>{
     const f=inp.files[0]; if(!f) return; toast('Загружаю…'); const r=await upload(f); if(!r) return;
     await write(()=>db.collection('templates').doc(inp.dataset.tplprev).update({previewId:r.id, previewKind:r.kind, posterId:null}),'Превью обновлено');
