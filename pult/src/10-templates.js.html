@@ -28,6 +28,7 @@ function renderTemplates(){
           <button class="btn primary" data-use="${esc(t.id)}"${canWrite&&db?'':' disabled'}>Новый ролик в этом стиле</button>
           ${canEdit?`<button class="btn" type="button" data-tplcfg="${esc(t.id)}">Настроить</button>`:''}
           ${t.kind==='premontage'&&canEdit?`<button class="btn" type="button" data-more="${esc(t.id)}">Дополнить референсами</button>`:''}
+          ${gapsOf(t).length?`<button class="btn ghost" type="button" data-gaps="${esc(t.id)}">Задание на недостающие блоки</button>`:''}
           ${t.kind==='premontage'?`<button class="btn ghost" type="button" data-deep="${esc(t.id)}">Глубокий разбор</button>`:''}
           ${canEdit?`<label class="btn ghost" style="cursor:pointer">Превью<input type="file" accept="image/*,video/mp4,video/webm" data-tplprev="${esc(t.id)}" hidden></label>`:''}
         </div>
@@ -35,6 +36,7 @@ function renderTemplates(){
   wireVideos(L);
   L.querySelectorAll('[data-use]').forEach(b=>b.addEventListener('click',()=>{ show('reels'); createReel(b.dataset.use); }));
   L.querySelectorAll('[data-more]').forEach(b=>b.addEventListener('click',()=>openPremont(tplOf(b.dataset.more))));
+  L.querySelectorAll('[data-gaps]').forEach(b=>b.addEventListener('click',()=>copyText(gapsTask(tplOf(b.dataset.gaps)),'Задание на блоки скопировано: вставь его в новый чат')));
   L.querySelectorAll('[data-tplcfg]').forEach(b=>b.addEventListener('click',()=>openTplRules(tplOf(b.dataset.tplcfg))));
   L.querySelectorAll('[data-deep]').forEach(b=>b.addEventListener('click',()=>copyText(deepTask(tplOf(b.dataset.deep)),'Задание на глубокий разбор скопировано: вставь его в чат')));
   L.querySelectorAll('[data-tplprev]').forEach(inp=>inp.addEventListener('change', async ()=>{

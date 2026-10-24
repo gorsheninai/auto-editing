@@ -212,6 +212,35 @@ function enforceSpeaker(rows, spk, defWin){
   });
   return fixed;
 }
+/* картинки стиля: illustration — цельные иллюстрации-метафоры без героя-человека (kind gen на весь кадр),
+   collage — 2D-сцены из позы героя, предметов и фонов (l2d), mixed — по смыслу */
+const PICTURE_NAMES={illustration:'цельные иллюстрации, без героя', collage:'коллаж с героем (позы, предметы, фоны)', mixed:'по смыслу'};
+const NO_HUMAN_RE=/(никогда\s+нет\s+человека|нет\s+(людей|человека)|без\s+(людей|человека|героя)|людей\s+нет|человека\s+нет)/i;
+function picturesOf(t){
+  if(!t) return 'mixed';
+  if(PICTURE_NAMES[t.rules?.pictures]) return t.rules.pictures;
+  const txt=[...(t.rules?.dna?.core||[]).map(c=>`${c.name} ${c.rule}`), t.rules?.style||'', t.aesthetic||''].join(' ');
+  return NO_HUMAN_RE.test(txt) ? 'illustration' : 'mixed';
+}
+const SUBPOS_NAMES={top:'сверху', middle:'по центру', bottom:'снизу'};
+function subPosOf(t){ return SUBPOS_NAMES[t?.rules?.subPos] ? t.rules.subPos : (picturesOf(t)==='illustration' ? 'top' : ''); }
+function wipeOf(t){ return t ? (typeof t.rules?.wipe==='boolean' ? t.rules.wipe : /шторк/i.test(t.motion||'')) : false; }
+function picturesRule(pic){
+  if(pic==='illustration') return `КАРТИНКИ СТИЛЯ — цельные иллюстрации-метафоры, героя-человека в кадре нет. Сцену с картинкой ставь как kind "gen" (цельная иллюстрация по смыслу фразы, на весь экран); в visual опиши метафору: какой предмет или место и что с ним происходит. kind "l2d" (коллаж из позы героя и предметов) не используй. Цифры, списки, процессы и сравнения — моушн-блоки стиля.`;
+  if(pic==='collage') return `КАРТИНКИ СТИЛЯ — 2D-сцены из слоёв: поза героя, предметы, фон (kind "l2d"); картинки по смыслу (gen) — только на конкретные упоминания.`;
+  return '';
+}
+/* приёмы стиля, которых нет в библиотеке: быстрый режим их не повторит */
+function gapsOf(t){ return (t?.gaps||[]).filter(g=>g&&g.technique); }
+function gapsTask(t){
+  const g=gapsOf(t);
+  return [`Стиль «${t.name}» на пульте (${PULT_URL}), templates/${t.id}. В библиотеке нет приёмов, на которых он держится — сделай для них блоки.`,
+    `0) Репозиторий GitHub gorsheninai/auto-editing: add_repo (access push) → клонировать → register_repo_root. Прочитай docs/template-montage.md и docs/pult-data.md.`,
+    `1) ArtifactData get templates/${t.id} с out_dir=work/db — там разбор референсов (refs[].analysis) и паспорт стиля (rules.passport).`,
+    `2) Сделай блоки (код, превью, запись в library/CATALOG.md и python3 tools/catalog_index.py), цвета и шрифты — из паспорта, не зашивай:`,
+    ...g.map((x,i)=>`   ${i+1}. ${x.technique}${x.seen?` — как в референсах: ${x.seen}`:''}${x.proposal?`. Предложение: ${x.proposal}`:''}`),
+    `3) Добавь коды новых блоков в rules.allowed стиля и убери закрытые пункты из gaps (ArtifactData update с if_version). Коммит и push.`].join('\n');
+}
 function tplAllowed(t){
   if(!t) return null;
   if(t.rules) return t.rules.allowed?.length ? t.rules.allowed : null;
@@ -241,7 +270,7 @@ function pickStyle(){
     <p class="hint" style="margin:0 0 12px">Стиль уже разобран, поэтому ролик по нему делается только по тексту: кадры референсов Claude больше не смотрит.</p>
     ${list.length?`<div class="stylepick">${list.map(t=>`<button type="button" class="stylecard" data-style="${esc(t.id)}">
       <b>${esc(t.name)}</b>${sw(t)}<span class="hint">${esc(t.aesthetic||'')}</span>
-      <span class="hint">спикер в кадре: ${esc(SPEAKER_NAMES[speakerOf(t)])} · ${t.rules?.dna?'стиль в 3 слоя':t.rules?.style?'стиль текстом':'только карточка'}${t.refs?.length?` · референсов ${t.refs.length}`:''}${t.spec?' · цифры ✓':''}</span></button>`).join('')}</div>`
+      ${gapsOf(t).length?`<span class="hint" style="color:var(--warn)">быстрый режим не повторит ${gapsOf(t).length} ${plural(gapsOf(t).length,'приём','приёма','приёмов')} — нет блоков</span>`:''}<span class="hint">спикер в кадре: ${esc(SPEAKER_NAMES[speakerOf(t)])} · картинки: ${esc(PICTURE_NAMES[picturesOf(t)])} · ${t.rules?.dna?'стиль в 3 слоя':t.rules?.style?'стиль текстом':'только карточка'}${t.refs?.length?` · референсов ${t.refs.length}`:''}${t.spec?' · цифры ✓':''}</span></button>`).join('')}</div>`
       :`<div class="empty"><strong>Стилей пока нет</strong>Собери первый из 1–5 референсов: это делается один раз.</div>`}
     <div class="row" style="margin-top:14px;gap:8px">
       <button class="btn" type="button" id="sp-new">Новый стиль из референсов</button>
@@ -288,6 +317,8 @@ function openReel(p){
       <div class="f wide"><label>Окно спикера в режиме B</label><span class="hint">По умолчанию на весь ролик. В раскадровке можно поменять у любого сегмента.</span>
         <div class="wins" role="radiogroup" aria-label="Окно спикера">${winCards}</div></div>
       <div class="fields" style="margin-top:14px">
+        <div class="f"><label for="r-subPos">Субтитры</label><select id="r-subPos"${ro}>${opts([['', `как в стиле: ${SUBPOS_NAMES[subPosOf(tplOf(p.templateId))]||'по режиму кадра'}`],['top','сверху'],['middle','по центру'],['bottom','снизу']], p.subPosSet||'')}</select></div>
+        <div class="f"><label for="r-wipe">Склейки</label><select id="r-wipe"${ro}>${opts([['', `как в стиле: ${wipeOf(tplOf(p.templateId))?'шторка-круг':'жёсткие'}`],['off','жёсткие'],['on','цветная шторка-круг']], p.wipeSet||'')}</select></div>
         <div class="f"><label for="r-speaker">Спикер в кадре</label><select id="r-speaker"${ro}>${opts([['', tplOf(p.templateId)?`как в стиле: ${SPEAKER_NAMES[speakerOf(tplOf(p.templateId))]}`:'иногда (по смыслу)'],['always','всегда'],['some','иногда'],['never','никогда, только голос']], p.speaker||'')}</select><span class="hint">С озвучкой без видео — всегда «никогда».</span></div>
         <div class="f"><label for="r-bg">Подложка</label><select id="r-bg"${ro}>${opts(['светлая','тёмная','светлая, живой градиент','тёмная, живой градиент'],p.bg)}</select></div>
         <div class="f"><label for="r-sound">Звук</label><select id="r-sound"${ro}>${opts(SOUND,p.sound)}</select></div>

@@ -7,6 +7,9 @@ function quickPanel(p, ro){
       <div class="row" role="group" aria-label="Режим" style="gap:6px">
         <button type="button" class="chipbtn" data-qmode="auto" aria-pressed="${m==='auto'}">Авто</button>
         <button type="button" class="chipbtn" data-qmode="own" aria-pressed="${m==='own'}">Свои настройки</button></div></div>
+    ${gapsOf(t).length?`<div class="gapwarn"><b>Быстрый режим не повторит ${gapsOf(t).length} ${plural(gapsOf(t).length,'приём','приёма','приёмов')} стиля — их нет в библиотеке:</b>
+      <ul>${gapsOf(t).map(g=>`<li>${esc(g.technique)}</li>`).join('')}</ul>
+      <div class="row" style="gap:8px"><button type="button" class="btn" id="r-gapsCopy">Скопировать задание на эти блоки</button><span class="hint">Вставь в новый чат: Claude сделает блоки, и следующие ролики в стиле выйдут ближе к референсу.</span></div></div>`:''}
     <span class="hint" id="r-quickNote">${m==='auto'?'Авто: настройки, доли и приёмы берутся из стиля.':'Свои настройки: стиль и настройки открыты, их можно поменять.'} Спикер в кадре: ${esc(SPEAKER_NAMES[spk])}.</span>
   </div>`;
 }
@@ -19,6 +22,7 @@ function wireQuick(p){
     box.querySelectorAll('[data-qmode]').forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.qmode===(auto?'auto':'own'))));
     reelHooks.updateSteps();
   };
+  const gc=$('#r-gapsCopy'); if(gc) gc.onclick=()=>copyText(gapsTask(t),'Задание на блоки скопировано: вставь его в новый чат');
   box.querySelectorAll('[data-qmode]').forEach(b=>b.onclick=async ()=>{
     p.mode=b.dataset.qmode; apply();
     note.textContent = (p.mode==='auto' ? 'Авто: настройки, доли и приёмы берутся из стиля.' : 'Свои настройки: шаги «Стиль» и «Настройки» открыты.')+` Спикер в кадре: ${SPEAKER_NAMES[speakerOf(t)]}.`;
@@ -41,6 +45,9 @@ function openTplRules(t){
       <div class="f wide"><label for="tr-dna">Стиль тремя слоями: ядро, приёмы, структура</label><textarea id="tr-dna" spellcheck="false" style="min-height:340px;font-family:var(--mono);font-size:13px;line-height:1.45" placeholder="${esc(DNA_FORMAT)}">${esc(r.dna?dnaToText(r.dna):'')}</textarea><span class="hint">По строке на пункт, поля через « | ». Ядро держится в каждом ролике; приёмы Claude ставит по смыслу текста, по правилу «когда»; структура — как устроен ролик во времени. Коды приёмов, которые сборка знает: ${Object.keys(DNA_CODES).join(', ')}; новый код — опиши, сделаю блок в чате.</span></div>
       <div class="f wide"><label for="tr-style">${r.dna?'Дополнительно к стилю (свободный текст)':'Стиль монтажа'}</label><textarea id="tr-style" style="min-height:${r.dna?90:180}px">${esc(r.dna?(r.style||''):(r.style||tplStyle(t)))}</textarea><span class="hint">${r.dna?'Необязательно: то, что не легло в три слоя.':'Уходит в поле «Стиль ролика». Лучше описать стиль тремя слоями выше.'}</span></div>
       <div class="f"><label for="tr-speaker">Спикер в кадре</label><select id="tr-speaker">${opts([['always','всегда'],['some','иногда'],['never','никогда, только голос']], speakerOf(t))}</select><span class="hint">«Никогда»: раскадровка ставит только вставки на весь экран, без говорящей головы.</span></div>
+      <div class="f"><label for="tr-pictures">Картинки</label><select id="tr-pictures">${opts(Object.entries(PICTURE_NAMES), picturesOf(t))}</select><span class="hint">«Цельные иллюстрации»: на каждую фразу — своя картинка-метафора на весь кадр, без героя-человека.</span></div>
+      <div class="f"><label for="tr-subPos">Субтитры</label><select id="tr-subPos">${opts([['','по режиму кадра'],['top','сверху'],['middle','по центру'],['bottom','снизу']], subPosOf(t))}</select></div>
+      <div class="f"><label class="row" style="gap:8px;cursor:pointer"><input type="checkbox" id="tr-wipe"${wipeOf(t)?' checked':''}> Цветная шторка-круг на склейках</label><span class="hint">Выключено — жёсткие склейки.</span></div>
       <div class="f"><label for="tr-win">Окно спикера</label><select id="tr-win">${opts(WINS.map(w=>[w[0],w[1]]), r.win||'popout')}</select></div>
       <div class="f"><label for="tr-bg">Подложка</label><select id="tr-bg">${opts(['светлая','тёмная','светлая, живой градиент','тёмная, живой градиент'], r.bg||t.bg||'светлая')}</select></div>
       <div class="f"><label for="tr-sub">Анимация субтитров</label><select id="tr-sub">${opts(anim('subtitle'), r.subAnim||'static')}</select></div>
@@ -158,7 +165,7 @@ radius — одно из 0.3, 0.6, 1, 1.6. motion — soft | spring | snappy. te
     if(!on.length){ toast('Выбери хотя бы один блок'); return; }
     const dnaTxt=$('#tr-dna').value.trim(), dna=dnaTxt?dnaFromText(dnaTxt):null;
     if(dna && (!dna.core.length || !dna.techniques.length)){ toast('В стиле нужны разделы ЯДРО и ПРИЁМЫ'); return; }
-    const rules={dna, style:$('#tr-style').value.trim(), speaker:$('#tr-speaker').value, win:$('#tr-win').value, bg:$('#tr-bg').value, subAnim:$('#tr-sub').value, titleAnim:$('#tr-title').value,
+    const rules={dna, style:$('#tr-style').value.trim(), speaker:$('#tr-speaker').value, pictures:$('#tr-pictures').value, subPos:$('#tr-subPos').value, wipe:$('#tr-wipe').checked, win:$('#tr-win').value, bg:$('#tr-bg').value, subAnim:$('#tr-sub').value, titleAnim:$('#tr-title').value,
       target, punch:$('#tr-punch').checked, progress:$('#tr-prog').checked, assets:$('#tr-assets').value.trim(), assetsList:$('#tr-alist').value,
       allowed: on.length===boxes().length ? [] : on, passport: readPP()};
     if(await write(()=>db.collection('templates').doc(t.id).update({rules, bg:rules.bg, updatedAt:new Date().toISOString()}),'Правила сохранены')){ E.hidden=true; E.innerHTML=''; }

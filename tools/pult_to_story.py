@@ -80,6 +80,7 @@ def main():
             if os.path.splitext(f)[0].lower() == stem: return rel
         return None
 
+    mapped = any(r.get('kind') == 'gen' and r.get('media') for r in rows)
     warn, out = [], []
     for i, r in enumerate(rows):
         mode = (r.get('mode') or 'B').upper()
@@ -115,8 +116,10 @@ def main():
         if r.get('frame'): row['frame'] = r['frame']
         elif r.get('picType') in ('product', 'poster', 'painting'): row['frame'] = r['picType']
         elif r.get('picType') in ('screenshot', 'news'): row['frame'] = 'phone' if r['picType'] == 'screenshot' else 'window'
+        elif kind == 'gen' and proj.get('pictures') == 'illustration': row['frame'] = 'plain'   # иллюстрация стиля — на весь кадр, без рамки
         if kind in ('gen', 'media'):
-            name = r.get('media') or (f'pic_{i + 1}' if kind == 'gen' else '')
+            # картинка по смыслу: имя файла пульт пишет в строку (row.media); старые проекты без привязки — pic_<номер строки>
+            name = r.get('media') or (f'pic_{i + 1}' if kind == 'gen' and not mapped else '')
             m = find_media(name)
             if m: row['media'] = m
             elif auto: row['kind'] = kind = 'kinetic'; warn.append(f'{i + 1}: нет файла «{name or "?"}» — кинетический текст')
@@ -144,6 +147,10 @@ def main():
         },
     }
     if proj.get('punch'): st['settings']['punch'] = True
+    if proj.get('wipe'): st['settings']['wipe'] = True                     # шторка-круг на склейках — только если стиль её просит
+    if proj.get('subPos') in ('top', 'middle', 'bottom'): st['settings']['subPos'] = proj['subPos']
+    if proj.get('pictures') == 'illustration':                              # стиль-иллюстрация: медленный наезд камеры по картинке и лёгкое зерно
+        st['settings']['insertZoomPerS'] = float(proj.get('insertZoom') or 0.02); st['settings']['insertGrain'] = 0.06
     if proj.get('progress'): st['settings']['progress'] = True
     if 'градиент' in (proj.get('bg') or '') or proj.get('backdrop') == 'BgGrain': st['settings']['backdrop'] = 'BgGrain'
     if proj.get('accent'): st['settings']['accent'] = proj['accent']

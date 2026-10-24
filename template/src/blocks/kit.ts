@@ -39,6 +39,9 @@ const parseNum = (s: string): {value: number | null; shown: string} => {
   return {value: v, shown: s.trim()};
 };
 export function parseData(note: string, fallbackText = ''): BlockData {
+  /* данные блока — до «//»; после — пояснение для человека, в кадр не идёт.
+     Старые описания без «//»: хвост-предложение после точки («… — система. Тёмная сцена: механизм…») тоже отбрасываем */
+  note = note.split('//')[0].replace(/\.\s+[А-ЯЁA-Z][^|;]{25,}$/s, '');
   const m = note.match(/^\s*([A-Z][A-Za-z0-9]+)\s*:?\s*(.*)$/s);
   const code = m ? m[1] : ''; const body = m ? m[2] : note;
   const d: BlockData = {code, title: '', total: '', items: [], text: fallbackText};

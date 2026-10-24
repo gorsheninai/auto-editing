@@ -139,14 +139,15 @@ const Captions: React.FC = () => {
   if (r.scene && (/^Txt/.test(r.scene) || /^Card/.test(r.scene))) return null; // текстовая сцена уже показывает эти слова
   if (r.mode === 'C' && (kind === 'kinetic' || ((kind === 'motion' || kind === 'd3') && !(r.scene && REG[r.scene])))) return null; // текст уже на экране
   const win = winOf(r);
-  const y = SUB_STYLE === 'SubKino' ? (r.mode === 'B' ? 1300 : r.mode === 'C' ? (/^Phone/.test(r.scene || '') ? 1810 : 1520) : 1120) : r.mode === 'A' ? 1500 : r.mode === 'C' ? 1540 : win === 'circle' ? 1350 : win === 'strip' ? 1160 : 1150;
+  const SP = STORY.settings.subPos; const yPos = SP === 'top' ? 560 : SP === 'middle' ? 960 : null; // место субтитров по стилю
+  const y = yPos ?? SUB_STYLE === 'SubKino' ? (r.mode === 'B' ? 1300 : r.mode === 'C' ? (/^Phone/.test(r.scene || '') ? 1810 : 1520) : 1120) : r.mode === 'A' ? 1500 : r.mode === 'C' ? 1540 : win === 'circle' ? 1350 : win === 'strip' ? 1160 : 1150;
   const p = STORY.settings.subAnim;
   if (p?.style === 'SubTom') { /* как у референса: по слову, мелко, кремовым, по центру груди, без анимации; ключевые слова крупнее */
     const ss = STORY.settings.subStyle || {}; const fs = ss.fontSize || 60;
     const ki = new Set(ss.keyIdx || []); // крупные слова по номерам (приёмы KEY/NUM/WORD раскадровки) — точнее, чем по написанию
     const key = ki.size ? ch.ws.some((w) => ki.has(STORY.words.indexOf(w))) : (ss.keywords || []).some((k) => ch.ws.some((w) => bareW(w.w) === k.toLowerCase()));
     const size = key ? Math.min(fs * (ss.keyScale || 2.2), 900 / Math.max(1, ch.text.length * 0.56)) : fs;
-    const top = r.mode === 'C' ? (ss.topInsert ?? (/^Phone/.test(r.scene || '') ? 1790 : ss.top ?? 1140)) : ss.top ?? 1140;
+    const top = yPos ?? (r.mode === 'C' ? (ss.topInsert ?? (/^Phone/.test(r.scene || '') ? 1790 : ss.top ?? 1140)) : ss.top ?? 1140);
     const raw = ch.text.replace(/[,;]+$/, ''); const txt = ss.case === 'upper' ? raw.toUpperCase() : ss.case === 'as_is' ? raw : raw.toLowerCase();
     return <div style={{position: 'absolute', left: 0, right: 0, top, translate: '0 -50%', textAlign: 'center', fontFamily: SANS, fontWeight: key ? 800 : 700, fontSize: size, lineHeight: 1, letterSpacing: key ? -size * 0.04 : -1.5,
       color: ss.color || STORY.settings.passport?.colors?.ink || '#EFE7DA', textShadow: '0 2px 14px rgba(0,0,0,.45), 0 0 2px rgba(0,0,0,.3)'}}>{txt}</div>;
@@ -177,7 +178,8 @@ const Wipe: React.FC = () => {
   const fr = useCurrentFrame();
   const b = CUTS.find((x) => Math.abs(fr - x) <= 4); if (b === undefined) return null;
   const rad = interpolate(Math.abs(fr - b), [0, 4], [1500, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const cols = [T.accent, T.dot, T.dark ? '#2A2D36' : '#FFD23F'];
+  const pc = STORY.settings.passport?.colors || {}; // цвета шторки — из паспорта стиля
+  const cols = [T.accent, pc.accent2 || T.dot, pc.soft || T.dot];
   return <AbsoluteFill style={{pointerEvents: 'none'}}><div style={{position: 'absolute', left: 540 - rad, top: 960 - rad, width: rad * 2, height: rad * 2, borderRadius: '50%', background: cols[CUTS.indexOf(b) % 3], filter: 'blur(6px)'}} /></AbsoluteFill>;
 };
 
@@ -219,7 +221,7 @@ export const StoryMain: React.FC = () => {
     {ROWS.some((x) => trOf(x.r)) ? <Transitions /> : ROWS.map(({r, i, from, dur}) => <Sequence key={i} from={from} durationInFrames={dur}><Segment r={r} from={from} dur={dur} /></Sequence>)}
     <Captions />
     {STORY.settings.progress ? <ProgressBar total={STORY_TOTAL} theme={themeFrom(T)} /> : null}
-    {STORY.settings.wipe === false || STORY.settings.subAnim?.style === 'SubTom' ? null : <Wipe />}
+    {STORY.settings.wipe === true && STORY.settings.subAnim?.style !== 'SubTom' ? <Wipe /> : null /* шторка-круг — только если стиль её просит */}
     <Audio src={staticFile(AV)} />
     <Sounds />
   </AbsoluteFill>;

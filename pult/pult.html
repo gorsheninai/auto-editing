@@ -145,6 +145,8 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .stylecard:disabled{opacity:.6;cursor:progress}
 .stylecard b{font-size:15px}
 .stylecard .hint{overflow-wrap:anywhere}
+.gapwarn{border:1px solid var(--warn,#C98A00);border-radius:10px;padding:10px 12px;display:grid;gap:6px;font-size:13.5px}
+.gapwarn ul{margin:0;padding-left:20px;color:var(--muted)}
 [hidden]{display:none!important}
 :root{--k-gen:#E0559B;--k-l2d:#3D63F2;--k-motion:#8B5CF6;--k-d3:#0E9F8A;--k-kinetic:#D9482B;--k-media:#C98A00}
 .k-gen{background:var(--k-gen)}.k-l2d{background:var(--k-l2d)}.k-motion{background:var(--k-motion)}.k-d3{background:var(--k-d3)}.k-kinetic{background:var(--k-kinetic)}.k-media{background:var(--k-media)}
@@ -607,6 +609,35 @@ function enforceSpeaker(rows, spk, defWin){
   });
   return fixed;
 }
+/* картинки стиля: illustration — цельные иллюстрации-метафоры без героя-человека (kind gen на весь кадр),
+   collage — 2D-сцены из позы героя, предметов и фонов (l2d), mixed — по смыслу */
+const PICTURE_NAMES={illustration:'цельные иллюстрации, без героя', collage:'коллаж с героем (позы, предметы, фоны)', mixed:'по смыслу'};
+const NO_HUMAN_RE=/(никогда\s+нет\s+человека|нет\s+(людей|человека)|без\s+(людей|человека|героя)|людей\s+нет|человека\s+нет)/i;
+function picturesOf(t){
+  if(!t) return 'mixed';
+  if(PICTURE_NAMES[t.rules?.pictures]) return t.rules.pictures;
+  const txt=[...(t.rules?.dna?.core||[]).map(c=>`${c.name} ${c.rule}`), t.rules?.style||'', t.aesthetic||''].join(' ');
+  return NO_HUMAN_RE.test(txt) ? 'illustration' : 'mixed';
+}
+const SUBPOS_NAMES={top:'сверху', middle:'по центру', bottom:'снизу'};
+function subPosOf(t){ return SUBPOS_NAMES[t?.rules?.subPos] ? t.rules.subPos : (picturesOf(t)==='illustration' ? 'top' : ''); }
+function wipeOf(t){ return t ? (typeof t.rules?.wipe==='boolean' ? t.rules.wipe : /шторк/i.test(t.motion||'')) : false; }
+function picturesRule(pic){
+  if(pic==='illustration') return `КАРТИНКИ СТИЛЯ — цельные иллюстрации-метафоры, героя-человека в кадре нет. Сцену с картинкой ставь как kind "gen" (цельная иллюстрация по смыслу фразы, на весь экран); в visual опиши метафору: какой предмет или место и что с ним происходит. kind "l2d" (коллаж из позы героя и предметов) не используй. Цифры, списки, процессы и сравнения — моушн-блоки стиля.`;
+  if(pic==='collage') return `КАРТИНКИ СТИЛЯ — 2D-сцены из слоёв: поза героя, предметы, фон (kind "l2d"); картинки по смыслу (gen) — только на конкретные упоминания.`;
+  return '';
+}
+/* приёмы стиля, которых нет в библиотеке: быстрый режим их не повторит */
+function gapsOf(t){ return (t?.gaps||[]).filter(g=>g&&g.technique); }
+function gapsTask(t){
+  const g=gapsOf(t);
+  return [`Стиль «${t.name}» на пульте (${PULT_URL}), templates/${t.id}. В библиотеке нет приёмов, на которых он держится — сделай для них блоки.`,
+    `0) Репозиторий GitHub gorsheninai/auto-editing: add_repo (access push) → клонировать → register_repo_root. Прочитай docs/template-montage.md и docs/pult-data.md.`,
+    `1) ArtifactData get templates/${t.id} с out_dir=work/db — там разбор референсов (refs[].analysis) и паспорт стиля (rules.passport).`,
+    `2) Сделай блоки (код, превью, запись в library/CATALOG.md и python3 tools/catalog_index.py), цвета и шрифты — из паспорта, не зашивай:`,
+    ...g.map((x,i)=>`   ${i+1}. ${x.technique}${x.seen?` — как в референсах: ${x.seen}`:''}${x.proposal?`. Предложение: ${x.proposal}`:''}`),
+    `3) Добавь коды новых блоков в rules.allowed стиля и убери закрытые пункты из gaps (ArtifactData update с if_version). Коммит и push.`].join('\n');
+}
 function tplAllowed(t){
   if(!t) return null;
   if(t.rules) return t.rules.allowed?.length ? t.rules.allowed : null;
@@ -636,7 +667,7 @@ function pickStyle(){
     <p class="hint" style="margin:0 0 12px">Стиль уже разобран, поэтому ролик по нему делается только по тексту: кадры референсов Claude больше не смотрит.</p>
     ${list.length?`<div class="stylepick">${list.map(t=>`<button type="button" class="stylecard" data-style="${esc(t.id)}">
       <b>${esc(t.name)}</b>${sw(t)}<span class="hint">${esc(t.aesthetic||'')}</span>
-      <span class="hint">спикер в кадре: ${esc(SPEAKER_NAMES[speakerOf(t)])} · ${t.rules?.dna?'стиль в 3 слоя':t.rules?.style?'стиль текстом':'только карточка'}${t.refs?.length?` · референсов ${t.refs.length}`:''}${t.spec?' · цифры ✓':''}</span></button>`).join('')}</div>`
+      ${gapsOf(t).length?`<span class="hint" style="color:var(--warn)">быстрый режим не повторит ${gapsOf(t).length} ${plural(gapsOf(t).length,'приём','приёма','приёмов')} — нет блоков</span>`:''}<span class="hint">спикер в кадре: ${esc(SPEAKER_NAMES[speakerOf(t)])} · картинки: ${esc(PICTURE_NAMES[picturesOf(t)])} · ${t.rules?.dna?'стиль в 3 слоя':t.rules?.style?'стиль текстом':'только карточка'}${t.refs?.length?` · референсов ${t.refs.length}`:''}${t.spec?' · цифры ✓':''}</span></button>`).join('')}</div>`
       :`<div class="empty"><strong>Стилей пока нет</strong>Собери первый из 1–5 референсов: это делается один раз.</div>`}
     <div class="row" style="margin-top:14px;gap:8px">
       <button class="btn" type="button" id="sp-new">Новый стиль из референсов</button>
@@ -683,6 +714,8 @@ function openReel(p){
       <div class="f wide"><label>Окно спикера в режиме B</label><span class="hint">По умолчанию на весь ролик. В раскадровке можно поменять у любого сегмента.</span>
         <div class="wins" role="radiogroup" aria-label="Окно спикера">${winCards}</div></div>
       <div class="fields" style="margin-top:14px">
+        <div class="f"><label for="r-subPos">Субтитры</label><select id="r-subPos"${ro}>${opts([['', `как в стиле: ${SUBPOS_NAMES[subPosOf(tplOf(p.templateId))]||'по режиму кадра'}`],['top','сверху'],['middle','по центру'],['bottom','снизу']], p.subPosSet||'')}</select></div>
+        <div class="f"><label for="r-wipe">Склейки</label><select id="r-wipe"${ro}>${opts([['', `как в стиле: ${wipeOf(tplOf(p.templateId))?'шторка-круг':'жёсткие'}`],['off','жёсткие'],['on','цветная шторка-круг']], p.wipeSet||'')}</select></div>
         <div class="f"><label for="r-speaker">Спикер в кадре</label><select id="r-speaker"${ro}>${opts([['', tplOf(p.templateId)?`как в стиле: ${SPEAKER_NAMES[speakerOf(tplOf(p.templateId))]}`:'иногда (по смыслу)'],['always','всегда'],['some','иногда'],['never','никогда, только голос']], p.speaker||'')}</select><span class="hint">С озвучкой без видео — всегда «никогда».</span></div>
         <div class="f"><label for="r-bg">Подложка</label><select id="r-bg"${ro}>${opts(['светлая','тёмная','светлая, живой градиент','тёмная, живой градиент'],p.bg)}</select></div>
         <div class="f"><label for="r-sound">Звук</label><select id="r-sound"${ro}>${opts(SOUND,p.sound)}</select></div>
@@ -919,9 +952,10 @@ function rowShares(rows){
   if(!all) return null;
   const a=Math.round(tot.A/all*100), c=Math.round(tot.C/all*100); return {a, b:100-a-c, c};
 }
-function rowsText(rows){
+/* num — номер строки в тексте: по умолчанию по порядку, для подсписков — номер сегмента во всей раскадровке */
+function rowsText(rows, num){
   if(!Array.isArray(rows)||!rows.length) return '';
-  return rows.map((r,i)=>{ const k=r.mode==='A'?'спикер':kindLabel(r.mode,r.kind); const extra=[r.mode==='B'&&r.win?`окно: ${winName(r.win)}`:'', r.kind==='media'&&r.media?`файл: ${r.media}`:''].filter(Boolean).join(', ');
+  return rows.map((r,i0)=>{ const i=num?num(r,i0)-1:i0; const k=r.mode==='A'?'спикер':kindLabel(r.mode,r.kind); const extra=[r.mode==='B'&&r.win?`окно: ${winName(r.win)}`:'', r.kind==='media'&&r.media?`файл: ${r.media}`:''].filter(Boolean).join(', ');
     return `${i+1}. ${fmtT(r.s)}–${fmtT(r.e)} [${r.mode||'?'} · ${k||'—'}${extra?' · '+extra:''}] «${r.text}»${r.note?`\n   Визуал: ${r.note}`:''}`; }).join('\n');
 }
 /* поиск пауз — как ffmpeg silencedetect noise=-38dB:d=0.12, паддинг 0.05, куски короче 0.18 с выкидываем */
@@ -987,7 +1021,7 @@ const SB_PROMPT = `Ты — монтажёр вертикальных рилсо
 {CTA}
 
 Как резать: текст НЕ обязан резаться по предложениям. Сегмент — любой непрерывный кусок слов: он может начинаться и заканчиваться посреди предложения, если визуал меняется на этом слове. Подбирай визуал под смысл слов: что именно говорится — то и показываем. Сегмент обычно 1.5–6 секунд. Сегменты идут подряд и покрывают ВСЕ слова без пропусков и наложений.
-В "visual" одной-двумя фразами: что видно на экране и что меняется на каком слове, в стиле ролика. Если подходит готовый блок библиотеки (моушн M… или текст Txt…) — НАЧНИ visual с его кода и данных в формате блока, например «MBars: я — 3 | они — 30 | заголовок: клиентов в месяц», дальше можно пояснение; бери цифры и слова прямо из текста. Цифры, сравнения, рейтинги, годы, проценты, списки шагов — повод для моушн-блока, а не для картинки. Переход Tr… на склейку можно вписать в visual сегмента, НА который переходим (не чаще одного на 3–4 склейки, на смене темы); эффект Fx… — в visual сегмента, где он нужен; пометку Ink… или PaperSticker — тоже в visual, со словом, к которому она относится. Для A пиши, что делает спикер. Для gen опиши, что ровно на картинке; если это скриншот или документ — точный короткий текст на нём в кавычках. Ставь gen на КАЖДОЕ конкретное упоминание, которое можно показать картинкой: бренд или товар (Nike — кроссовок), картина или художник, известный человек или роль (клиент, начальник, конкурент), место, событие, документ, новость. Ролик не должен держаться только на герое: под 2D-сценами с героем и под картинками с ним — не больше трети ролика, и не ставь две сцены с героем подряд — чередуй с картинками по смыслу, другими персонажами, моушном и кинетическим текстом.
+В "visual" одной-двумя фразами: что видно на экране и что меняется на каком слове, в стиле ролика. Если подходит готовый блок библиотеки (моушн M… или текст Txt…) — НАЧНИ visual с его кода и данных в формате блока, например «MBars: я — 3 | они — 30 | заголовок: клиентов в месяц»; пояснение для человека — только после « // » (всё до « // » попадает в кадр как данные блока); бери цифры и слова прямо из текста. Цифры, сравнения, рейтинги, годы, проценты, списки шагов — повод для моушн-блока, а не для картинки. Переход Tr… на склейку можно вписать в visual сегмента, НА который переходим (не чаще одного на 3–4 склейки, на смене темы); эффект Fx… — в visual сегмента, где он нужен; пометку Ink… или PaperSticker — тоже в visual, со словом, к которому она относится. Для A пиши, что делает спикер. Для gen опиши, что ровно на картинке; если это скриншот или документ — точный короткий текст на нём в кавычках. Ставь gen на КАЖДОЕ конкретное упоминание, которое можно показать картинкой: бренд или товар (Nike — кроссовок), картина или художник, известный человек или роль (клиент, начальник, конкурент), место, событие, документ, новость. Ролик не должен держаться только на герое: под 2D-сценами с героем и под картинками с ним — не больше трети ролика, и не ставь две сцены с героем подряд — чередуй с картинками по смыслу, другими персонажами, моушном и кинетическим текстом.
 
 Картинки, которые уже заказаны в ChatGPT (план по смысловым блокам). 2D-сцены (l2d) и картинки по смыслу (gen) ставь в первую очередь на слова из этих цитат, чтобы каждая картинка попала в ролик; если картинок под место нет — используй motion, d3, kinetic или media:
 {PLAN}
@@ -1240,7 +1274,8 @@ function wireTiming(p){
     const shares = bySpec ? (dna ? dnaPrompt(dna, spk) : specShares(spec, spk)) : withTarget
       ? `ЦЕЛЕВЫЕ ДОЛИ ПО ВРЕМЕНИ (выбрал пользователь): A ${tg.a}%, B ${tg.b}%, C ${tg.c}%. Внутри B: ${kindsTxt('B')}. Внутри C: ${kindsTxt('C')}. Время каждого слова дано — режь сегменты и подбирай режимы и типы так, чтобы суммы секунд были как можно ближе к этим долям (режимы ±5 п.п., типы ±10 п.п.). Это главное требование: ради него смело режь посреди предложений. Режим или тип с долей 0% не используй.`
       : `ДОЛИ И ТИПЫ ВЫБЕРИ САМ по смыслу текста и ритму. Ориентир: A около 10%, B 50–65%, C 25–35% на самых сильных местах; внутри B больше 2D-сцен и моушна, 3D — где яркая метафора; внутри C — смысловой моушн, 3D и кинетический текст.`;
-    const prompt=SB_PROMPT.replace('{SHARES}',[shares, speakerRule(spk)].filter(Boolean).join('\n'))
+    const pic=picturesOf(tpl);
+    const prompt=SB_PROMPT.replace('{SHARES}',[shares, speakerRule(spk), picturesRule(pic)].filter(Boolean).join('\n'))
       .replace('{CTA}', d.ctaOn ? `В конце призыв: «${d.ctaText||'призыв'}» — последний сегмент про него, обычно A.` : 'Призыва в конце НЕТ: не придумывай призыв, кодовое слово или «подписывайся»; конец ролика — по смыслу текста.')
       .replace('{WIN}', winName(d.win))
       .replace('{PLAN}', (planText(p.assetPlan)||'картинки ещё не заказаны — ставь l2d и gen по смыслу, их закажут после').slice(0,6000))
@@ -1267,11 +1302,12 @@ function wireTiming(p){
       if(next<N && rows.length){ const last=rows.pop(); rows.push({...rowFromWords(W,last.wi[0],N-1,last.mode,last.note), tech:last.tech||[], kind:last.kind, win:last.win, media:last.media}); }
       curRows=rows; useTarget=withTarget;
       if(withTarget && !bySpec) fitShares();
-      const fixed=enforceSpeaker(curRows, spk, readWin());
+      let fixed=enforceSpeaker(curRows, spk, readWin());
+      if(pic==='illustration') curRows.forEach(r=>{ if(r.kind==='l2d'){ r.kind='gen'; fixed++; } }); /* коллаж с героем → цельная иллюстрация */
       renderSb();
-      const ok=await write(()=>docRef.update({sbRows:curRows, storyboard:rowsText(curRows), target:tg, sub:sb, useTarget, ...(spec&&!p.spec?{spec}:{}), ...(dna&&!p.dna?{dna}:{}), updatedAt:new Date().toISOString()}));
+      const ok=await write(()=>docRef.update({sbRows:curRows, storyboard:rowsText(curRows), target:tg, sub:sb, useTarget, pictures:pic, ...(spec&&!p.spec?{spec}:{}), ...(dna&&!p.dna?{dna}:{}), updatedAt:new Date().toISOString()}));
       done=true;
-      n.textContent = (ok ? 'Готово. Меняй режим, тип, окно и визуал в таблице.' : 'Раскадровка готова, но не сохранилась.') + (fixed ? ` Поправил по правилу «спикер в кадре: ${SPEAKER_NAMES[spk]}»: ${fixed} сегм.` : '') + (spk==='never'&&curAvatar?.kind==='audio'&&speakerOf(tpl,{})!=='never' ? ' Голос — озвучка без видео, поэтому весь ролик идёт вставками.' : '');
+      n.textContent = (ok ? 'Готово. Меняй режим, тип, окно и визуал в таблице.' : 'Раскадровка готова, но не сохранилась.') + (fixed ? ` Поправил по правилам стиля (спикер в кадре: ${SPEAKER_NAMES[spk]}${pic==='illustration'?', картинки — цельные иллюстрации':''}): ${fixed} сегм.` : '') + (spk==='never'&&curAvatar?.kind==='audio'&&speakerOf(tpl,{})!=='never' ? ' Голос — озвучка без видео, поэтому весь ролик идёт вставками.' : '');
     }catch(e){ n.textContent = e&&e.code==='cancelled' ? 'Остановлено.' : e&&e.code==='invalid_json' ? 'Claude ответил не в том формате. Нажми ещё раз.' : sampleErr(e); }
     finally{ btns.forEach(b=>b.disabled=false); stop.hidden=true; }
     return done;
@@ -1540,22 +1576,32 @@ function wireStyle(p){
       note.textContent='Шаг 1 из 2: Claude разбирает текст на смысловые блоки… до минуты.';
       const rows2d = curRows.filter(r=>r.kind==='l2d'), rowsGen = curRows.filter(r=>r.kind==='gen');
       if(curRows.length && curRows.every(r=>r.mode) && !rows2d.length && !rowsGen.length && !armed(go, true, 'Картинки не нужны. Всё равно?')){ note.textContent='В раскадровке нет 2D-сцен и картинок по смыслу. Нажми ещё раз, если картинки всё равно нужны: они подберутся к ключевым местам текста.'; return; }
+      const G=r=>curRows.indexOf(r)+1; /* номера сегментов — как во всей раскадровке: по ним картинка привяжется к строке */
       const story = (rows2d.length||rowsGen.length)
-        ? (rows2d.length?'2D-СЦЕНЫ (для них — позы, предметы, фоны):\n'+rowsText(rows2d):'2D-сцен нет — позы, предметы и фоны не нужны.')+'\n\n'+(rowsGen.length?'КАРТИНКИ ПО СМЫСЛУ (для каждого сегмента — одно цельное изображение; режим B — зона сцены, C — весь экран):\n'+rowsText(rowsGen):'Картинок по смыслу нет.')
+        ? (rows2d.length?'2D-СЦЕНЫ (для них — позы, предметы, фоны):\n'+rowsText(rows2d,G):'2D-сцен нет — позы, предметы и фоны не нужны.')+'\n\n'+(rowsGen.length?'КАРТИНКИ ПО СМЫСЛУ (для каждого сегмента — одно цельное изображение; режим B — зона сцены, C — весь экран):\n'+rowsText(rowsGen,G):'Картинок по смыслу нет.')
         : (curRows.length ? rowsText(curRows) : '(раскадровки нет)');
       /* картинкам нужен только внешний вид: эстетика, цвета паспорта и визуальная часть стиля */
       const tt=tplOf(p.templateId), ppc=p.passport?.colors;
       const vis=[tt?.aesthetic&&`Эстетика: ${tt.aesthetic}`, ppc&&`Цвета стиля: ${Object.entries(ppc).map(([k,v])=>`${k} ${v}`).join(', ')}`, imgStyle(d.styleAnalysis)].filter(Boolean).join('\n\n');
-      const planPrompt = PLAN_PROMPT.replace('{SCRIPT}', d.script.slice(0,8000)).replace('{STORY}', story.slice(0,8000)).replace('{STYLE}', vis.slice(0,8000));
+      const pic=picturesOf(tt);
+      const planPrompt = PLAN_PROMPT.replace('{SCRIPT}', d.script.slice(0,8000)).replace('{STORY}', story.slice(0,8000)).replace('{STYLE}', vis.slice(0,8000))
+        + `\n\nНОМЕРА: у каждой картинки по смыслу (pictures) укажи поле "seg" — номер сегмента раскадровки (число в начале строки списка), под который она сделана. Одна картинка — один сегмент.`
+        + (pic==='illustration' ? `\nГЕРОЯ-ЧЕЛОВЕКА В СТИЛЕ НЕТ: позы, руки, разворот персонажа, люди и cast не нужны — оставь их пустыми, hero везде false. Все картинки — pictures (scene, product, place и т.п.): цельные иллюстрации-метафоры в стиле, по одной на каждый сегмент из списка «КАРТИНКИ ПО СМЫСЛУ».` : '');
       const plan = await sample.json(planPrompt, {images: imgs.length?imgs:undefined, signal:ctlG.signal, cache:true});
       if(!plan || ((!Array.isArray(plan.blocks)||!plan.blocks.length) && !(plan.pictures||[]).length)) throw {code:'invalid_json'};
+      /* файлы картинок по смыслу: pic_1, pic_2… по порядку плана, и каждый — в свою строку раскадровки (row.media) */
+      const gens=curRows.filter(r=>r.kind==='gen'); gens.forEach(r=>{ r.media=''; }); const used=new Set();
+      (plan.pictures||[]).forEach((x,k)=>{ x.file=`pic_${k+1}`; let r=curRows[(parseInt(x.seg,10)||0)-1];
+        if(!r||r.kind!=='gen'||used.has(r)) r=gens.find(g=>!used.has(g)); if(r){ r.media=x.file; used.add(r); } });
       const pt = planText(plan); planBox.value = pt; $('#r-planWrap').hidden=false; $('#r-planWrap').open=true;
-      await write(()=>docRef.update({assetPlan:plan, updatedAt:new Date().toISOString()}));
+      await write(()=>docRef.update({assetPlan:plan, ...(gens.length?{sbRows:curRows, storyboard:rowsText(curRows)}:{}), updatedAt:new Date().toISOString()}));
       /* шаг 2: промпт строго по плану */
       note.textContent='Шаг 2 из 2: Claude пишет промпт по плану… до минуты.'; out.value='';
       const prompt = GPT_PROMPT.replace('{PLAN}', JSON.stringify(plan).slice(0,30000)).replace('{STYLE}', vis.slice(0,12000))
         .replace('{REFS}', refs.map((r,i)=>`Референс ${i+1}: ${r.name} (${r.kind==='video'?'видео':'картинка'})`).join('\n')||'нет')
-        .replace('{SAVE}', SAVE_BLOCK(folderName(d)));
+        .replace('{SAVE}', SAVE_BLOCK(folderName(d)))
+        + `\n\nИМЕНА ФАЙЛОВ КАРТИНОК ПО СМЫСЛУ: каждая сохраняется ровно под именем из её поля file в плане (pic_1.png, pic_2.png…) — по этим именам монтаж ставит картинку в нужный сегмент, не перенумеровывай.`
+        + (pic==='illustration' ? `\nГЕРОЯ НЕТ: фото пользователя не прикладывается и не используется; разворот персонажа, позы, руки и людей не делай — только иллюстрации-метафоры (группа «СМЫСЛОВЫЕ ИЗОБРАЖЕНИЯ»), вертикальные 1024×1536 на весь кадр, в общем стиле.` : '');
       const {text, truncated} = await sample(prompt, {signal:ctlG.signal, cache:true, onText:({text})=>{ out.value=text; }});
       out.value=text.replace(/^```[a-z]*\n?|\n?```$/g,'');
       note.textContent = truncated ? 'Промпт оборвался по длине: нажми ещё раз или сократи текст.' : 'Готово. Каждая картинка привязана к куску текста. Скопируй промпт и отправь в ChatGPT вместе со своим фото и референсами.';
@@ -1706,12 +1752,13 @@ function planText(pl){
 
 function fallbackCopy(text){
   const E=$('#reelEditor'); let ta=$('#r-copyText');
-  if(!ta){ ta=document.createElement('textarea'); ta.id='r-copyText'; ta.readOnly=true; ta.style.marginTop='12px'; $('#reelForm').append(ta); }
+  if(!ta){ ta=document.createElement('textarea'); ta.id='r-copyText'; ta.readOnly=true; ta.style.marginTop='12px'; ($('#reelForm')||$('#view-templates:not([hidden])')||document.querySelector('main')).append(ta); }
   ta.value=text; ta.focus(); ta.select(); toast('Скопируй выделенный текст вручную');
 }
 function collect(){
   const v = id=>$(id)?.value ?? '';
-  return {title:titleFrom(v('#r-script')), script:v('#r-script'), bg:v('#r-bg'), sound:v('#r-sound'),
+  const t=tplOf(S.projects.find(x=>x.id===$('#reelEditor')?.dataset.pid)?.templateId);
+  return {subPosSet:v('#r-subPos'), wipeSet:v('#r-wipe'), subPos:v('#r-subPos')||subPosOf(t), wipe:v('#r-wipe')?v('#r-wipe')==='on':wipeOf(t), pictures:picturesOf(t),title:titleFrom(v('#r-script')), script:v('#r-script'), bg:v('#r-bg'), sound:v('#r-sound'),
     speed:+v('#r-speed')||1.2, subWords:+v('#r-words')||2, subColor:v('#r-subc'), drive:v('#r-drive').trim(), mediaList:v('#r-media'), speaker:v('#r-speaker'),
     win:readWin(), subAnim:(v('#r-subAnim')==='__auto'?'static':v('#r-subAnim'))||'static', titleAnim:(v('#r-titleAnim')==='__auto'?'static':v('#r-titleAnim'))||'static', ctaOn:!!$('#r-ctaOn')?.checked, punch:!!$('#r-punch')?.checked, progress:!!$('#r-progress')?.checked, ctaText:v('#r-ctaText').trim(), status:v('#r-status'),
     gptPrompt:v('#r-gpt'), styleAnalysis:v('#r-style'), sbRows:curRows, storyboard:rowsText(curRows), target:readTarget(), sub:readSub()};
@@ -1849,8 +1896,8 @@ const SYNTH_PROMPT = `Ты — арт-директор. Ниже разборы 
 "recipe":"структура ролика по времени: хук, развитие, ритм смены планов (секунды), когда спикер, когда графика, как подаются цифры и списки, концовка — по пунктам",
 "sound":"музыка (есть/нет, характер, громкость под голосом), звуковые эффекты (на склейках, на появлении графики), сведение",
 "speech":"подача речи: темп, паузы, длина фраз, резать ли паузы и насколько ускорять",
-"passport":{"colors":{"bg":"#","ink":"#","muted":"#","accent":"#","accent2":"#","card":"#","soft":"#"},"fonts":{"sans":"id","serif":"id","hand":"id"},"radius":0.3|0.6|1|1.6,"motion":"soft|spring|snappy","texture":"dots|clean|paper|grain","shadow":true},
-"rules":{"speaker":"always|some|never — спикер в кадре: always — говорящая голова или её окно в каждом кадре, some — спикер чередуется со вставками, never — спикера в кадре нет (только голос за кадром, герой разве что мелькает вырезкой или картинкой)","win":"popout|window|circle|strip","bg":"светлая|тёмная|светлая, живой градиент|тёмная, живой градиент","subAnim":"id стиля субтитров или static","target":{"a":0,"b":0,"c":0},"punch":true,"progress":false,"speed":1.1},
+"passport":{"colors":{"bg":"#","ink":"#","muted":"#","accent":"#","accent2":"#","card":"#","soft":"#"},"fonts":{"sans":"id","serif":"id","hand":"id"},"radius":0.3|0.6|1|1.6,"motion":"soft|spring|snappy","texture":"dots|clean|paper|grain — фон: dots — точки, clean — ровный цвет, paper — бумага с волокнами и зерном (бумажная, картонная фактура), grain — живой градиент: размытые цветные пятна с зерном","shadow":true},
+"rules":{"pictures":"illustration|collage|mixed — illustration: каждая сцена — цельная нарисованная иллюстрация-метафора без героя-человека; collage: сцены из вырезок героя, предметов и фонов; mixed — по-разному","subPos":"top|middle|bottom — где стоит текст/субтитры в кадре","wipe":false,"speaker":"always|some|never — спикер в кадре: always — говорящая голова или её окно в каждом кадре, some — спикер чередуется со вставками, never — спикера в кадре нет (только голос за кадром, герой разве что мелькает вырезкой или картинкой)","win":"popout|window|circle|strip","bg":"светлая|тёмная|светлая, живой градиент|тёмная, живой градиент","subAnim":"id стиля субтитров или static","target":{"a":0,"b":0,"c":0},"punch":true,"progress":false,"speed":1.1},
 "allowed":["коды наших блоков, которые подходят под эту подачу"],
 "blockMap":[{"technique":"приём из референсов","code":"наш блок"}],
 "gaps":[{"technique":"приём, которого у нас нет","seen":"где видели","proposal":"какой блок сделать"}],
@@ -1932,6 +1979,7 @@ function openPremont(base){
     </div>
     <div class="swatches" style="margin-top:12px">${Object.values(pp.colors||{}).map(c=>`<i style="background:${esc(c)}" title="${esc(c)}"></i>`).join('')}</div>
     <div class="f" style="margin-top:12px;max-width:320px"><label for="pm-speaker">Спикер в кадре</label><select id="pm-speaker">${opts([['always','всегда'],['some','иногда'],['never','никогда, только голос']], SPEAKER_NAMES[ru.speaker]?ru.speaker:(speakerByShare(speakerShareOf(files.filter(f=>f.analysis).map(f=>({analysis:f.analysis, dur:f.m?.duration}))))||'some'))}</select><span class="hint">Определено по референсам. «Никогда» — ролики в стиле без говорящей головы.</span></div>
+    <div class="f" style="margin-top:8px;max-width:320px"><label for="pm-pictures">Картинки</label><select id="pm-pictures">${opts(Object.entries(PICTURE_NAMES), PICTURE_NAMES[ru.pictures]?ru.pictures:picturesOf({rules:{dna:r.dna, style:r.style}, aesthetic:r.aesthetic}))}</select></div>
     <p class="hint">${esc(ppSummary({...PP_DEF,...pp,fonts:{...PP_DEF.fonts,...(pp.fonts||{})}}))} · окно: ${esc(winName(ru.win||'popout'))} · доли ${ru.target?`${ru.target.a}/${ru.target.b}/${ru.target.c}`:'по смыслу'} · субтитры: ${esc(ru.subAnim||'static')} · блоков: ${allowed.length||'все'}</p>
     ${r.blockMap?.length?`<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Приёмы → наши блоки (${r.blockMap.length})</summary><ul>${r.blockMap.map(m=>`<li>${esc(m.technique)} → <span class="code">${esc(m.code)}</span></li>`).join('')}</ul></details>`:''}
     ${r.gaps?.length?`<details open style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Нет в библиотеке (${r.gaps.length}) — сделаю в чате</summary><ul>${r.gaps.map(g=>`<li><b>${esc(g.technique)}</b>${g.seen?` — ${esc(g.seen)}`:''}${g.proposal?`. Предложение: ${esc(g.proposal)}`:''}</li>`).join('')}</ul></details>`:''}
@@ -1947,7 +1995,7 @@ function openPremont(base){
       const body={name, kind:'premontage', aesthetic:$('#pm-aest').value.trim(), bg:ru.bg||'светлая', palette:Object.values(passport.colors), fonts:'', motion:'', sound:SOUND[0], blocks:[],
         recipe:$('#pm-recipe').value.trim(), soundNotes:$('#pm-sound').value.trim(), speech:$('#pm-speech').value.trim(), blockMap:r.blockMap||[], gaps:r.gaps||[], deep:false,
         refs:done.map(f=>({id:f.id, name:f.file.name, size:f.file.size, metrics:{duration:f.m.duration, shots:f.m.shots, cutsPerMin:f.m.cutsPerMin, avgShot:f.m.avgShot, cuts:f.m.cuts, palette:f.m.palette}, sound:f.snd, analysis:f.analysis})),
-        rules:{dna:$('#pm-dna').value.trim()?dnaFromText($('#pm-dna').value):null, style:styleAll, speaker:$('#pm-speaker').value, win:ru.win||'popout', bg:ru.bg||'светлая', subAnim:subOk?ru.subAnim:'static', titleAnim:'static', target:tgt, punch:ru.punch??true, progress:!!ru.progress, speed:ru.speed||null,
+        rules:{dna:$('#pm-dna').value.trim()?dnaFromText($('#pm-dna').value):null, style:styleAll, speaker:$('#pm-speaker').value, pictures:$('#pm-pictures').value, subPos:SUBPOS_NAMES[ru.subPos]?ru.subPos:($('#pm-pictures').value==='illustration'?'top':''), wipe:ru.wipe===true, win:ru.win||'popout', bg:ru.bg||'светлая', subAnim:subOk?ru.subAnim:'static', titleAnim:'static', target:tgt, punch:ru.punch??true, progress:!!ru.progress, speed:ru.speed||null,
           assets:base?.rules?.assets||'', assetsList:base?.rules?.assetsList||'', allowed, passport},
         previewId:done[0]?.id||null, previewKind:'video', createdAt:new Date().toISOString()};
       const ref=base ? db.collection('templates').doc(base.id) : db.collection('templates').doc();
@@ -1975,6 +2023,9 @@ function quickPanel(p, ro){
       <div class="row" role="group" aria-label="Режим" style="gap:6px">
         <button type="button" class="chipbtn" data-qmode="auto" aria-pressed="${m==='auto'}">Авто</button>
         <button type="button" class="chipbtn" data-qmode="own" aria-pressed="${m==='own'}">Свои настройки</button></div></div>
+    ${gapsOf(t).length?`<div class="gapwarn"><b>Быстрый режим не повторит ${gapsOf(t).length} ${plural(gapsOf(t).length,'приём','приёма','приёмов')} стиля — их нет в библиотеке:</b>
+      <ul>${gapsOf(t).map(g=>`<li>${esc(g.technique)}</li>`).join('')}</ul>
+      <div class="row" style="gap:8px"><button type="button" class="btn" id="r-gapsCopy">Скопировать задание на эти блоки</button><span class="hint">Вставь в новый чат: Claude сделает блоки, и следующие ролики в стиле выйдут ближе к референсу.</span></div></div>`:''}
     <span class="hint" id="r-quickNote">${m==='auto'?'Авто: настройки, доли и приёмы берутся из стиля.':'Свои настройки: стиль и настройки открыты, их можно поменять.'} Спикер в кадре: ${esc(SPEAKER_NAMES[spk])}.</span>
   </div>`;
 }
@@ -1987,6 +2038,7 @@ function wireQuick(p){
     box.querySelectorAll('[data-qmode]').forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.qmode===(auto?'auto':'own'))));
     reelHooks.updateSteps();
   };
+  const gc=$('#r-gapsCopy'); if(gc) gc.onclick=()=>copyText(gapsTask(t),'Задание на блоки скопировано: вставь его в новый чат');
   box.querySelectorAll('[data-qmode]').forEach(b=>b.onclick=async ()=>{
     p.mode=b.dataset.qmode; apply();
     note.textContent = (p.mode==='auto' ? 'Авто: настройки, доли и приёмы берутся из стиля.' : 'Свои настройки: шаги «Стиль» и «Настройки» открыты.')+` Спикер в кадре: ${SPEAKER_NAMES[speakerOf(t)]}.`;
@@ -2009,6 +2061,9 @@ function openTplRules(t){
       <div class="f wide"><label for="tr-dna">Стиль тремя слоями: ядро, приёмы, структура</label><textarea id="tr-dna" spellcheck="false" style="min-height:340px;font-family:var(--mono);font-size:13px;line-height:1.45" placeholder="${esc(DNA_FORMAT)}">${esc(r.dna?dnaToText(r.dna):'')}</textarea><span class="hint">По строке на пункт, поля через « | ». Ядро держится в каждом ролике; приёмы Claude ставит по смыслу текста, по правилу «когда»; структура — как устроен ролик во времени. Коды приёмов, которые сборка знает: ${Object.keys(DNA_CODES).join(', ')}; новый код — опиши, сделаю блок в чате.</span></div>
       <div class="f wide"><label for="tr-style">${r.dna?'Дополнительно к стилю (свободный текст)':'Стиль монтажа'}</label><textarea id="tr-style" style="min-height:${r.dna?90:180}px">${esc(r.dna?(r.style||''):(r.style||tplStyle(t)))}</textarea><span class="hint">${r.dna?'Необязательно: то, что не легло в три слоя.':'Уходит в поле «Стиль ролика». Лучше описать стиль тремя слоями выше.'}</span></div>
       <div class="f"><label for="tr-speaker">Спикер в кадре</label><select id="tr-speaker">${opts([['always','всегда'],['some','иногда'],['never','никогда, только голос']], speakerOf(t))}</select><span class="hint">«Никогда»: раскадровка ставит только вставки на весь экран, без говорящей головы.</span></div>
+      <div class="f"><label for="tr-pictures">Картинки</label><select id="tr-pictures">${opts(Object.entries(PICTURE_NAMES), picturesOf(t))}</select><span class="hint">«Цельные иллюстрации»: на каждую фразу — своя картинка-метафора на весь кадр, без героя-человека.</span></div>
+      <div class="f"><label for="tr-subPos">Субтитры</label><select id="tr-subPos">${opts([['','по режиму кадра'],['top','сверху'],['middle','по центру'],['bottom','снизу']], subPosOf(t))}</select></div>
+      <div class="f"><label class="row" style="gap:8px;cursor:pointer"><input type="checkbox" id="tr-wipe"${wipeOf(t)?' checked':''}> Цветная шторка-круг на склейках</label><span class="hint">Выключено — жёсткие склейки.</span></div>
       <div class="f"><label for="tr-win">Окно спикера</label><select id="tr-win">${opts(WINS.map(w=>[w[0],w[1]]), r.win||'popout')}</select></div>
       <div class="f"><label for="tr-bg">Подложка</label><select id="tr-bg">${opts(['светлая','тёмная','светлая, живой градиент','тёмная, живой градиент'], r.bg||t.bg||'светлая')}</select></div>
       <div class="f"><label for="tr-sub">Анимация субтитров</label><select id="tr-sub">${opts(anim('subtitle'), r.subAnim||'static')}</select></div>
@@ -2126,7 +2181,7 @@ radius — одно из 0.3, 0.6, 1, 1.6. motion — soft | spring | snappy. te
     if(!on.length){ toast('Выбери хотя бы один блок'); return; }
     const dnaTxt=$('#tr-dna').value.trim(), dna=dnaTxt?dnaFromText(dnaTxt):null;
     if(dna && (!dna.core.length || !dna.techniques.length)){ toast('В стиле нужны разделы ЯДРО и ПРИЁМЫ'); return; }
-    const rules={dna, style:$('#tr-style').value.trim(), speaker:$('#tr-speaker').value, win:$('#tr-win').value, bg:$('#tr-bg').value, subAnim:$('#tr-sub').value, titleAnim:$('#tr-title').value,
+    const rules={dna, style:$('#tr-style').value.trim(), speaker:$('#tr-speaker').value, pictures:$('#tr-pictures').value, subPos:$('#tr-subPos').value, wipe:$('#tr-wipe').checked, win:$('#tr-win').value, bg:$('#tr-bg').value, subAnim:$('#tr-sub').value, titleAnim:$('#tr-title').value,
       target, punch:$('#tr-punch').checked, progress:$('#tr-prog').checked, assets:$('#tr-assets').value.trim(), assetsList:$('#tr-alist').value,
       allowed: on.length===boxes().length ? [] : on, passport: readPP()};
     if(await write(()=>db.collection('templates').doc(t.id).update({rules, bg:rules.bg, updatedAt:new Date().toISOString()}),'Правила сохранены')){ E.hidden=true; E.innerHTML=''; }
@@ -2162,6 +2217,7 @@ function renderTemplates(){
           <button class="btn primary" data-use="${esc(t.id)}"${canWrite&&db?'':' disabled'}>Новый ролик в этом стиле</button>
           ${canEdit?`<button class="btn" type="button" data-tplcfg="${esc(t.id)}">Настроить</button>`:''}
           ${t.kind==='premontage'&&canEdit?`<button class="btn" type="button" data-more="${esc(t.id)}">Дополнить референсами</button>`:''}
+          ${gapsOf(t).length?`<button class="btn ghost" type="button" data-gaps="${esc(t.id)}">Задание на недостающие блоки</button>`:''}
           ${t.kind==='premontage'?`<button class="btn ghost" type="button" data-deep="${esc(t.id)}">Глубокий разбор</button>`:''}
           ${canEdit?`<label class="btn ghost" style="cursor:pointer">Превью<input type="file" accept="image/*,video/mp4,video/webm" data-tplprev="${esc(t.id)}" hidden></label>`:''}
         </div>
@@ -2169,6 +2225,7 @@ function renderTemplates(){
   wireVideos(L);
   L.querySelectorAll('[data-use]').forEach(b=>b.addEventListener('click',()=>{ show('reels'); createReel(b.dataset.use); }));
   L.querySelectorAll('[data-more]').forEach(b=>b.addEventListener('click',()=>openPremont(tplOf(b.dataset.more))));
+  L.querySelectorAll('[data-gaps]').forEach(b=>b.addEventListener('click',()=>copyText(gapsTask(tplOf(b.dataset.gaps)),'Задание на блоки скопировано: вставь его в новый чат')));
   L.querySelectorAll('[data-tplcfg]').forEach(b=>b.addEventListener('click',()=>openTplRules(tplOf(b.dataset.tplcfg))));
   L.querySelectorAll('[data-deep]').forEach(b=>b.addEventListener('click',()=>copyText(deepTask(tplOf(b.dataset.deep)),'Задание на глубокий разбор скопировано: вставь его в чат')));
   L.querySelectorAll('[data-tplprev]').forEach(inp=>inp.addEventListener('change', async ()=>{

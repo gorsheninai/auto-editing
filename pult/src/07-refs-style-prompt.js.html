@@ -242,22 +242,32 @@ function wireStyle(p){
       note.textContent='Шаг 1 из 2: Claude разбирает текст на смысловые блоки… до минуты.';
       const rows2d = curRows.filter(r=>r.kind==='l2d'), rowsGen = curRows.filter(r=>r.kind==='gen');
       if(curRows.length && curRows.every(r=>r.mode) && !rows2d.length && !rowsGen.length && !armed(go, true, 'Картинки не нужны. Всё равно?')){ note.textContent='В раскадровке нет 2D-сцен и картинок по смыслу. Нажми ещё раз, если картинки всё равно нужны: они подберутся к ключевым местам текста.'; return; }
+      const G=r=>curRows.indexOf(r)+1; /* номера сегментов — как во всей раскадровке: по ним картинка привяжется к строке */
       const story = (rows2d.length||rowsGen.length)
-        ? (rows2d.length?'2D-СЦЕНЫ (для них — позы, предметы, фоны):\n'+rowsText(rows2d):'2D-сцен нет — позы, предметы и фоны не нужны.')+'\n\n'+(rowsGen.length?'КАРТИНКИ ПО СМЫСЛУ (для каждого сегмента — одно цельное изображение; режим B — зона сцены, C — весь экран):\n'+rowsText(rowsGen):'Картинок по смыслу нет.')
+        ? (rows2d.length?'2D-СЦЕНЫ (для них — позы, предметы, фоны):\n'+rowsText(rows2d,G):'2D-сцен нет — позы, предметы и фоны не нужны.')+'\n\n'+(rowsGen.length?'КАРТИНКИ ПО СМЫСЛУ (для каждого сегмента — одно цельное изображение; режим B — зона сцены, C — весь экран):\n'+rowsText(rowsGen,G):'Картинок по смыслу нет.')
         : (curRows.length ? rowsText(curRows) : '(раскадровки нет)');
       /* картинкам нужен только внешний вид: эстетика, цвета паспорта и визуальная часть стиля */
       const tt=tplOf(p.templateId), ppc=p.passport?.colors;
       const vis=[tt?.aesthetic&&`Эстетика: ${tt.aesthetic}`, ppc&&`Цвета стиля: ${Object.entries(ppc).map(([k,v])=>`${k} ${v}`).join(', ')}`, imgStyle(d.styleAnalysis)].filter(Boolean).join('\n\n');
-      const planPrompt = PLAN_PROMPT.replace('{SCRIPT}', d.script.slice(0,8000)).replace('{STORY}', story.slice(0,8000)).replace('{STYLE}', vis.slice(0,8000));
+      const pic=picturesOf(tt);
+      const planPrompt = PLAN_PROMPT.replace('{SCRIPT}', d.script.slice(0,8000)).replace('{STORY}', story.slice(0,8000)).replace('{STYLE}', vis.slice(0,8000))
+        + `\n\nНОМЕРА: у каждой картинки по смыслу (pictures) укажи поле "seg" — номер сегмента раскадровки (число в начале строки списка), под который она сделана. Одна картинка — один сегмент.`
+        + (pic==='illustration' ? `\nГЕРОЯ-ЧЕЛОВЕКА В СТИЛЕ НЕТ: позы, руки, разворот персонажа, люди и cast не нужны — оставь их пустыми, hero везде false. Все картинки — pictures (scene, product, place и т.п.): цельные иллюстрации-метафоры в стиле, по одной на каждый сегмент из списка «КАРТИНКИ ПО СМЫСЛУ».` : '');
       const plan = await sample.json(planPrompt, {images: imgs.length?imgs:undefined, signal:ctlG.signal, cache:true});
       if(!plan || ((!Array.isArray(plan.blocks)||!plan.blocks.length) && !(plan.pictures||[]).length)) throw {code:'invalid_json'};
+      /* файлы картинок по смыслу: pic_1, pic_2… по порядку плана, и каждый — в свою строку раскадровки (row.media) */
+      const gens=curRows.filter(r=>r.kind==='gen'); gens.forEach(r=>{ r.media=''; }); const used=new Set();
+      (plan.pictures||[]).forEach((x,k)=>{ x.file=`pic_${k+1}`; let r=curRows[(parseInt(x.seg,10)||0)-1];
+        if(!r||r.kind!=='gen'||used.has(r)) r=gens.find(g=>!used.has(g)); if(r){ r.media=x.file; used.add(r); } });
       const pt = planText(plan); planBox.value = pt; $('#r-planWrap').hidden=false; $('#r-planWrap').open=true;
-      await write(()=>docRef.update({assetPlan:plan, updatedAt:new Date().toISOString()}));
+      await write(()=>docRef.update({assetPlan:plan, ...(gens.length?{sbRows:curRows, storyboard:rowsText(curRows)}:{}), updatedAt:new Date().toISOString()}));
       /* шаг 2: промпт строго по плану */
       note.textContent='Шаг 2 из 2: Claude пишет промпт по плану… до минуты.'; out.value='';
       const prompt = GPT_PROMPT.replace('{PLAN}', JSON.stringify(plan).slice(0,30000)).replace('{STYLE}', vis.slice(0,12000))
         .replace('{REFS}', refs.map((r,i)=>`Референс ${i+1}: ${r.name} (${r.kind==='video'?'видео':'картинка'})`).join('\n')||'нет')
-        .replace('{SAVE}', SAVE_BLOCK(folderName(d)));
+        .replace('{SAVE}', SAVE_BLOCK(folderName(d)))
+        + `\n\nИМЕНА ФАЙЛОВ КАРТИНОК ПО СМЫСЛУ: каждая сохраняется ровно под именем из её поля file в плане (pic_1.png, pic_2.png…) — по этим именам монтаж ставит картинку в нужный сегмент, не перенумеровывай.`
+        + (pic==='illustration' ? `\nГЕРОЯ НЕТ: фото пользователя не прикладывается и не используется; разворот персонажа, позы, руки и людей не делай — только иллюстрации-метафоры (группа «СМЫСЛОВЫЕ ИЗОБРАЖЕНИЯ»), вертикальные 1024×1536 на весь кадр, в общем стиле.` : '');
       const {text, truncated} = await sample(prompt, {signal:ctlG.signal, cache:true, onText:({text})=>{ out.value=text; }});
       out.value=text.replace(/^```[a-z]*\n?|\n?```$/g,'');
       note.textContent = truncated ? 'Промпт оборвался по длине: нажми ещё раз или сократи текст.' : 'Готово. Каждая картинка привязана к куску текста. Скопируй промпт и отправь в ChatGPT вместе со своим фото и референсами.';
@@ -408,12 +418,13 @@ function planText(pl){
 
 function fallbackCopy(text){
   const E=$('#reelEditor'); let ta=$('#r-copyText');
-  if(!ta){ ta=document.createElement('textarea'); ta.id='r-copyText'; ta.readOnly=true; ta.style.marginTop='12px'; $('#reelForm').append(ta); }
+  if(!ta){ ta=document.createElement('textarea'); ta.id='r-copyText'; ta.readOnly=true; ta.style.marginTop='12px'; ($('#reelForm')||$('#view-templates:not([hidden])')||document.querySelector('main')).append(ta); }
   ta.value=text; ta.focus(); ta.select(); toast('Скопируй выделенный текст вручную');
 }
 function collect(){
   const v = id=>$(id)?.value ?? '';
-  return {title:titleFrom(v('#r-script')), script:v('#r-script'), bg:v('#r-bg'), sound:v('#r-sound'),
+  const t=tplOf(S.projects.find(x=>x.id===$('#reelEditor')?.dataset.pid)?.templateId);
+  return {subPosSet:v('#r-subPos'), wipeSet:v('#r-wipe'), subPos:v('#r-subPos')||subPosOf(t), wipe:v('#r-wipe')?v('#r-wipe')==='on':wipeOf(t), pictures:picturesOf(t),title:titleFrom(v('#r-script')), script:v('#r-script'), bg:v('#r-bg'), sound:v('#r-sound'),
     speed:+v('#r-speed')||1.2, subWords:+v('#r-words')||2, subColor:v('#r-subc'), drive:v('#r-drive').trim(), mediaList:v('#r-media'), speaker:v('#r-speaker'),
     win:readWin(), subAnim:(v('#r-subAnim')==='__auto'?'static':v('#r-subAnim'))||'static', titleAnim:(v('#r-titleAnim')==='__auto'?'static':v('#r-titleAnim'))||'static', ctaOn:!!$('#r-ctaOn')?.checked, punch:!!$('#r-punch')?.checked, progress:!!$('#r-progress')?.checked, ctaText:v('#r-ctaText').trim(), status:v('#r-status'),
     gptPrompt:v('#r-gpt'), styleAnalysis:v('#r-style'), sbRows:curRows, storyboard:rowsText(curRows), target:readTarget(), sub:readSub()};
