@@ -460,7 +460,7 @@ function collect(){
   const v = id=>$(id)?.value ?? '';
   const t=tplOf(S.projects.find(x=>x.id===$('#reelEditor')?.dataset.pid)?.templateId);
   return {subPosSet:v('#r-subPos'), wipeSet:v('#r-wipe'), subPos:v('#r-subPos')||subPosOf(t), wipe:v('#r-wipe')?v('#r-wipe')==='on':wipeOf(t), pictures:picturesOf(t),title:titleFrom(v('#r-script')), script:v('#r-script'), bg:v('#r-bg'), sound:v('#r-sound'),
-    speed:+v('#r-speed')||1.2, subWords:+v('#r-words')||2, subColor:v('#r-subc'), drive:v('#r-drive').trim(), mediaList:v('#r-media'), speaker:v('#r-speaker'),
+    speed:+v('#r-speed')||1.2, pauses:document.querySelector('input[name="r-pauses"]:checked')?.value||'all', subWords:+v('#r-words')||2, subColor:v('#r-subc'), drive:v('#r-drive').trim(), mediaList:v('#r-media'), speaker:v('#r-speaker'),
     win:readWin(), subAnim:(v('#r-subAnim')==='__auto'?'static':v('#r-subAnim'))||'static', titleAnim:(v('#r-titleAnim')==='__auto'?'static':v('#r-titleAnim'))||'static', ctaOn:!!$('#r-ctaOn')?.checked, punch:!!$('#r-punch')?.checked, progress:!!$('#r-progress')?.checked, ctaText:v('#r-ctaText').trim(), status:v('#r-status'),
     gptPrompt:v('#r-gpt'), styleAnalysis:v('#r-style'), sbRows:curRows, storyboard:rowsText(curRows), target:readTarget(), sub:readSub()};
 }

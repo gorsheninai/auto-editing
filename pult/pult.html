@@ -719,7 +719,6 @@ function openReel(p){
         <div class="f"><label for="r-speaker">Спикер в кадре</label><select id="r-speaker"${ro}>${opts([['', tplOf(p.templateId)?`как в стиле: ${SPEAKER_NAMES[speakerOf(tplOf(p.templateId))]}`:'иногда (по смыслу)'],['always','всегда'],['some','иногда'],['never','никогда, только голос']], p.speaker||'')}</select><span class="hint">С озвучкой без видео — всегда «никогда».</span></div>
         <div class="f"><label for="r-bg">Подложка</label><select id="r-bg"${ro}>${opts(['светлая','тёмная','светлая, живой градиент','тёмная, живой градиент'],p.bg)}</select></div>
         <div class="f"><label for="r-sound">Звук</label><select id="r-sound"${ro}>${opts(SOUND,p.sound)}</select></div>
-        <div class="f"><label for="r-speed">Ускорение: <span class="code" id="r-speedV"></span></label><input type="range" id="r-speed" min="1" max="1.3" step="0.05" value="${p.speed??1.2}"${ro}></div>
         <div class="f"><label for="r-words">Слов в субтитре</label><select id="r-words"${ro}>${opts([1,2,3],p.subWords??2)}</select></div>
         <div class="f"><label for="r-subAnim">Анимация субтитров</label><select id="r-subAnim" data-pid="${esc(p.id)}" data-v="${esc(p.subAnim||'static')}"${ro}>${opts(animOptions('subtitle',p.id), p.subAnim||'static')}</select><span class="hint" id="r-subAnimNote"></span></div>
         <div class="f"><label for="r-titleAnim">Анимация заголовков и кинетического текста</label><select id="r-titleAnim" data-pid="${esc(p.id)}" data-v="${esc(p.titleAnim||'static')}"${ro}>${opts(animOptions('title',p.id), p.titleAnim||'static')}</select><span class="hint" id="r-titleAnimNote"></span></div>
@@ -736,7 +735,12 @@ function openReel(p){
       <div class="f wide"><label>Видео аватара или озвучка</label>
         <div class="row"><label class="btn" style="cursor:pointer">Выбрать файл<input type="file" id="r-avFile" accept="video/mp4,video/webm,video/quicktime,audio/mpeg,audio/mp4,audio/x-m4a,audio/aac,audio/wav,audio/x-wav,audio/ogg,audio/webm,.mp3,.m4a,.wav,.aac,.ogg,.opus" hidden></label><span class="hint" id="r-avInfo"></span></div>
         <span class="hint">Видео аватара — если спикер есть в кадре. Только озвучка (mp3, m4a, wav) — для роликов без спикера: тогда весь ролик идёт вставками.</span></div>
-      <div class="f wide"><div class="row"><button class="btn primary" type="button" id="r-send">Посчитать тайминги</button><span class="hint" id="r-sendNote">Бесплатно, в браузере: пульт вырежет паузы, учтёт ускорение и посчитает время каждого слова.</span></div>
+      <div class="f wide"><label>Паузы</label>
+        <div class="row" role="radiogroup" aria-label="Паузы" style="gap:6px">${[['all','Вырезать все'],['long','Только длинные'],['keep','Не вырезать']].map(([v,l])=>`<label class="chipbtn" style="cursor:pointer"><input type="radio" name="r-pauses" value="${v}"${(p.pauses||'all')===v?' checked':''}${ro} style="margin-right:6px">${l}</label>`).join('')}</div>
+        <span class="hint">«Вырезать все» — склейка встык, как в динамичных роликах; «Только длинные» — убираются паузы от 0,4 с, дыхание остаётся.</span></div>
+      <div class="f wide"><label>Ускорение: <span class="code" id="r-speedV"></span></label><input type="hidden" id="r-speed" value="${p.speed??1.2}">
+        <div class="row" role="group" aria-label="Ускорение" style="gap:6px">${[1,1.05,1.1,1.15,1.2,1.25,1.3].map(v=>`<button type="button" class="chipbtn" data-speed="${v}" aria-pressed="${Math.abs((p.speed??1.2)-v)<0.001}"${ro}>×${String(v).replace('.',',')}</button>`).join('')}</div></div>
+      <div class="f wide"><div class="row"><button class="btn primary" type="button" id="r-send">Посчитать тайминги</button><span class="hint" id="r-sendNote">Бесплатно, в браузере: пульт вырежет паузы, учтёт ускорение и разметит слова по времени. Разметка здесь примерная — в монтаже голос распознаётся, и сцены с субтитрами встают точно на слова.</span></div>
         <div id="r-timing"></div></div>
     </div></section>
 
@@ -800,7 +804,8 @@ function openReel(p){
   </form>`;
   const F = $('#reelForm');
   const sync = () => {
-    $('#r-speedV').textContent = '×'+Number($('#r-speed').value).toFixed(2);
+    $('#r-speedV').textContent = '×'+Number($('#r-speed').value).toFixed(2).replace('.',',');
+    document.querySelectorAll('[data-speed]').forEach(b=>b.setAttribute('aria-pressed', String(Math.abs(+b.dataset.speed-+$('#r-speed').value)<0.001)));
     const w = $('#r-script').value.trim().split(/\s+/).filter(Boolean).length;
     $('#r-count').textContent = w ? `${w} слов · около ${Math.round(w/2.6)} с до ускорения` : '';
     $('#r-ctaText').hidden = !$('#r-ctaOn').checked;
@@ -959,15 +964,38 @@ function rowsText(rows, num){
   return rows.map((r,i0)=>{ const i=num?num(r,i0)-1:i0; const k=r.mode==='A'?'спикер':kindLabel(r.mode,r.kind); const extra=[r.mode==='B'&&r.win?`окно: ${winName(r.win)}`:'', r.kind==='media'&&r.media?`файл: ${r.media}`:''].filter(Boolean).join(', ');
     return `${i+1}. ${fmtT(r.s)}–${fmtT(r.e)} [${r.mode||'?'} · ${k||'—'}${extra?' · '+extra:''}] «${r.text}»${r.note?`\n   Визуал: ${r.note}`:''}`; }).join('\n');
 }
+/* озвучка → webm (пустой кадр + звук): хранилище пульта принимает видео, но не аудио. Запись идёт в реальном времени. */
+async function audioAsVideo(file, say){
+  const AC=window.AudioContext||window.webkitAudioContext, ac=new AC();
+  try{
+    const buf=await ac.decodeAudioData(await file.arrayBuffer());
+    const dest=ac.createMediaStreamDestination(), src=ac.createBufferSource(); src.buffer=buf; src.connect(dest);
+    const cv=document.createElement('canvas'); cv.width=16; cv.height=16; const cx=cv.getContext('2d'); cx.fillStyle='#000'; cx.fillRect(0,0,16,16);
+    const vs=cv.captureStream(5); const tick=setInterval(()=>{ cx.fillRect(0,0,16,16); }, 200);
+    const mime=['video/webm;codecs=vp8,opus','video/webm;codecs=vp9,opus','video/webm'].find(m=>window.MediaRecorder?.isTypeSupported?.(m));
+    if(!mime) throw new Error('no MediaRecorder');
+    const rec=new MediaRecorder(new MediaStream([...vs.getVideoTracks(), ...dest.stream.getAudioTracks()]), {mimeType:mime, audioBitsPerSecond:128000, videoBitsPerSecond:20000});
+    const chunks=[]; rec.ondataavailable=e=>{ if(e.data.size) chunks.push(e.data); };
+    const done=new Promise(r=>{ rec.onstop=r; });
+    if(ac.state==='suspended') await ac.resume();
+    rec.start(1000); src.start();
+    const t0=Date.now(), dur=buf.duration, prog=setInterval(()=>say?.(`Готовлю озвучку для пульта: ${Math.min(100,Math.round((Date.now()-t0)/10/dur))}% (идёт в реальном времени, ${Math.round(dur)} с)…`), 1000);
+    await new Promise(r=>{ src.onended=r; });
+    await new Promise(r=>setTimeout(r,300)); rec.stop(); await done; clearInterval(tick); clearInterval(prog);
+    return new File([new Blob(chunks,{type:'video/webm'})], file.name.replace(/\.[^.]+$/,'')+'.webm', {type:'video/webm'});
+  } finally { try{ ac.close(); }catch(e){} }
+}
 /* поиск пауз — как ffmpeg silencedetect noise=-38dB:d=0.12, паддинг 0.05, куски короче 0.18 с выкидываем */
-async function speechSegments(buf){
+async function speechSegments(buf, mode){
   const AC = window.AudioContext||window.webkitAudioContext; const ac=new AC();
   let audio; try{ audio = await ac.decodeAudioData(buf); } finally { try{ ac.close(); }catch(e){} }
   const sr=audio.sampleRate, n=audio.length, ch=[...Array(audio.numberOfChannels)].map((_,i)=>audio.getChannelData(i));
   const win=Math.round(sr*0.01), thr=Math.pow(10,-38/20), frames=Math.ceil(n/win), quiet=new Uint8Array(frames);
   for(let f=0;f<frames;f++){ let m=0; const a=f*win, b=Math.min(n,a+win); for(const c of ch) for(let i=a;i<b;i++){ const v=Math.abs(c[i]); if(v>m) m=v; } quiet[f]= m<thr ? 1:0; }
   const dur=n/sr, sil=[]; let st=-1;
-  for(let f=0;f<=frames;f++){ const q=f<frames&&quiet[f]; if(q&&st<0) st=f; if(!q&&st>=0){ if((f-st)*0.01>=0.12) sil.push([st*0.01, Math.min(dur,f*0.01)]); st=-1; } }
+  const minSil = mode==='long' ? 0.4 : 0.12; /* «только длинные» — дыхание и короткие паузы остаются */
+  for(let f=0;f<=frames;f++){ const q=f<frames&&quiet[f]; if(q&&st<0) st=f; if(!q&&st>=0){ if((f-st)*0.01>=minSil) sil.push([st*0.01, Math.min(dur,f*0.01)]); st=-1; } }
+  if(mode==='keep'){ /* не вырезать: только тишина в начале и в конце */ const a0=sil[0]&&sil[0][0]<0.02?sil[0][1]:0, last=sil[sil.length-1], b0=last&&last[1]>dur-0.02?last[0]:dur; return {dur, segs:[[Math.max(0,a0-0.05), Math.min(dur,b0+0.05)]]}; }
   const segs=[]; let t=0; const PAD=0.05;
   for(const [a,b] of sil){ if(a>t) segs.push([Math.max(0, t? t-PAD : 0), Math.min(dur, a+PAD)]); t=b; }
   if(t<dur) segs.push([Math.max(0,t-PAD), dur]);
@@ -981,7 +1009,7 @@ function syl(w){
 }
 /* раскладка слов по времени: вес слова по слогам, якоря на паузах, затем ускорение */
 function alignWords(script, segs, speed){
-  const words=script.split(/\s+/).filter(w=>w&&w!=='—'&&w!=='–');
+  const words=script.split(/\s+/).filter(w=>w&&w!=='—'&&w!=='–'&&w!=='-'); /* так же режет tools/asr.py — номера слов совпадают */
   if(!words.length||!segs.length) return [];
   const P=w=>/[.,:;?!»…]$/.test(w);
   const weights=words.map(w=>syl(w)+0.35+(P(w)?0.3:0));
@@ -1053,7 +1081,8 @@ function wireTiming(p){
   const docRef = db.collection('projects').doc(p.id);
   const info=$('#r-avInfo'), note=$('#r-sendNote'), box=$('#r-timing');
   const mb=b=>(b/1048576).toFixed(1)+' МБ';
-  const showAv=()=>{ info.textContent = avFile ? `${isAudioFile(avFile)?'Озвучка':'Видео'}: ${avFile.name} · ${mb(avFile.size)} · тайминги посчитаются при раскадровке` : curAvatar ? `${curAvatar.kind==='audio'?'Озвучка':'Видео'}: ${curAvatar.name}${curAvatar.size?` · ${mb(curAvatar.size)}`:''} · ${curAvatar.id?'сохранено на пульте':'больше 20 МБ, не загружено: положи его в папку на Диске'}` : 'Файл ещё не выбран'; };
+  const WHY={big:'больше 20 МБ, на пульт не влезает', rights:'загружать на пульт может только редактор', fail:'на пульт не загрузилось'};
+  const showAv=()=>{ info.textContent = avFile ? `${isAudioFile(avFile)?'Озвучка':'Видео'}: ${avFile.name} · ${mb(avFile.size)} · тайминги посчитаются при раскадровке` : curAvatar ? `${curAvatar.kind==='audio'?'Озвучка':'Видео'}: ${curAvatar.name}${curAvatar.size?` · ${mb(curAvatar.size)}`:''} · ${curAvatar.id?'сохранено на пульте':`${WHY[curAvatar.why]||(curAvatar.size>20*1024*1024?WHY.big:WHY.fail)} — положи файл в папку ролика на Диске, монтаж возьмёт его из пакета`}` : 'Файл ещё не выбран'; };
   const showTiming=t=>{ box.innerHTML = t ? `<dl class="kv" style="margin-top:10px">
       <dt>Исходник</dt><dd class="code">${fmtT(t.srcDur)}</dd>
       <dt>Без пауз</dt><dd class="code">${fmtT(t.speechDur)} · вырезано пауз: ${t.cuts}</dd>
@@ -1061,6 +1090,10 @@ function wireTiming(p){
       <dt>Слов</dt><dd class="code">${curWords.length}</dd></dl>` : ''; };
   showAv(); showTiming(p.timing);
   $('#r-avFile').addEventListener('change', e=>{ avFile=e.target.files[0]||null; e.target.value=''; showAv(); });
+  /* ускорение кнопками; смена ускорения или режима пауз — тайминги пересчитаются при «Посчитать тайминги» или при раскадровке */
+  const paramsNote=()=>{ if(curWords.length && sentParams && sentParams!==curParams()) note.textContent='Ускорение или паузы поменялись — нажми «Посчитать тайминги» (или сразу «Собрать раскадровку»), чтобы пересчитать.'; };
+  document.querySelectorAll('[data-speed]').forEach(b=>b.addEventListener('click',()=>{ $('#r-speed').value=b.dataset.speed; $('#r-speed').dispatchEvent(new Event('input',{bubbles:true})); paramsNote(); }));
+  document.querySelectorAll('input[name="r-pauses"]').forEach(x=>x.addEventListener('change', paramsNote));
 
   let useTarget = !!p.useTarget;
   const mediaFiles = () => parseMedia($('#r-media').value);
@@ -1125,8 +1158,15 @@ function wireTiming(p){
       let buf;
       if(avFile){
         const kind=isAudioFile(avFile)?'audio':'video';
-        if(avFile.size<=20*1024*1024 && assets){ note.textContent=kind==='audio'?'Загружаю озвучку на пульт…':'Загружаю видео на пульт…'; const up=await upload(avFile); curAvatar={id:up?.id||null, name:avFile.name, size:avFile.size, kind}; }
-        else curAvatar={id:null, name:avFile.name, size:avFile.size, kind};
+        let up=null, why='';
+        if(avFile.size>20*1024*1024) why='big';
+        else if(!assets) why='rights';
+        else if(kind==='audio'){
+          /* хранилище пульта не принимает аудио — заворачиваем озвучку в webm с пустым кадром (идёт в реальном времени) */
+          try{ const wrapped=await audioAsVideo(avFile, m=>note.textContent=m); note.textContent='Загружаю озвучку на пульт…'; up=await upload(wrapped); }catch(e){ up=null; }
+          if(!up) why='fail';
+        } else { note.textContent='Загружаю видео на пульт…'; up=await upload(avFile); if(!up) why='fail'; }
+        curAvatar={id:up?.id||null, name:avFile.name, size:avFile.size, kind, ...(why?{why}:{})};
         buf=await avFile.arrayBuffer();
       } else {
         if(!curAvatar.id){ toast('Выбери файл заново: прошлый не сохранён на пульте'); return false; }
@@ -1134,19 +1174,20 @@ function wireTiming(p){
       }
       note.textContent='Считаю паузы и хронометраж…';
       const speed=+$('#r-speed').value||1.2;
-      const {dur, segs} = await speechSegments(buf);
+      const pauses=document.querySelector('input[name="r-pauses"]:checked')?.value||'all';
+      const {dur, segs} = await speechSegments(buf, pauses);
       const speech=segs.reduce((x,[a,b])=>x+b-a,0);
       curWords = alignWords(script, segs, speed);
       curRows = phrasesFrom(curWords).map(r=>({...r, mode:'', kind:'', note:''}));
-      const timing={srcDur:+dur.toFixed(2), speechDur:+speech.toFixed(2), finalDur:+(speech/speed).toFixed(2), cuts:Math.max(0,segs.length-1), speed};
+      const timing={srcDur:+dur.toFixed(2), speechDur:+speech.toFixed(2), finalDur:+(speech/speed).toFixed(2), cuts:Math.max(0,segs.length-1), speed, pauses};
       p.timing=timing; avFile=null; showAv(); showTiming(timing); renderSb();
-      const ok = await write(()=>docRef.update({avatar:curAvatar, drive, mediaList:$('#r-media').value, timing, words:curWords, segs, script, title:titleFrom(script), sbRows:curRows, storyboard:rowsText(curRows), status:'story', updatedAt:new Date().toISOString()}));
+      const ok = await write(()=>docRef.update({avatar:curAvatar, drive, mediaList:$('#r-media').value, timing, words:curWords, segs, script, speed, pauses, title:titleFrom(script), sbRows:curRows, storyboard:rowsText(curRows), status:'story', updatedAt:new Date().toISOString()}));
       note.textContent = ok ? 'Тайминги готовы. Дальше — раскадровка.' : 'Тайминги посчитаны, но не сохранились.';
-      sentScript = script; return true;
+      sentScript = script; sentParams = `${speed}|${pauses}`; return true;
     }catch(e){ note.textContent='Не получилось прочитать звук из файла. Подойдут mp4 (H.264 + AAC), mp3, m4a, wav.'; return false; }
     finally{ btn.disabled=false; }
   }
-  let sentScript = curWords.length ? (p.script||'').trim() : null;
+  let sentScript = curWords.length ? (p.script||'').trim() : null, sentParams = curWords.length ? `${p.timing?.speed??p.speed??1.2}|${p.timing?.pauses||p.pauses||'all'}` : null;
   $('#r-send').onclick = ()=>sendMaterials();
 
   /* пакет для монтажа: вся папка ролика с Диска → JSON-части до 19 МБ в хранилище пульта.
@@ -1321,7 +1362,8 @@ function wireTiming(p){
     return done;
   }
   /* одна кнопка раскадровки: при необходимости сначала бесплатно считает тайминги, потом один запрос Claude */
-  const needSend=()=>!curWords.length || sentScript!==$('#r-script').value.trim() || !!avFile;
+  const curParams=()=>`${+$('#r-speed').value||1.2}|${document.querySelector('input[name="r-pauses"]:checked')?.value||'all'}`;
+  const needSend=()=>!curWords.length || sentScript!==$('#r-script').value.trim() || !!avFile || sentParams!==curParams();
   $('#r-sbGo').onclick = async ()=>{
     const n=$('#r-sbNote'), go=$('#r-sbGo');
     if(!$('#r-script').value.trim()){ toast('Сначала вставь текст ролика'); $('#r-script').focus(); return; }
@@ -1802,7 +1844,7 @@ function collect(){
   const v = id=>$(id)?.value ?? '';
   const t=tplOf(S.projects.find(x=>x.id===$('#reelEditor')?.dataset.pid)?.templateId);
   return {subPosSet:v('#r-subPos'), wipeSet:v('#r-wipe'), subPos:v('#r-subPos')||subPosOf(t), wipe:v('#r-wipe')?v('#r-wipe')==='on':wipeOf(t), pictures:picturesOf(t),title:titleFrom(v('#r-script')), script:v('#r-script'), bg:v('#r-bg'), sound:v('#r-sound'),
-    speed:+v('#r-speed')||1.2, subWords:+v('#r-words')||2, subColor:v('#r-subc'), drive:v('#r-drive').trim(), mediaList:v('#r-media'), speaker:v('#r-speaker'),
+    speed:+v('#r-speed')||1.2, pauses:document.querySelector('input[name="r-pauses"]:checked')?.value||'all', subWords:+v('#r-words')||2, subColor:v('#r-subc'), drive:v('#r-drive').trim(), mediaList:v('#r-media'), speaker:v('#r-speaker'),
     win:readWin(), subAnim:(v('#r-subAnim')==='__auto'?'static':v('#r-subAnim'))||'static', titleAnim:(v('#r-titleAnim')==='__auto'?'static':v('#r-titleAnim'))||'static', ctaOn:!!$('#r-ctaOn')?.checked, punch:!!$('#r-punch')?.checked, progress:!!$('#r-progress')?.checked, ctaText:v('#r-ctaText').trim(), status:v('#r-status'),
     gptPrompt:v('#r-gpt'), styleAnalysis:v('#r-style'), sbRows:curRows, storyboard:rowsText(curRows), target:readTarget(), sub:readSub()};
 }

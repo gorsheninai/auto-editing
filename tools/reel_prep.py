@@ -27,6 +27,8 @@
   4. story     tools/pult_to_story.py → src/story.json, src/words.json
   5. avatar    без спецификации стиля: паузы режутся ровно по segs пульта, ускорение speed → public/avatar.mp4;
                со спецификацией (поле spec): tools/spec_build.py --src (паузы, распознавание, грейд, звук)
+  5б. sync     распознавание речи (tools/asr.py) по готовой дорожке avatar.mp4: слова сценария получают реальные тайминги,
+               сцены и субтитры story.json переносятся на них по номерам слов (без spec; со spec это делает spec_build)
   6. matte     если в раскадровке есть окно «Вырезка» или BgSwap: прозрачный спикер → public/avatar_cut.webm
   7. report    лист work/prep_sheet.jpg (материалы + кадры вырезки) и отчёт: что готово, чего не хватает, какие сцены писать
 
@@ -37,7 +39,7 @@ import base64, glob, hashlib, json, os, shutil, subprocess, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 TPL = os.path.join(ROOT, 'template')
-STAGES = ['env', 'scaffold', 'media', 'cutout', 'scenes', 'story', 'avatar', 'matte', 'report']
+STAGES = ['env', 'scaffold', 'media', 'cutout', 'scenes', 'story', 'avatar', 'sync', 'matte', 'report']
 CUT_DIRS = ('01_', '02_', '03_')            # персонаж, предметы, люди — им нужен прозрачный фон
 IMG = ('.png', '.jpg', '.jpeg', '.webp')
 
@@ -388,6 +390,42 @@ class Prep:
             self.warn.append(f'видео {dur:.1f} с, а последнее слово пульта кончается на {last:.1f} с: проверь синхрон (возможно, на пульте другое видео аватара)')
         self.mark('avatar', s)
         self.say('avatar', f'паузы вырезаны по пульту, ×{speed}: {dur:.1f} с')
+
+    # ---------- 5б. тайминги по распознаванию речи ----------
+    def sync(self):
+        """Пульт размечает слова примерно (по слогам и паузам). Здесь — по-настоящему: распознаём готовую дорожку
+        и переносим сцены и субтитры на реальные слова. Распознавание кэшируется, перенос — каждый раз (дёшево)."""
+        if self.proj.get('spec'):
+            self.say('sync', 'со спецификацией стиля — уже сделано в spec_build'); return
+        av = os.path.join(self.pub, 'avatar.mp4'); sj = os.path.join(self.reel, 'src', 'story.json')
+        script = (self.proj.get('script') or '').strip()
+        if not os.path.exists(av) or not os.path.exists(sj) or not script:
+            self.say('sync', 'пропущено: нет дорожки, раскадровки или текста'); return
+        cache = os.path.join(self.work, 'words_asr.json'); s = self.sig(self.fsig(av), script)
+        if not (self.state.get('sync') == s and os.path.exists(cache) and 'sync' not in self.redo):
+            sp = os.path.join(self.work, 'script.txt'); open(sp, 'w', encoding='utf-8').write(script)
+            r = subprocess.run([sys.executable, os.path.join(HERE, 'asr.py'), av, cache, '--script', sp], capture_output=True, text=True)
+            self.log(r.stdout[-4000:], r.stderr[-4000:])
+            if r.returncode or not os.path.exists(cache):
+                self.warn.append('распознавание речи не сработало — тайминги остались примерными, с пульта (подробности в prep.log)')
+                self.say('sync', 'пропущено: распознавание не сработало'); return
+            self.state['sync'] = s; json.dump(self.state, open(self.state_path, 'w'), indent=1)
+        new = json.load(open(cache, encoding='utf-8'))
+        st = json.load(open(sj, encoding='utf-8')); old = st.get('words') or []
+        if not new or not st.get('rows'):
+            self.say('sync', 'пропущено: пусто'); return
+        if [(w['w'], w['s']) for w in old] == [(w['w'], w['s']) for w in new]:
+            self.say('sync', 'тайминги уже по распознаванию'); return
+        shift = [abs(a['s'] - b['s']) for a, b in zip(old, new)] if len(old) == len(new) else []
+        sys.path.insert(0, HERE)
+        from spec_build import remap
+        remap(st['rows'], old, new)
+        st['words'] = new
+        st['duration'] = round(max(new[-1]['e'] + 0.45, st['rows'][-1]['e']), 2)
+        json.dump(st, open(sj, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+        wj = os.path.join(self.reel, 'src', 'words.json')
+        if os.path.exists(wj): json.dump(new, open(wj, 'w', encoding='utf-8'), ensure_ascii=False)
+        self.say('sync', 'сцены и субтитры перенесены на распознанные слова' + (f': сдвиг до {max(shift):.1f} с, в среднем {sum(shift) / len(shift):.2f} с' if shift else f' (слов {len(old)} → {len(new)})'))
 
     # ---------- 6. вырезка спикера ----------
     def needs_matte(self, st):
