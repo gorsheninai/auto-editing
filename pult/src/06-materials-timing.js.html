@@ -7,7 +7,7 @@ let reelHooks = {updateSteps(){}, renderSummary(){}};
 const SEG_KINDS = {
   A:[['speaker','Спикер']],
   B:[['l2d','2D-сцена'],['gen','Картинка по смыслу'],['motion','Моушн-схема'],['d3','3D'],['media','Мои вставки']],
-  C:[['l2d','2D-сцена'],['motion','Смысловой моушн'],['gen','Картинка по смыслу'],['d3','3D-метафора'],['kinetic','Кинетический текст'],['media','Мои вставки']]};
+  C:[['l2d','2D-сцена'],['motion','Смысловой моушн'],['gen','Картинка по смыслу'],['d3','3D-метафора'],['kinetic','Кинетический текст'],['media','Мои вставки'],['illu','Анимированная сцена']]};
 const WINS = [['popout','Вырезка','голова выходит за окно'],['window','Окно','скруглённый прямоугольник без вырезки'],['circle','Кружок','как видеосообщение'],['strip','Полоса','спикер на всю ширину внизу']];
 const SUB_DEF = {B:{l2d:40, gen:15, motion:25, d3:20, media:0}, C:{l2d:20, motion:25, gen:15, d3:20, kinetic:20, media:0}};
 const winName = v => (WINS.find(w=>w[0]===v)||WINS[0])[1];
@@ -80,6 +80,10 @@ function phrasesFrom(words){
   words.forEach((w,i)=>{ cur.push(w); if(/[.!?…:;]$/.test(w.w) || (cur.length>=12 && /,$/.test(w.w))) flush(i); });
   flush(words.length-1); return rows;
 }
+const MOVES=['pop','rise','drop','slide-l','slide-r','float','swing','spin','orbit','pulse','grow','shake','tip'], PLACES=['center','left','right','top','bottom','back'], SIZES=['big','mid','small'];
+const MOVE_LBL={pop:'появляется',rise:'взлетает',drop:'падает',['slide-l']:'въезжает слева',['slide-r']:'въезжает справа',float:'парит',swing:'качается',spin:'вращается',orbit:'летает по кругу',pulse:'пульсирует',grow:'вырастает',shake:'дрожит',tip:'наклоняется'};
+/* объекты анимированной сцены из ответа Claude: до 4, движение/место/размер только из словаря */
+function cleanObjs(a){ return (Array.isArray(a)?a:[]).slice(0,4).map(o=>({what:String(o?.what||'').slice(0,90), move:MOVES.includes(o?.move)?o.move:'pop', place:PLACES.includes(o?.place)?o.place:'', size:SIZES.includes(o?.size)?o.size:''})).filter(o=>o.what); }
 /* отрезок слов → строка раскадровки */
 function rowFromWords(words, a, b, mode, note){
   return {text:words.slice(a,b+1).map(x=>x.w).join(' '), s:words[a].s, e:words[b].e, wi:[a,b], mode:mode||'', note:note||''};
@@ -175,6 +179,7 @@ function wireTiming(p){
           ${r.kind==='media'?`<select data-i="${i}" data-k="media" aria-label="Файл вставки ${i+1}"${canWrite?'':' disabled'}>${opts([['','— файл —'],...files.map(f=>[f.name, f.desc?`${f.name} — ${f.desc}`:f.name])], r.media||'')}</select>`:''}
         </div>
         <textarea data-i="${i}" data-k="note" rows="2" placeholder="Что на экране и на каком слове меняется" aria-label="Визуал сегмента ${i+1}"${canWrite?'':' disabled'}>${esc(r.note||'')}</textarea>
+        ${r.kind==='illu'&&r.objs?.length?`<span class="hint">${r.tone==='dark'?'Тёмная сцена':'Светлая сцена'}${r.ground?', с «землёй»':''}${r.sc?` · лист sc${r.sc}.png`:''} · объекты: ${r.objs.map(o=>`${esc(o.what)} (${esc(MOVE_LBL[o.move]||o.move)})`).join(' · ')}</span>`:''}
       </div></div>`; }).join('')}</div>`;
     el.querySelectorAll('[data-k]').forEach(c=>c.addEventListener('change',()=>{
       const r=curRows[+c.dataset.i], k=c.dataset.k; r[k]=c.value;
@@ -365,20 +370,22 @@ function wireTiming(p){
       const res = await sample.json(prompt, {signal:ctl.signal, cache:true});
       if(!Array.isArray(res)) throw {code:'invalid_json'};
       const W=curWords, N=W.length, names=new Set(files.map(f=>f.name));
-      const segs=res.map(x=>({a:Math.round(Number(x.from)), b:Math.round(Number(x.to)), mode:String(x.mode||''), kind:String(x.kind||''), win:String(x.win||''), media:String(x.media||''), note:String(x.visual||x.note||''), tech:(Array.isArray(x.tech)?x.tech:[]).map(c=>String(c).toUpperCase()).filter(c=>/^[A-Z0-9_]{2,12}$/.test(c))}))
+      const segs=res.map(x=>({a:Math.round(Number(x.from)), b:Math.round(Number(x.to)), mode:String(x.mode||''), kind:String(x.kind||''), win:String(x.win||''), media:String(x.media||''), note:String(x.visual||x.note||''), objs:cleanObjs(x.objs), tone:x.tone==='dark'?'dark':'light', ground:!!x.ground, tech:(Array.isArray(x.tech)?x.tech:[]).map(c=>String(c).toUpperCase()).filter(c=>/^[A-Z0-9_]{2,12}$/.test(c))}))
         .filter(x=>Number.isFinite(x.a)&&Number.isFinite(x.b)).map(x=>({...x, a:Math.max(0,Math.min(N-1,x.a)), b:Math.max(0,Math.min(N-1,x.b))})).filter(x=>x.b>=x.a).sort((x,y)=>x.a-y.a);
       if(!segs.length) throw {code:'invalid_json'};
       const rows=[]; let next=0;
       for(const g of segs){ if(g.b<next) continue;
         const mode=['A','B','C'].includes(g.mode)?g.mode:'B', ks=(SEG_KINDS[mode]||[]).map(x=>x[0]);
         let kind = ks.includes(g.kind)?g.kind:ks[0]; if(kind==='media' && !names.has(g.media)) kind = ks.find(k=>k!=='media')||kind;
-        rows.push({...rowFromWords(W, next, g.b, mode, (g.tech.length?`[${g.tech.join(',')}] `:'')+g.note.replace(/^\[[A-Z0-9_,\s]+\]\s*/,'')), tech:g.tech, kind, win: mode==='B' ? (WINS.some(w=>w[0]===g.win)?g.win:readWin()) : '', media: kind==='media'?g.media:''});
+        rows.push({...rowFromWords(W, next, g.b, mode, (g.tech.length?`[${g.tech.join(',')}] `:'')+g.note.replace(/^\[[A-Z0-9_,\s]+\]\s*/,'')), tech:g.tech, kind, win: mode==='B' ? (WINS.some(w=>w[0]===g.win)?g.win:readWin()) : '', media: kind==='media'?g.media:'', ...(kind==='illu'||g.objs.length?{objs:g.objs, tone:g.tone, ground:g.ground}:{})});
         next=g.b+1; }
       if(next<N && rows.length){ const last=rows.pop(); rows.push({...rowFromWords(W,last.wi[0],N-1,last.mode,last.note), tech:last.tech||[], kind:last.kind, win:last.win, media:last.media}); }
       curRows=rows; useTarget=withTarget;
       if(withTarget && !bySpec) fitShares();
       let fixed=enforceSpeaker(curRows, spk, readWin());
-      if(pic==='illustration') curRows.forEach(r=>{ if(r.kind==='l2d'){ r.kind='gen'; fixed++; } }); /* коллаж с героем → цельная иллюстрация */
+      const blockCodes=new Set(S.blocks.map(b=>b.code||b.id)), leadCode=r=>((r.note||'').match(/^\s*(?:\[[^\]]*\]\s*)?([A-Z][A-Za-z0-9]+)/)||[])[1];
+      if(pic==='illustration') curRows.forEach(r=>{ if((r.kind==='l2d'||r.kind==='gen') && blockCodes.has(leadCode(r))){ r.kind='motion'; r.mode='C'; r.win=''; fixed++; return; } /* описание начинается с блока библиотеки — это блок, а не сцена */
+        if(r.kind==='l2d'||r.kind==='gen'){ r.kind='illu'; r.mode='C'; r.win=''; fixed++; } if(r.kind==='illu'){ if(!r.objs?.length) r.objs=[{what:(r.note||r.text).split('//')[0].trim().slice(0,90), move:'pop', place:'center', size:'big'}]; r.tone=r.tone||'light'; } }); /* картинка-коллаж → анимированная сцена из объектов */
       renderSb();
       const ok=await write(()=>docRef.update({sbRows:curRows, storyboard:rowsText(curRows), target:tg, sub:sb, useTarget, pictures:pic, ...(spec&&!p.spec?{spec}:{}), ...(dna&&!p.dna?{dna}:{}), updatedAt:new Date().toISOString()}));
       done=true;

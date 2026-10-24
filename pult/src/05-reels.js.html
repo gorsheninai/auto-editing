@@ -226,7 +226,7 @@ const SUBPOS_NAMES={top:'сверху', middle:'по центру', bottom:'сн
 function subPosOf(t){ return SUBPOS_NAMES[t?.rules?.subPos] ? t.rules.subPos : (picturesOf(t)==='illustration' ? 'top' : ''); }
 function wipeOf(t){ return t ? (typeof t.rules?.wipe==='boolean' ? t.rules.wipe : /шторк/i.test(t.motion||'')) : false; }
 function picturesRule(pic){
-  if(pic==='illustration') return `КАРТИНКИ СТИЛЯ — цельные иллюстрации-метафоры, героя-человека в кадре нет. Сцену с картинкой ставь как kind "gen" (цельная иллюстрация по смыслу фразы, на весь экран); в visual опиши метафору: какой предмет или место и что с ним происходит. kind "l2d" (коллаж из позы героя и предметов) не используй. Цифры, списки, процессы и сравнения — моушн-блоки стиля.`;
+  if(pic==='illustration') return `СЦЕНЫ СТИЛЯ — анимированные иллюстрации из отдельных объектов, героя-человека в кадре нет, как в эксплейнерах: ракета взлетает, весы качаются, глобус вращается. Каждый смысловой кусок речи — kind "illu" (режим C) с полями: "tone": "light" (светлая бумага) или "dark" (тёмная сцена; чередуй по главам), "ground": true, если объектам нужна «земля» внизу, "objs": 1–4 объекта-метафоры этой фразы — [{"what":"что за предмет, как выглядит (без надписей)","move":"pop|rise|drop|slide-l|slide-r|float|swing|spin|orbit|pulse|grow|shake|tip","place":"center|left|right|top|bottom|back","size":"big|mid|small"}]. Движение подбирай по смыслу (рост — grow или rise, падение — drop, сомнение — swing, процесс или время — spin, связи — orbit). В visual — одна фраза, что происходит. Текста в объектах нет: слова дают субтитры. kind "l2d" и "gen" не используй. Цифры, списки, процессы — моушн-блоки стиля; повороты мысли — карточки стиля.`;
   if(pic==='collage') return `КАРТИНКИ СТИЛЯ — 2D-сцены из слоёв: поза героя, предметы, фон (kind "l2d"); картинки по смыслу (gen) — только на конкретные упоминания.`;
   return '';
 }
@@ -435,7 +435,7 @@ function openReel(p){
   });
   /* Быстрый режим: как reel_go соберёт каждую строку (та же логика, что pult_to_story --auto) */
   function fastPlan(rows){
-    const codes=new Set(S.blocks.map(b=>b.code||b.id)), c={blk:0, lay:0, pic:0, kin:0, spk:0}, kinRows=[];
+    const codes=new Set(S.blocks.map(b=>b.code||b.id)), c={blk:0, lay:0, pic:0, kin:0, spk:0, ill:0}, kinRows=[];
     (rows||[]).forEach((r,i)=>{
       if(!r.mode) return;
       const k=r.kind||(r.mode==='A'?'speaker':'l2d'), lead=((r.note||'').match(/^\s*(?:\[[^\]]*\]\s*)?([A-Z][A-Za-z0-9]+)/)||[])[1];
@@ -443,6 +443,7 @@ function openReel(p){
       else if(r.scene||(lead&&codes.has(lead))) c.blk++;
       else if(k==='l2d') c.lay++;
       else if(k==='gen'||k==='media') c.pic++;
+      else if(k==='illu') c.ill++;
       else { c.kin++; kinRows.push(i+1); }
     });
     return {c, kinRows};
@@ -451,7 +452,7 @@ function openReel(p){
     const n=$('#r-fast'); if(!n) return;
     if(!curRows.length){ n.textContent=''; return; }
     const {c,kinRows}=fastPlan(curRows);
-    n.textContent=`Быстрый режим: спикер ${c.spk}, блоки библиотеки ${c.blk}, 2D из материалов ${c.lay}, картинки ${c.pic}, кинетический текст ${c.kin}${kinRows.length?` (строки ${kinRows.join(', ')} — поставь код блока в начало описания, если нужен блок)`:''}. 2D без подходящих материалов и картинки без файла тоже станут кинетическим текстом. Свои сцены Claude не пишет.`;
+    n.textContent=`Быстрый режим: спикер ${c.spk}, блоки библиотеки ${c.blk}, анимированные сцены ${c.ill}, 2D из материалов ${c.lay}, картинки ${c.pic}, кинетический текст ${c.kin}${kinRows.length?` (строки ${kinRows.join(', ')} — поставь код блока в начало описания, если нужен блок)`:''}. 2D, сцены и картинки без файлов тоже станут кинетическим текстом. Свои сцены Claude не пишет.`;
   }
   window.fastNote=fastNote; fastNote();
   F.addEventListener('input', ()=>setTimeout(fastNote, 0)); F.addEventListener('change', ()=>setTimeout(fastNote, 0));
@@ -499,16 +500,16 @@ function openReel(p){
   function updateSteps(){
     const d={style:$('#r-style').value.trim(), script:$('#r-script').value.trim(), gpt:$('#r-gpt').value.trim()};
     const hasModes = curRows.length && curRows.every(r=>r.mode);
-    const need2d = curRows.some(r=>r.kind==='l2d'||r.kind==='gen');
+    const need2d = curRows.some(r=>r.kind==='l2d'||r.kind==='gen'||r.kind==='illu');
     const st=[['Стиль',!!d.style],['Текст',!!d.script],['Картинки',!!d.gpt],['Голос',!!(p.timing||curWordsLen())],['Настройки',true],['Раскадровка',!!hasModes],['Задание',$('#r-status').value==='done']];
     let i=0; document.querySelectorAll('#reelForm section.step').forEach(sec=>{ if(sec.hidden) return; const h=sec.querySelector('h4'); h.textContent=`${++i} · ${h.textContent.replace(/^\d+\s·\s/,'')}`; });
-    const sc=$('#r-gptScope'); if(sc && curRows.length && hasModes) sc.textContent = need2d ? `В раскадровке ${curRows.filter(r=>r.kind==='l2d'||r.kind==='gen').length} сегм. с 2D-сценами и картинками по смыслу — промпт будет под них. Отправь его в ChatGPT, готовые картинки сложи в папку ролика на Диске.` : 'Раскадровке картинки не нужны: в ней моушн, текст и 3D. Промпт всё равно можно собрать — картинки подберутся к ключевым местам текста.';
+    const sc=$('#r-gptScope'); const nIllu=curRows.filter(r=>r.kind==='illu').length; if(sc && curRows.length && hasModes) sc.textContent = nIllu ? `В раскадровке ${nIllu} анимированных сцен: промпт соберётся сразу, без запроса Claude — по листу объектов на сцену (sc№.png), на прозрачном фоне и без текста. Объекты оживут в монтаже.` : need2d ? `В раскадровке ${curRows.filter(r=>r.kind==='l2d'||r.kind==='gen').length} сегм. с 2D-сценами и картинками по смыслу — промпт будет под них. Отправь его в ChatGPT, готовые картинки сложи в папку ролика на Диске.` : 'Раскадровке картинки не нужны: в ней моушн, текст и 3D. Промпт всё равно можно собрать — картинки подберутся к ключевым местам текста.';
     const order=[...document.querySelectorAll('#reelForm section.step')].filter(x=>!x.hidden).map(x=>+x.id.slice(6));
     $('#r-steps').innerHTML = order.map((sec,j)=>{ const [n,ok]=st[sec-1]; return `<a href="#r-sec-${sec}" class="stepchip${ok?' ok':''}" data-sec="${sec}"><span class="code">${ok?'✓':j+1}</span>${esc(n)}</a>`; }).join('');
     $('#r-steps').querySelectorAll('a').forEach(a=>a.onclick=e=>{ e.preventDefault(); $('#r-sec-'+a.dataset.sec).scrollIntoView({behavior:'smooth',block:'start'}); });
   }
   function renderSummary(){
-    const sh=rowShares(curRows), d=collect(), need2d=curRows.filter(r=>r.kind==='l2d'||r.kind==='gen').length, media=curRows.filter(r=>r.kind==='media');
+    const sh=rowShares(curRows), d=collect(), need2d=curRows.filter(r=>r.kind==='l2d'||r.kind==='gen'||r.kind==='illu').length, media=curRows.filter(r=>r.kind==='media');
     const todo=[];
     if(!d.styleAnalysis.trim()) todo.push('создать стиль');
     if(!curWordsLen()) todo.push('выбрать голос: видео аватара или озвучку');

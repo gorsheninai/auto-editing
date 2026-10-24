@@ -1,6 +1,7 @@
 import React from 'react';
 import {AbsoluteFill, Img, OffthreadVideo, interpolate, staticFile, useCurrentFrame} from 'remotion';
 import {HAND, SANS, beats, clamp, rad, ramp, spring, type BlockProps, type Theme} from './kit';
+import {STY} from './style';
 
 /* «Кино-подача»: блоки из разбора референсов (премонтаж kino-golova).
    SubKino — субтитры по слову + ключевое слово «стопкой»; TxtNumberTitle — номер пункта поверх кадра;
@@ -92,10 +93,22 @@ export const MBurst: React.FC<BlockProps> = ({data, theme, dur, marks}) => {
 /* note: «CardWord: текст: had | белая» */
 export const CardWord: React.FC<BlockProps> = ({data, theme}) => {
   const f = useCurrentFrame();
+  const isTone = (x: string) => /^(белая|чёрная|черная|тёмная|темная|black|white|dark)$/i.test(x.trim());
   const dark = data.items.some((i) => /^(чёрная|черная|тёмная|темная|black|dark)$/i.test(i.raw.trim()));
-  const w = data.text || data.title || data.items.find((i) => !/^(белая|чёрная|черная|тёмная|темная|black|white|dark)$/i.test(i.raw.trim()))?.raw || '';
-  return <AbsoluteFill style={{background: dark ? '#050505' : '#F1F0EE', display: 'grid', placeItems: 'center'}}>
-    <div style={{fontFamily: SANS, fontWeight: 800, fontSize: dark ? 46 : 120, letterSpacing: dark ? 0 : -4, color: dark ? '#F2EDE4' : '#111', opacity: interpolate(f, [0, 2], [0, 1], clamp)}}>{w}</div>
+  const parts = data.items.map((i) => i.raw).filter((x) => !isTone(x));
+  /* «CardWord: связка | слово» — мелкий курсив сверху и жирное слово снизу; иначе одно слово */
+  const lead = parts.length >= 2 ? parts[0] : '';
+  const w = parts.length >= 2 ? parts.slice(1).join(' ') : data.text || data.title || parts[0] || '';
+  const P = STY.passport.colors || {};
+  const bg = dark ? (P.ink || '#050505') : (P.card || P.bg || '#F1F0EE'), ink = dark ? (P.card || P.bg || '#F2EDE4') : (P.ink || '#111');
+  const longest = Math.max(1, ...w.split(/\s+/).map((x) => x.length));
+  const big = Math.min(lead ? 132 : 120, 940 / (longest * 0.6));   // слово не вылезает за край
+  const op = interpolate(f, [0, 2], [0, 1], clamp);
+  return <AbsoluteFill style={{background: bg, display: 'grid', placeItems: 'center', padding: '0 70px'}}>
+    <div style={{textAlign: 'center', opacity: op}}>
+      {lead ? <div style={{fontFamily: SANS, fontStyle: 'italic', fontWeight: 300, fontSize: 64, color: ink, opacity: 0.75, marginBottom: 10}}>{lead}</div> : null}
+      <div style={{fontFamily: SANS, fontWeight: 800, fontSize: dark && !lead ? 46 : big, lineHeight: 1.02, letterSpacing: dark && !lead ? 0 : -3, color: ink}}>{w}</div>
+    </div>
   </AbsoluteFill>;
 };
 

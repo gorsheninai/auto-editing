@@ -1,7 +1,7 @@
 // Данные ролика с пульта (tools/pult_to_story.py пишет src/story.json)
 export type Win = 'popout' | 'window' | 'circle' | 'strip';
 export type Mode = 'A' | 'B' | 'C';
-export type Kind = 'speaker' | 'l2d' | 'gen' | 'motion' | 'd3' | 'kinetic' | 'media';
+export type Kind = 'speaker' | 'l2d' | 'gen' | 'motion' | 'd3' | 'kinetic' | 'media' | 'illu';
 export type Word = {w: string; s: number; e: number};
 export type AnimParams = {
   style?: string;          // готовый стиль субтитров из blocks/subs.tsx (SubKaraoke…) — перекрывает остальные поля
@@ -21,6 +21,7 @@ export type Row = {
   frame?: 'auto' | 'phone' | 'window' | 'painting' | 'product' | 'poster' | 'plain';
   scene?: string;          // код своей сцены из registry.tsx — перекрывает kind
   layer?: {bg?: string; pose?: string; props?: string[]}; // для l2d без своей сцены: файлы в public
+  illu?: {objs: {src: string; move?: string; place?: string; size?: string}[]; tone?: 'light' | 'dark'; ground?: boolean}; // анимированная сцена: объекты sc{N}_o{k}.png и их движение
   tr?: string;             // переход НА этот сегмент: TrWhip | TrZoom | TrFocus | TrGlitch | TrPage
   fxText?: string;         // подпись эффекта (FxFreeze: …)
   fx?: string;             // эффект на сегмент: FxVhs | FxConfetti

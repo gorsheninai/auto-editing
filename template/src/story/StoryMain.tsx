@@ -8,6 +8,7 @@ import {useStoryFonts} from './fonts';
 import {Backdrop, SceneZone, SpeakerFull, SpeakerWindow, ZONES} from './windows';
 import {AnimText} from './textanim';
 import {KineticText, LayerScene, PicInsert, Placeholder, pickFrame} from './inserts';
+import {IlluScene} from './illu';
 import {REG} from './registry';
 import {SUBS, isSubCode, pickKeywords, toCaptions} from '../blocks/subs';
 import {BgGrain, FxConfetti, FxVhs, Overlay, TRANSITIONS} from '../blocks/text-fx';
@@ -42,6 +43,8 @@ const Content: React.FC<{r: Row; from: number; dur: number; zoneH: number; full:
   const ws = wordsIn(r);
   if (r.scene && REG[r.scene]) { const Sc = REG[r.scene]; return <Sc from={from} dur={dur} t0={r.s} row={r} words={ws} zoneH={zoneH} full={full} theme={T} allWords={STORY.words} speaker={{src: AV, from}} />; }
   const kind = r.kind || (full ? 'kinetic' : 'l2d');
+  if (r.illu && r.illu.objs?.length) { const pc = STORY.settings.passport?.colors || {};
+    return <IlluScene illu={r.illu} dur={dur} colors={{bg: pc.bg || T.bg, ink: pc.ink || T.ink, accent: pc.accent || T.accent, soft: pc.soft, card: pc.card}} />; }
   if ((kind === 'gen' || kind === 'media') && r.media) {
     const fr = r.frame && r.frame !== 'auto' ? r.frame : (kind === 'media' || kind === 'gen' ? pickFrame(r.note, r.media) : 'plain');
     return <PicInsert src={r.media} dur={dur} frame={fr} zoneH={zoneH} bg={T.bg} full={full} />;
@@ -140,7 +143,7 @@ const Captions: React.FC = () => {
   if (r.mode === 'C' && (kind === 'kinetic' || ((kind === 'motion' || kind === 'd3') && !(r.scene && REG[r.scene])))) return null; // текст уже на экране
   const win = winOf(r);
   const SP = STORY.settings.subPos; const yPos = SP === 'top' ? 560 : SP === 'middle' ? 960 : null; // место субтитров по стилю
-  const y = yPos ?? SUB_STYLE === 'SubKino' ? (r.mode === 'B' ? 1300 : r.mode === 'C' ? (/^Phone/.test(r.scene || '') ? 1810 : 1520) : 1120) : r.mode === 'A' ? 1500 : r.mode === 'C' ? 1540 : win === 'circle' ? 1350 : win === 'strip' ? 1160 : 1150;
+  const y = yPos ?? (SUB_STYLE === 'SubKino' ? (r.mode === 'B' ? 1300 : r.mode === 'C' ? (/^Phone/.test(r.scene || '') ? 1810 : 1520) : 1120) : r.mode === 'A' ? 1500 : r.mode === 'C' ? 1540 : win === 'circle' ? 1350 : win === 'strip' ? 1160 : 1150);
   const p = STORY.settings.subAnim;
   if (p?.style === 'SubTom') { /* как у референса: по слову, мелко, кремовым, по центру груди, без анимации; ключевые слова крупнее */
     const ss = STORY.settings.subStyle || {}; const fs = ss.fontSize || 60;
@@ -153,7 +156,7 @@ const Captions: React.FC = () => {
       color: ss.color || STORY.settings.passport?.colors?.ink || '#EFE7DA', textShadow: '0 2px 14px rgba(0,0,0,.45), 0 0 2px rgba(0,0,0,.3)'}}>{txt}</div>;
   }
   if (SUB_STYLE) {
-    const onDark = r.mode === 'A' || T.dark;
+    const onDark = r.mode === 'A' || (r.illu ? r.illu.tone === 'dark' : T.dark);
     return <div style={{position: 'absolute', left: 60, right: 60, top: y, translate: '0 -50%', textAlign: 'center', fontFamily: SANS, letterSpacing: -1}}>
       {SUBS[SUB_STYLE].render({captions: CAPS, keywords: KEYS, color: onDark ? '#FFFFFF' : (STORY.settings.subColor || T.ink), accent: T.accent, onDark, fontSize: 60})}
     </div>;

@@ -22,6 +22,8 @@
   1. scaffold  папка из template/, пакеты — ссылка на template/node_modules (ставятся один раз на все ролики)
   2. media     пакеты пульта или --media → public/media/<подпапки как на Диске>
   3. cutout    позы, люди и предметы (01_, 02_, 03_) без прозрачности → вырезка фона rembg (isnet-general-use)
+  3б. scenes   листы объектов анимированных сцен sc{N}.png (прозрачный фон, объекты в ряд слева направо) →
+               вырезка фона, если его нет → public/media/_scenes/sc{N}_o{k}.png по порядку слева направо
   4. story     tools/pult_to_story.py → src/story.json, src/words.json
   5. avatar    без спецификации стиля: паузы режутся ровно по segs пульта, ускорение speed → public/avatar.mp4;
                со спецификацией (поле spec): tools/spec_build.py --src (паузы, распознавание, грейд, звук)
@@ -35,7 +37,7 @@ import base64, glob, hashlib, json, os, shutil, subprocess, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 TPL = os.path.join(ROOT, 'template')
-STAGES = ['env', 'scaffold', 'media', 'cutout', 'story', 'avatar', 'matte', 'report']
+STAGES = ['env', 'scaffold', 'media', 'cutout', 'scenes', 'story', 'avatar', 'matte', 'report']
 CUT_DIRS = ('01_', '02_', '03_')            # персонаж, предметы, люди — им нужен прозрачный фон
 IMG = ('.png', '.jpg', '.jpeg', '.webp')
 
@@ -239,6 +241,58 @@ class Prep:
         self.mark('cutout', self.sig([self.fsig(f) for f in todo2]))
         self.say('cutout', f'вырезан фон: {cut}, уже прозрачных: {kept}' + (f', листов: {len(sheets)}' if sheets else ''))
 
+    # ---------- 3б. объекты анимированных сцен ----------
+    def scenes(self):
+        """sc{N}.png — лист объектов сцены N раскадровки (kind illu). Каждый объект → свой файл sc{N}_o{k}.png:
+        связные области прозрачности, слева направо; мелкие крошки отбрасываются."""
+        import re as _re
+        md = os.path.join(self.pub, 'media'); outd = os.path.join(md, '_scenes')
+        src = sorted(f for f in glob.glob(os.path.join(md, '**', '*'), recursive=True)
+                     if f.lower().endswith(IMG) and _re.fullmatch(r'sc\d+', os.path.splitext(os.path.basename(f))[0], _re.I)
+                     and os.sep + '_scenes' + os.sep not in f)
+        s = self.sig([self.fsig(f) for f in src])
+        if not src:
+            self.say('scenes', 'листов объектов sc{N} нет'); self.mark('scenes', s); return
+        if self.done('scenes', s) and os.path.isdir(outd):
+            self.say('scenes', 'уже готово'); return
+        from PIL import Image
+        import numpy as np
+        from scipy import ndimage
+        if os.path.isdir(outd): shutil.rmtree(outd)
+        os.makedirs(outd, exist_ok=True)
+        ses = None; total = 0; report = []
+        for f in src:
+            n = int(_re.sub(r'\D', '', os.path.splitext(os.path.basename(f))[0]))
+            im = Image.open(f).convert('RGBA')
+            if self.need_cut(f):                                   # ChatGPT не дал прозрачность — вырезаем фон
+                self.ensure_rembg()
+                from rembg import new_session, remove
+                with self.quiet():
+                    ses = ses or new_session('isnet-general-use'); im = remove(im.convert('RGB'), session=ses).convert('RGBA')
+            a = np.asarray(im.getchannel('A')) > 40
+            k = max(1, int(round(max(im.size) / 400)))              # метки считаем на уменьшенной маске — быстро
+            small = a[::k, ::k]
+            lab, cnt = ndimage.label(ndimage.binary_closing(small, iterations=3))
+            if not cnt:
+                self.warn.append(f'{os.path.basename(f)}: на листе нет объектов'); continue
+            sizes = ndimage.sum(np.ones_like(small), lab, range(1, cnt + 1))
+            keep = [i + 1 for i, v in enumerate(sizes) if v > 0.03 * small.sum()]
+            boxes = ndimage.find_objects(lab)
+            keep.sort(key=lambda i: (boxes[i - 1][1].start + boxes[i - 1][1].stop))   # слева направо
+            full = np.kron(lab, np.ones((k, k), dtype=lab.dtype))[:a.shape[0], :a.shape[1]]
+            if full.shape != a.shape:
+                pad = np.zeros(a.shape, dtype=lab.dtype); pad[:full.shape[0], :full.shape[1]] = full; full = pad
+            arr = np.array(im)
+            for j, li in enumerate(keep, 1):
+                m = full == li
+                ys, xs = np.where(m)
+                y0, y1, x0, x1 = max(0, ys.min() - 8), min(a.shape[0], ys.max() + 9), max(0, xs.min() - 8), min(a.shape[1], xs.max() + 9)
+                part = arr[y0:y1, x0:x1].copy(); part[..., 3] = np.where(m[y0:y1, x0:x1], part[..., 3], 0)
+                Image.fromarray(part).save(os.path.join(outd, f'sc{n}_o{j}.png')); total += 1
+            report.append(f'sc{n}: {len(keep)}')
+        self.mark('scenes', s)
+        self.say('scenes', f'объектов вырезано: {total} ({", ".join(report)})')
+
     def blobs(self, im):
         """Сколько крупных отдельных объектов на прозрачной картинке (лист 2×2, 3×3 → больше одного)."""
         try:
@@ -266,7 +320,7 @@ class Prep:
     # ---------- 4. раскадровка ----------
     def story(self):
         sj = os.path.join(self.reel, 'src', 'story.json')
-        s = self.sig(self.fsig(self.proj_path), self.state.get('media'), self.state.get('cutout'), self.opt('--anims'), self.flag('--auto'))
+        s = self.sig(self.fsig(self.proj_path), self.state.get('media'), self.state.get('cutout'), self.state.get('scenes'), self.opt('--anims'), self.flag('--auto'))
         if self.done('story', s) and os.path.exists(sj):
             self.scene_todo = self.state.get('scene_todo', [])
             self.say('story', 'уже готово'); return

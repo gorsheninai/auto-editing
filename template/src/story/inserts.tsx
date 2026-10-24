@@ -18,7 +18,8 @@ export const KineticText: React.FC<{words: Word[]; seg0: number; fps: number; pa
   const text = ch.ws.map(w => w.w.replace(/[.,!?:;…«»"]/g, '')).join(' ');
   const at = Math.round((ch.ws[0].s - seg0) * fps);
   const key = ch.ws.map(w => w.w.replace(/[^\p{L}\d]/gu, '')).reduce((b, w, i, a) => (!STOP.has(w.toLowerCase()) && w.length > (a[b] || '').length ? i : b), 0);
-  const size = text.length > 18 ? 118 : text.length > 10 ? 150 : 190;
+  const longest = Math.max(1, ...text.split(/\s+/).map((x) => x.length));
+  const size = Math.min(text.length > 18 ? 118 : text.length > 10 ? 150 : 190, 900 / (longest * 0.6)); // длинное слово не вылезает за край
   return <AbsoluteFill style={{alignItems: 'center', justifyContent: 'center', height: h}}>
     <div style={{width: 940, textAlign: 'center', fontFamily: SANS, fontWeight: 800, fontSize: size, lineHeight: 1.02, letterSpacing: -4, color: ink, textWrap: 'balance' as any}}>
       <AnimText key={at} text={text} at={at} params={params || {unit: 'word', enter: 'pop', stagger_ms: 70, overshoot: 0.15, start_scale: 0.7, emphasis: {type: 'color'}}} accent={accent} emphasisIndex={key} />

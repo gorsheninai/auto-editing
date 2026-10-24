@@ -124,6 +124,19 @@ def main():
             if m: row['media'] = m
             elif auto: row['kind'] = kind = 'kinetic'; warn.append(f'{i + 1}: нет файла «{name or "?"}» — кинетический текст')
             else: warn.append(f'{i + 1}: нет файла «{name or "?"}» в public/media ({kind})')
+        if kind == 'illu' and not row.get('scene'):
+            # анимированная сцена: объекты sc{N}_o{k}.png (reel_prep режет лист sc{N}.png), движение — из раскадровки пульта
+            n = r.get('sc') or (i + 1)
+            objs = []
+            for k, o in enumerate(r.get('objs') or [{}], 1):
+                src = find_media(f'sc{n}_o{k}')
+                if src: objs.append({'src': src, 'move': o.get('move') or 'pop', 'place': o.get('place') or '', 'size': o.get('size') or ''})
+            if not objs and find_media(f'sc{n}'): objs = [{'src': find_media(f'sc{n}'), 'move': 'pop', 'place': 'center', 'size': 'big'}]
+            if objs:
+                row['illu'] = {'objs': objs, 'tone': 'dark' if r.get('tone') == 'dark' else 'light', 'ground': bool(r.get('ground'))}
+                if len(objs) < len(r.get('objs') or []): warn.append(f'{i + 1}: на листе sc{n} объектов {len(objs)} из {len(r["objs"])}')
+            elif auto: row['kind'] = kind = 'kinetic'; warn.append(f'{i + 1}: нет листа объектов sc{n} — кинетический текст')
+            else: warn.append(f'{i + 1}: нет листа объектов sc{n}.png в public/media')
         if kind == 'l2d' and not row.get('scene'):
             if r.get('layer'): row['layer'] = r['layer']
             elif auto:
