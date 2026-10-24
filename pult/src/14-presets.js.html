@@ -34,7 +34,7 @@ function renderPresets(){
 
 function renderAnims(){
   const L=$('#animList'); if(!L) return;
-  if(!S.textanims.length){ L.innerHTML=`<div class="empty"><strong>Анимаций пока нет</strong>Открой ролик, загрузи видео-референс и под ним нажми «Анимация текста»: отметь момент, где появляется надпись.</div>`; return; }
+  if(!S.textanims.length){ L.innerHTML=`<div class="empty"><strong>Анимаций пока нет</strong>Сними её один раз из референса стиля: «Стили» → «Настроить» → «Снять анимацию текста из референса стиля». Или в ролике без стиля: загрузи видео-референс и под ним нажми «Анимация текста»: отметь момент, где появляется надпись.</div>`; return; }
   const own=S.textanims.filter(a=>!a.style);
   if(!own.length){ L.innerHTML=`<div class="empty"><strong>Своих анимаций пока нет</strong>Готовые стили субтитров — во вкладке «Субтитры» выше. Свою анимацию можно снять с видео-референса: в ролике, шаг «Стиль», кнопка «Анимация текста» под видео.</div>`; return; }
   L.innerHTML=`<div class="grid">${[...own].sort((a,b)=>(!!b.style-!!a.style)||(a.order??99)-(b.order??99)||(b.createdAt||'').localeCompare(a.createdAt||'')).map(a=>`<article class="card">

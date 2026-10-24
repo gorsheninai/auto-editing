@@ -53,6 +53,7 @@ function openTplRules(t){
   const r=t.rules||{}, allow=new Set(tplAllowed(t)||S.blocks.map(b=>b.code||b.id));
   const kinds=KINDS.filter(([k])=>k!=='all' && S.blocks.some(b=>b.kind===k));
   const anim=role=>animOptions(role,'').filter(x=>x[0]!=='__auto');
+  const refVids=(t.refs||[]).filter(x=>x&&x.id&&/\.(mp4|mov|webm|m4v)$/i.test(x.name||'mp4'));
   const tg=r.target||{a:10,b:60,c:30};
   const pp={...PP_DEF, ...(r.passport||{}), colors:{...PP_DEF.colors, ...(r.passport?.colors||{})}, fonts:{...PP_DEF.fonts, ...(r.passport?.fonts||{})}};
   E.innerHTML=`<form class="panel" id="tplRules" novalidate><h3>Настройки стиля «${esc(t.name)}»</h3>
@@ -64,6 +65,7 @@ function openTplRules(t){
       <div class="f"><label for="tr-bg">Подложка</label><select id="tr-bg">${opts(['светлая','тёмная','светлая, живой градиент','тёмная, живой градиент'], r.bg||t.bg||'светлая')}</select></div>
       <div class="f"><label for="tr-sub">Анимация субтитров</label><select id="tr-sub">${opts(anim('subtitle'), r.subAnim||'static')}</select></div>
       <div class="f"><label for="tr-title">Анимация заголовков</label><select id="tr-title">${opts(anim('title'), r.titleAnim||'static')}</select></div>
+      ${refVids.length?`<div class="f wide"><div class="row" style="gap:8px"><button type="button" class="btn" id="tr-animOpen">Снять анимацию текста из референса стиля</button><span class="hint">Один раз на стиль: дальше все ролики в этом стиле берут её сами. <i class="mdl">Модель: обычная · кэш вкл.</i></span></div><div id="tr-animBox" hidden></div></div>`:''}
       <div class="f wide"><label class="row" style="gap:8px;cursor:pointer"><input type="checkbox" id="tr-tgOn"${r.target?' checked':''}> Задать доли кадра</label>
         <div class="trio" id="tr-tg"${r.target?'':' hidden'}>
           <label class="f"><span class="hint">A · спикер, %</span><input type="number" id="tr-a" min="0" max="100" value="${tg.a}"></label>
@@ -128,6 +130,42 @@ radius — одно из 0.3, 0.6, 1, 1.6. motion — soft | spring | snappy. te
       if(!res||typeof res!=='object') throw {code:'invalid_json'}; setPP(res); note.textContent=(res.why?res.why+' ':'')+'Проверь и нажми «Сохранить правила».'; }
     catch(e){ note.textContent = e&&e.code==='cancelled' ? 'Остановлено.' : 'Не получилось собрать паспорт, нажми ещё раз.'; }
     finally{ go.disabled=false; $('#tr-ppStop').hidden=true; }
+  };
+  /* анимация текста из референса стиля: снимается один раз, попадает в библиотеку и выбирается в правилах стиля */
+  const aOpen=$('#tr-animOpen');
+  if(aOpen) aOpen.onclick=()=>{
+    const box=$('#tr-animBox'); box.hidden=false;
+    box.innerHTML=`<div class="row" style="gap:8px;margin-top:10px">
+        <select id="tr-animRef" style="width:auto" aria-label="Референс">${refVids.map((x,i)=>`<option value="${i}">${esc(x.name)}</option>`).join('')}</select>
+        <select id="tr-animRole" style="width:auto" aria-label="Что за текст"><option value="subtitle">Субтитры</option><option value="title">Заголовок / крупный текст</option></select></div>
+      <video id="tr-animVid" src="${blob(refVids[0].id)}" controls muted playsinline preload="auto" style="width:100%;max-width:300px;border-radius:8px;margin-top:8px;background:#000"></video>
+      <div class="row" style="gap:8px;margin-top:8px"><button type="button" class="btn" id="tr-animFind">Найти сам</button><button type="button" class="btn primary" id="tr-animHere">Здесь</button>
+        <span class="hint" id="tr-animNote">Перемотай на момент, когда надпись только начинает появляться, и нажми «Здесь». Или «Найти сам»: пульт поищет момент бесплатно, Claude посмотрит только найденные кадры.</span></div>`;
+    const vid=$('#tr-animVid'), note=$('#tr-animNote'), cur=()=>refVids[+$('#tr-animRef').value];
+    $('#tr-animRef').onchange=()=>{ vid.src=blob(cur().id); };
+    const lock=on=>['#tr-animFind','#tr-animHere'].forEach(x=>$(x).disabled=on);
+    const cap=async at=>{
+      if(!sample){ note.textContent='Claude недоступен в этом просмотре'; return; }
+      const ref=cur(), role=$('#tr-animRole').value;
+      try{
+        note.textContent='Снимаю кадры…'; const {sheet, full}=await captureAnim(blob(ref.id), at);
+        note.textContent='Claude разбирает анимацию… до минуты.';
+        const res=await sample.json(TEXTANIM_PROMPT.replace('{ROLE}', role==='title'?'заголовок или крупный текст':'субтитры'), {images:[sheet, full], cache:true});
+        if(!res||!res.summary) throw {code:'invalid_json'};
+        let previewId=null; if(assets){ try{ previewId=(await assets.upload(sheet,{type:'image/jpeg'})).id; }catch(e){} }
+        const doc={name:String(res.name||'Анимация из референса').slice(0,60), role, summary:String(res.summary), params:res.params||{}, font:String(res.font||''), source:ref.name, refId:ref.id, projectId:'', templateId:t.id, at:+at.toFixed(2), previewId, createdAt:new Date().toISOString()};
+        const dref=db.collection('textanims').doc();
+        if(!(await write(()=>dref.set(doc),'Анимация сохранена в библиотеку'))) return;
+        S.textanims=[...S.textanims.filter(a=>a.id!==dref.id), {...doc, id:dref.id}]; renderAnims();
+        const sel=$(role==='title'?'#tr-title':'#tr-sub'); sel.innerHTML=opts(anim(role), dref.id); sel.value=dref.id;
+        note.textContent=`Готово: «${doc.name}». ${doc.summary} Она выбрана в «${role==='title'?'Анимация заголовков':'Анимация субтитров'}» — нажми «Сохранить правила».`;
+      }catch(e){ note.textContent = e&&e.code ? sampleErr(e) : 'Не получилось снять кадры с этого видео.'; }
+    };
+    $('#tr-animHere').onclick=async()=>{ lock(true); try{ await cap(vid.currentTime||0); } finally{ lock(false); } };
+    $('#tr-animFind').onclick=async()=>{ lock(true);
+      try{ note.textContent='Ищу, где появляется текст…'; let at=null; try{ at=await findTextMoment(blob(cur().id), $('#tr-animRole').value); }catch(e){}
+        if(at==null){ note.textContent='Не нашёл момент сам: перемотай видео вручную и нажми «Здесь».'; return; }
+        try{ vid.currentTime=at; }catch(e){} await cap(at); } finally{ lock(false); } };
   };
   $('#tr-close').onclick=()=>{ E.hidden=true; E.innerHTML=''; };
   E.scrollIntoView({behavior:'smooth',block:'start'});

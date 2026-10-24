@@ -346,8 +346,8 @@ function wireTiming(p){
       .replace('{WIN}', winName(d.win))
       .replace('{PLAN}', (planText(p.assetPlan)||'картинки ещё не заказаны — ставь l2d и gen по смыслу, их закажут после').slice(0,6000))
       .replace('{MEDIA}', files.length ? files.map(f=>`${f.name} — ${f.desc||'без описания'}`).join('\n') : 'нет — тип media не используй')
-      .replace('{BLOCKS}', (allow?`Монтаж по шаблону «${tpl.name}»: бери блоки ТОЛЬКО из этого списка.\n`:'')+(S.assets.length?`АССЕТЫ (файлы, код можно писать в описании сегмента): `+S.assets.map(a=>`${a.code} — ${a.name} (${secOf(a.section)?.[1]||''}${a.group?', '+a.group:''})${a.when?': '+a.when:''}`).join('; ')+`\nБЛОКИ:\n`:'')+lib.map(b=>`${b.code||b.id} (${kindName(b.kind)}) — ${b.name}. Для: ${b.fits||''}${b.params?`. Данные: ${b.params}`:''}`).join('\n'))
-      .replace('{STYLE}', (d.styleAnalysis||'стиль ещё не создан').slice(0,3000))
+      .replace('{BLOCKS}', (allow?`Монтаж по шаблону «${tpl.name}»: бери блоки ТОЛЬКО из этого списка.\n`:'')+(S.assets.some(a=>a.section!=='ref')?`АССЕТЫ (файлы, код можно писать в описании сегмента): `+S.assets.filter(a=>a.section!=='ref').map(a=>`${a.code} — ${a.name} (${secOf(a.section)?.[1]||''}${a.group?', '+a.group:''})${a.when?': '+a.when:''}`).join('; ')+`\nБЛОКИ:\n`:'')+lib.map(b=>`${b.code||b.id} (${kindName(b.kind)}) — ${b.name}. Для: ${b.fits||''}${b.params?`. Данные: ${b.params}`:''}`).join('\n'))
+      .replace('{STYLE}', sbStyle(d.styleAnalysis, bySpec && !!dna))
       .replace('{NW}', curWords.length).replace('{DUR}', (curWords.at(-1)?.e||0).toFixed(1))
       .replace('{WORDS}', curWords.map((w,i)=>`${i}:${w.w}@${w.s.toFixed(1)}`).join(' '));
     let done=false;

@@ -156,6 +156,27 @@ function tplStyle(t){
   return [`Шаблон «${t.name}».`, t.aesthetic&&`Эстетика: ${t.aesthetic}`, t.palette?.length&&`Палитра: ${t.palette.join(', ')}`,
     t.fonts&&`Шрифты: ${t.fonts}`, t.motion&&`Движение и переходы: ${t.motion}`, t.bg&&`Подложка: ${t.bg}`].filter(Boolean).join('\n');
 }
+/* части текста стиля для запросов: каждый запрос получает только то, что ему нужно */
+const EXTRA_MARK='\n\nДОПОЛНИТЕЛЬНО:\n';
+const isDnaText = txt => /^Стиль «/.test(txt||'') && /\nЯДРО/.test(txt||'');
+/* свободный текст стиля без трёх слоёв (они идут в запрос отдельно, через dnaPrompt) */
+function styleExtra(txt){ txt=String(txt||''); if(!isDnaText(txt)) return txt; const i=txt.indexOf(EXTRA_MARK); return i<0?'':txt.slice(i+EXTRA_MARK.length); }
+function dropBlocks(txt, heads){ return String(txt||'').split(/\n\s*\n/).filter(b=>!heads.some(h=>b.trimStart().startsWith(h+':'))).join('\n\n').trim(); }
+/* стиль для раскадровки: без звука и подачи речи; при стиле в три слоя — без их повтора */
+function sbStyle(txt, dnaUsed){
+  const s=dropBlocks(dnaUsed?styleExtra(txt):txt, ['ЗВУК','ПОДАЧА РЕЧИ']);
+  return (s || (dnaUsed?'Стиль задан тремя слоями выше, другого текста нет.':'стиль ещё не создан')).slice(0,3000);
+}
+/* стиль для картинок: только как выглядит кадр — без ритма, склеек, звука и речи */
+function imgStyle(txt){
+  const full=String(txt||'');
+  let s=dropBlocks(styleExtra(full), ['РЕЦЕПТ СТРУКТУРЫ','ЗВУК','ПОДАЧА РЕЧИ']);
+  if(/^\s*12\.\s*Стилевой паспорт/mi.test(s)){ /* стиль из шага «Стиль» ролика: 12 разделов, ритм и монтаж (6, 7, 8, 10, 11) картинкам не нужны */
+    const skip=new Set([6,7,8,10,11]); let cur=0;
+    s=s.split('\n').filter(l=>{ const m=l.match(/^\s*(\d{1,2})\.\s/); if(m && +m[1]>=1 && +m[1]<=12) cur=+m[1]; return !skip.has(cur); }).join('\n').trim();
+  }
+  return s.trim() ? s : full;  /* визуальной части нет (стиль только в трёх слоях) — как раньше, целиком */
+}
 function tplAllowed(t){
   if(!t) return null;
   if(t.rules) return t.rules.allowed?.length ? t.rules.allowed : null;

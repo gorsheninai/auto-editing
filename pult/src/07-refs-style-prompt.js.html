@@ -244,14 +244,17 @@ function wireStyle(p){
       const story = (rows2d.length||rowsGen.length)
         ? (rows2d.length?'2D-СЦЕНЫ (для них — позы, предметы, фоны):\n'+rowsText(rows2d):'2D-сцен нет — позы, предметы и фоны не нужны.')+'\n\n'+(rowsGen.length?'КАРТИНКИ ПО СМЫСЛУ (для каждого сегмента — одно цельное изображение; режим B — зона сцены, C — весь экран):\n'+rowsText(rowsGen):'Картинок по смыслу нет.')
         : (curRows.length ? rowsText(curRows) : '(раскадровки нет)');
-      const planPrompt = PLAN_PROMPT.replace('{SCRIPT}', d.script.slice(0,8000)).replace('{STORY}', story.slice(0,8000)).replace('{STYLE}', d.styleAnalysis.slice(0,8000));
+      /* картинкам нужен только внешний вид: эстетика, цвета паспорта и визуальная часть стиля */
+      const tt=tplOf(p.templateId), ppc=p.passport?.colors;
+      const vis=[tt?.aesthetic&&`Эстетика: ${tt.aesthetic}`, ppc&&`Цвета стиля: ${Object.entries(ppc).map(([k,v])=>`${k} ${v}`).join(', ')}`, imgStyle(d.styleAnalysis)].filter(Boolean).join('\n\n');
+      const planPrompt = PLAN_PROMPT.replace('{SCRIPT}', d.script.slice(0,8000)).replace('{STORY}', story.slice(0,8000)).replace('{STYLE}', vis.slice(0,8000));
       const plan = await sample.json(planPrompt, {images: imgs.length?imgs:undefined, signal:ctlG.signal, cache:true});
       if(!plan || ((!Array.isArray(plan.blocks)||!plan.blocks.length) && !(plan.pictures||[]).length)) throw {code:'invalid_json'};
       const pt = planText(plan); planBox.value = pt; $('#r-planWrap').hidden=false; $('#r-planWrap').open=true;
       await write(()=>docRef.update({assetPlan:plan, updatedAt:new Date().toISOString()}));
       /* шаг 2: промпт строго по плану */
       note.textContent='Шаг 2 из 2: Claude пишет промпт по плану… до минуты.'; out.value='';
-      const prompt = GPT_PROMPT.replace('{PLAN}', JSON.stringify(plan).slice(0,30000)).replace('{STYLE}', d.styleAnalysis.slice(0,12000))
+      const prompt = GPT_PROMPT.replace('{PLAN}', JSON.stringify(plan).slice(0,30000)).replace('{STYLE}', vis.slice(0,12000))
         .replace('{REFS}', refs.map((r,i)=>`Референс ${i+1}: ${r.name} (${r.kind==='video'?'видео':'картинка'})`).join('\n')||'нет')
         .replace('{SAVE}', SAVE_BLOCK(folderName(d)));
       const {text, truncated} = await sample(prompt, {signal:ctlG.signal, cache:true, onText:({text})=>{ out.value=text; }});
