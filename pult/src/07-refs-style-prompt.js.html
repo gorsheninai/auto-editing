@@ -230,6 +230,7 @@ function wireStyle(p){
     const d=collect(), note=$('#r-gptNote'), out=$('#r-gpt'), go=$('#r-gptGo'), stop=$('#r-gptStop'), planBox=$('#r-plan');
     if(!d.script.trim()){ toast('Вставь текст сценария'); $('#r-script').focus(); return; }
     if(!d.styleAnalysis.trim()){ toast('Сначала создай стиль'); return; }
+    if(!curRows.length && !armed(go, true, 'Раскадровки нет. Всё равно?')){ $('#r-gptNote').textContent='Лучше сначала раскадровка: промпт строится под её сцены. Нажми ещё раз, чтобы собрать по одному тексту.'; return; }
     if(!armed(go, d.gptPrompt.trim(), 'Промпт уже есть. Пересоздать?')) return;
     go.disabled=true; stop.hidden=false; ctlG=new AbortController();
     try{
@@ -240,7 +241,7 @@ function wireStyle(p){
       if(lim?.images?.maxCount && imgs.length>lim.images.maxCount) imgs.length=lim.images.maxCount;
       note.textContent='Шаг 1 из 2: Claude разбирает текст на смысловые блоки… до минуты.';
       const rows2d = curRows.filter(r=>r.kind==='l2d'), rowsGen = curRows.filter(r=>r.kind==='gen');
-      if(curRows.length && curRows.every(r=>r.mode) && !rows2d.length && !rowsGen.length){ note.textContent='В раскадровке нет 2D-сцен и картинок по смыслу — картинки из ChatGPT не нужны.'; return; }
+      if(curRows.length && curRows.every(r=>r.mode) && !rows2d.length && !rowsGen.length && !armed(go, true, 'Картинки не нужны. Всё равно?')){ note.textContent='В раскадровке нет 2D-сцен и картинок по смыслу. Нажми ещё раз, если картинки всё равно нужны: они подберутся к ключевым местам текста.'; return; }
       const story = (rows2d.length||rowsGen.length)
         ? (rows2d.length?'2D-СЦЕНЫ (для них — позы, предметы, фоны):\n'+rowsText(rows2d):'2D-сцен нет — позы, предметы и фоны не нужны.')+'\n\n'+(rowsGen.length?'КАРТИНКИ ПО СМЫСЛУ (для каждого сегмента — одно цельное изображение; режим B — зона сцены, C — весь экран):\n'+rowsText(rowsGen):'Картинок по смыслу нет.')
         : (curRows.length ? rowsText(curRows) : '(раскадровки нет)');
@@ -413,7 +414,7 @@ function fallbackCopy(text){
 function collect(){
   const v = id=>$(id)?.value ?? '';
   return {title:titleFrom(v('#r-script')), script:v('#r-script'), bg:v('#r-bg'), sound:v('#r-sound'),
-    speed:+v('#r-speed')||1.2, subWords:+v('#r-words')||2, subColor:v('#r-subc'), drive:v('#r-drive').trim(), mediaList:v('#r-media'),
+    speed:+v('#r-speed')||1.2, subWords:+v('#r-words')||2, subColor:v('#r-subc'), drive:v('#r-drive').trim(), mediaList:v('#r-media'), speaker:v('#r-speaker'),
     win:readWin(), subAnim:(v('#r-subAnim')==='__auto'?'static':v('#r-subAnim'))||'static', titleAnim:(v('#r-titleAnim')==='__auto'?'static':v('#r-titleAnim'))||'static', ctaOn:!!$('#r-ctaOn')?.checked, punch:!!$('#r-punch')?.checked, progress:!!$('#r-progress')?.checked, ctaText:v('#r-ctaText').trim(), status:v('#r-status'),
     gptPrompt:v('#r-gpt'), styleAnalysis:v('#r-style'), sbRows:curRows, storyboard:rowsText(curRows), target:readTarget(), sub:readSub()};
 }

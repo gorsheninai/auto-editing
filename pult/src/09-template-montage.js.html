@@ -1,51 +1,30 @@
 /* ---------- МОНТАЖ ПО ШАБЛОНУ ---------- */
 function quickPanel(p, ro){
   const t=tplOf(p.templateId); if(!p.quick || !t) return '';
-  const m=p.mode==='own'?'own':'auto';
+  const m=p.mode==='own'?'own':'auto', spk=speakerOf(t);
   return `<div class="quick" id="r-quick">
     <div class="row" style="justify-content:space-between;gap:10px"><b>Ролик в стиле «${esc(t.name)}»</b>
       <div class="row" role="group" aria-label="Режим" style="gap:6px">
         <button type="button" class="chipbtn" data-qmode="auto" aria-pressed="${m==='auto'}">Авто</button>
         <button type="button" class="chipbtn" data-qmode="own" aria-pressed="${m==='own'}">Свои настройки</button></div></div>
-    <ol>
-      <li>Вставь текст ролика и выбери видео аватара в «Материалах».</li>
-      <li>Нажми «Собрать раскадровку»: пульт бесплатно посчитает паузы и тайминги, Claude одним текстовым запросом подберёт сцены по стилю${tplAllowed(t)?` (блоков в стиле: ${tplAllowed(t).length})`:''}. Кадры референсов не отправляются.</li>
-      <li>Проверь таблицу раскадровки и поправь, что не нравится.</li>
-      <li>Если раскадровке нужны картинки, появится шаг «Картинки»: «Составить промпт» → ChatGPT.</li>
-      <li>«Скопировать задание для чата» → в чате соберётся готовый ролик.</li>
-    </ol>
-    <div class="row"><button class="btn primary" type="button" id="r-quickGo"${ro}>Собрать раскадровку</button><span class="hint" id="r-quickNote">${m==='auto'?(t.rules?.dna?'Авто: раскадровка по смыслу текста из приёмов стиля; ядро стиля держится во всём ролике.':t.spec?'Авто: ритм, субтитры, звук и грейд — по спецификации референсов.':'Авто: стиль, окно, субтитры и доли берутся из стиля.'):'Свои настройки: стиль и настройки открыты, их можно поменять.'}</span></div>
+    <span class="hint" id="r-quickNote">${m==='auto'?'Авто: настройки, доли и приёмы берутся из стиля.':'Свои настройки: стиль и настройки открыты, их можно поменять.'} Спикер в кадре: ${esc(SPEAKER_NAMES[spk])}.</span>
   </div>`;
 }
-function wireQuick(p, api){
+function wireQuick(p){
   const box=$('#r-quick'); if(!box) return;
   const t=tplOf(p.templateId), docRef=db.collection('projects').doc(p.id), note=$('#r-quickNote');
-  $('#r-sec-6').after($('#r-sec-3'));
   const apply=()=>{
     const auto=p.mode!=='own';
-    $('#r-sec-1').hidden=auto; $('#r-sec-5').hidden=auto;
+    $('#r-sec-1').hidden=auto; $('#r-sec-5').hidden=auto; $('#r-sbManual').hidden=auto;
     box.querySelectorAll('[data-qmode]').forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.qmode===(auto?'auto':'own'))));
-    let i=0; document.querySelectorAll('#reelForm section.step').forEach(sec=>{ if(sec.hidden) return; const h=sec.querySelector('h4'); h.textContent=`${++i} · ${h.textContent.replace(/^\d+\s·\s/,'')}`; });
     reelHooks.updateSteps();
   };
   box.querySelectorAll('[data-qmode]').forEach(b=>b.onclick=async ()=>{
     p.mode=b.dataset.qmode; apply();
-    note.textContent = p.mode==='auto' ? 'Авто: стиль, окно, субтитры и доли берутся из стиля.' : 'Свои настройки: шаги «Стиль» и «Настройки» открыты.';
+    note.textContent = (p.mode==='auto' ? 'Авто: настройки, доли и приёмы берутся из стиля.' : 'Свои настройки: шаги «Стиль» и «Настройки» открыты.')+` Спикер в кадре: ${SPEAKER_NAMES[speakerOf(t)]}.`;
     if(canWrite) await write(()=>docRef.update({mode:p.mode, updatedAt:new Date().toISOString()}));
   });
   apply();
-  $('#r-quickGo').onclick = async ()=>{
-    if(!$('#r-script').value.trim()){ toast('Сначала вставь текст ролика'); $('#r-script').focus(); return; }
-    const go=$('#r-quickGo'); go.disabled=true;
-    try{
-      if(api.needSend()){ note.textContent='Шаг 1 из 2: считаю паузы и хронометраж…'; if(!await api.sendMaterials()){ note.textContent='Не хватает материалов: проверь текст и видео в «Материалах».'; return; } }
-      note.textContent='Шаг 2 из 2: Claude подбирает сцены по стилю… обычно до минуты.';
-      const withTarget = (!!t?.rules?.target && !t?.spec && !t?.rules?.dna) || (p.mode==='own' && !$('#r-manual').hidden);
-      const ok = await api.propose(withTarget);
-      if(ok){ note.textContent='Раскадровка готова: проверь таблицу ниже.'+($('#r-sec-3').hidden?' Картинки из ChatGPT не нужны, можно сразу копировать задание для чата.':' Затем «Составить промпт» в шаге «Картинки».'); $('#r-sec-6').scrollIntoView({behavior:'smooth',block:'start'}); }
-      else note.textContent='Раскадровка не собралась — подробности в шаге «Раскадровка». Нажми ещё раз.';
-    } finally{ go.disabled=false; }
-  };
 }
 function openTplRules(t){
   if(!t) return;
@@ -61,6 +40,7 @@ function openTplRules(t){
     <div class="fields">
       <div class="f wide"><label for="tr-dna">Стиль тремя слоями: ядро, приёмы, структура</label><textarea id="tr-dna" spellcheck="false" style="min-height:340px;font-family:var(--mono);font-size:13px;line-height:1.45" placeholder="${esc(DNA_FORMAT)}">${esc(r.dna?dnaToText(r.dna):'')}</textarea><span class="hint">По строке на пункт, поля через « | ». Ядро держится в каждом ролике; приёмы Claude ставит по смыслу текста, по правилу «когда»; структура — как устроен ролик во времени. Коды приёмов, которые сборка знает: ${Object.keys(DNA_CODES).join(', ')}; новый код — опиши, сделаю блок в чате.</span></div>
       <div class="f wide"><label for="tr-style">${r.dna?'Дополнительно к стилю (свободный текст)':'Стиль монтажа'}</label><textarea id="tr-style" style="min-height:${r.dna?90:180}px">${esc(r.dna?(r.style||''):(r.style||tplStyle(t)))}</textarea><span class="hint">${r.dna?'Необязательно: то, что не легло в три слоя.':'Уходит в поле «Стиль ролика». Лучше описать стиль тремя слоями выше.'}</span></div>
+      <div class="f"><label for="tr-speaker">Спикер в кадре</label><select id="tr-speaker">${opts([['always','всегда'],['some','иногда'],['never','никогда, только голос']], speakerOf(t))}</select><span class="hint">«Никогда»: раскадровка ставит только вставки на весь экран, без говорящей головы.</span></div>
       <div class="f"><label for="tr-win">Окно спикера</label><select id="tr-win">${opts(WINS.map(w=>[w[0],w[1]]), r.win||'popout')}</select></div>
       <div class="f"><label for="tr-bg">Подложка</label><select id="tr-bg">${opts(['светлая','тёмная','светлая, живой градиент','тёмная, живой градиент'], r.bg||t.bg||'светлая')}</select></div>
       <div class="f"><label for="tr-sub">Анимация субтитров</label><select id="tr-sub">${opts(anim('subtitle'), r.subAnim||'static')}</select></div>
@@ -178,7 +158,7 @@ radius — одно из 0.3, 0.6, 1, 1.6. motion — soft | spring | snappy. te
     if(!on.length){ toast('Выбери хотя бы один блок'); return; }
     const dnaTxt=$('#tr-dna').value.trim(), dna=dnaTxt?dnaFromText(dnaTxt):null;
     if(dna && (!dna.core.length || !dna.techniques.length)){ toast('В стиле нужны разделы ЯДРО и ПРИЁМЫ'); return; }
-    const rules={dna, style:$('#tr-style').value.trim(), win:$('#tr-win').value, bg:$('#tr-bg').value, subAnim:$('#tr-sub').value, titleAnim:$('#tr-title').value,
+    const rules={dna, style:$('#tr-style').value.trim(), speaker:$('#tr-speaker').value, win:$('#tr-win').value, bg:$('#tr-bg').value, subAnim:$('#tr-sub').value, titleAnim:$('#tr-title').value,
       target, punch:$('#tr-punch').checked, progress:$('#tr-prog').checked, assets:$('#tr-assets').value.trim(), assetsList:$('#tr-alist').value,
       allowed: on.length===boxes().length ? [] : on, passport: readPP()};
     if(await write(()=>db.collection('templates').doc(t.id).update({rules, bg:rules.bg, updatedAt:new Date().toISOString()}),'Правила сохранены')){ E.hidden=true; E.innerHTML=''; }

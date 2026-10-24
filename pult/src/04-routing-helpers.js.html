@@ -54,7 +54,8 @@ async function write(fn, okMsg){
 }
 async function upload(file){
   if(!assets){ toast('Загрузка файлов доступна только редактору'); return null; }
-  const type = file.type || (/\.mp4$/i.test(file.name)?'video/mp4':/\.webm$/i.test(file.name)?'video/webm':'');
+  const ext=(file.name.match(/\.([a-z0-9]+)$/i)||[])[1]?.toLowerCase();
+  const type = file.type || ({mp4:'video/mp4', webm:'video/webm', mov:'video/quicktime', mp3:'audio/mpeg', m4a:'audio/mp4', aac:'audio/aac', wav:'audio/wav', ogg:'audio/ogg', opus:'audio/ogg'}[ext]||'');
   try{ const r = await assets.upload(file, type?{type}:undefined); const ct=r.contentType||type||''; return {id:r.id, kind: ct.startsWith('video')?'video':ct.startsWith('image')?'image':'file', contentType:ct, size:r.sizeBytes??file.size}; }
   catch(e){
     const m={too_large:'Файл больше 20 МБ',unsupported_type:'Такой тип файла не поддерживается',quota_or_state:'Хранилище пульта заполнено',rate_limited:'Слишком часто, попробуй через минуту'};

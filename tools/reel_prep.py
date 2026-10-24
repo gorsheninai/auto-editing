@@ -7,7 +7,8 @@
   project.json   документ projects/<id> (ArtifactData get с out_dir).
   --files DIR    папка, куда Artifact read сохранил файлы пульта по id: видео аватара (поле avatar.id)
                  и пакеты материалов (поле mediaPack.parts — их собирает кнопка «Собрать пакет для монтажа»).
-  --avatar FILE  видео аватара, если его нет на пульте (больше 20 МБ — прислано в чат).
+  --avatar FILE  видео аватара или озвучка (mp3, m4a, wav), если файла нет на пульте (больше 20 МБ — прислан в чат).
+                 Озвучка без видео превращается в дорожку с пустым кадром: спикера в кадре нет, ролик весь из вставок.
   --media DIR    папка с материалами как на Диске (01_персонаж … 06_мои_вставки), если пакета нет.
   --anims P      textanims: папка из ArtifactData list с out_dir или один JSON.
   --no-matte     не вырезать спикера (окно без выхода головы за край).
@@ -111,6 +112,25 @@ class Prep:
         av = self.proj.get('avatar') or {}
         p = self.by_id(av.get('id'))
         return os.path.abspath(p) if p else None
+
+    def is_audio(self, path):
+        """озвучка без видео: в файле нет видеодорожки (обложка mp3 не считается)"""
+        if (self.proj.get('avatar') or {}).get('kind') == 'audio' and not self.opt('--avatar'): return True
+        r = subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'v', '-show_entries',
+                            'stream=codec_name:stream_disposition=attached_pic', '-of', 'json', path], capture_output=True, text=True)
+        try: streams = json.loads(r.stdout or '{}').get('streams', [])
+        except ValueError: streams = []
+        return not [x for x in streams if not (x.get('disposition') or {}).get('attached_pic')]
+
+    def voice_as_video(self, src):
+        """озвучка → mp4 с чёрным кадром 1080×1920: дальше паузы, ускорение и звук идут как у видео аватара,
+        а в кадре спикера нет (раскадровка пульта в этом случае вся из вставок C)"""
+        out = os.path.join(self.work, 'voice_video.mp4')
+        if os.path.exists(out) and os.path.getmtime(out) >= os.path.getmtime(src): return out
+        self.run('ffmpeg', '-y', '-v', 'error', '-f', 'lavfi', '-i', 'color=c=black:s=1080x1920:r=30', '-i', src,
+                 '-map', '0:v', '-map', '1:a', '-shortest', '-c:v', 'libx264', '-preset', 'veryfast', '-tune', 'stillimage',
+                 '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k', out)
+        return out
 
     # ---------- 1. папка ролика ----------
     def env(self):
@@ -290,6 +310,11 @@ class Prep:
             self.say('avatar', 'пропущено: нет видео аватара'); return
         if self.done('avatar', s) and os.path.exists(out):
             self.say('avatar', 'уже готово'); return
+        if self.is_audio(src):
+            src = self.voice_as_video(src)
+            self.say('avatar', 'голос — озвучка без видео: собрана дорожка с пустым кадром, спикера в кадре не будет')
+            if any(r.get('mode') in ('A', 'B') for r in (self.proj.get('sbRows') or [])):
+                self.warn.append('голос — озвучка без видео, а в раскадровке есть кадры со спикером (A/B): там будет чёрный кадр. Пересобери раскадровку на пульте')
         if spec:
             self.say('avatar', 'шаблон со спецификацией стиля: spec_build (паузы, распознавание, грейд, звук)…')
             self.run(sys.executable, os.path.join(HERE, 'spec_build.py'), self.reel, '--src', src)

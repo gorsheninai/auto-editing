@@ -128,7 +128,7 @@ const SYNTH_PROMPT = `Ты — арт-директор. Ниже разборы 
 "sound":"музыка (есть/нет, характер, громкость под голосом), звуковые эффекты (на склейках, на появлении графики), сведение",
 "speech":"подача речи: темп, паузы, длина фраз, резать ли паузы и насколько ускорять",
 "passport":{"colors":{"bg":"#","ink":"#","muted":"#","accent":"#","accent2":"#","card":"#","soft":"#"},"fonts":{"sans":"id","serif":"id","hand":"id"},"radius":0.3|0.6|1|1.6,"motion":"soft|spring|snappy","texture":"dots|clean|paper|grain","shadow":true},
-"rules":{"win":"popout|window|circle|strip","bg":"светлая|тёмная|светлая, живой градиент|тёмная, живой градиент","subAnim":"id стиля субтитров или static","target":{"a":0,"b":0,"c":0},"punch":true,"progress":false,"speed":1.1},
+"rules":{"speaker":"always|some|never — спикер в кадре: always — говорящая голова или её окно в каждом кадре, some — спикер чередуется со вставками, never — спикера в кадре нет (только голос за кадром, герой разве что мелькает вырезкой или картинкой)","win":"popout|window|circle|strip","bg":"светлая|тёмная|светлая, живой градиент|тёмная, живой градиент","subAnim":"id стиля субтитров или static","target":{"a":0,"b":0,"c":0},"punch":true,"progress":false,"speed":1.1},
 "allowed":["коды наших блоков, которые подходят под эту подачу"],
 "blockMap":[{"technique":"приём из референсов","code":"наш блок"}],
 "gaps":[{"technique":"приём, которого у нас нет","seen":"где видели","proposal":"какой блок сделать"}],
@@ -209,6 +209,7 @@ function openPremont(base){
       <div class="f wide"><label for="pm-speech">Подача речи</label><textarea id="pm-speech" style="min-height:70px">${esc(r.speech||'')}</textarea></div>
     </div>
     <div class="swatches" style="margin-top:12px">${Object.values(pp.colors||{}).map(c=>`<i style="background:${esc(c)}" title="${esc(c)}"></i>`).join('')}</div>
+    <div class="f" style="margin-top:12px;max-width:320px"><label for="pm-speaker">Спикер в кадре</label><select id="pm-speaker">${opts([['always','всегда'],['some','иногда'],['never','никогда, только голос']], SPEAKER_NAMES[ru.speaker]?ru.speaker:(speakerByShare(speakerShareOf(files.filter(f=>f.analysis).map(f=>({analysis:f.analysis, dur:f.m?.duration}))))||'some'))}</select><span class="hint">Определено по референсам. «Никогда» — ролики в стиле без говорящей головы.</span></div>
     <p class="hint">${esc(ppSummary({...PP_DEF,...pp,fonts:{...PP_DEF.fonts,...(pp.fonts||{})}}))} · окно: ${esc(winName(ru.win||'popout'))} · доли ${ru.target?`${ru.target.a}/${ru.target.b}/${ru.target.c}`:'по смыслу'} · субтитры: ${esc(ru.subAnim||'static')} · блоков: ${allowed.length||'все'}</p>
     ${r.blockMap?.length?`<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Приёмы → наши блоки (${r.blockMap.length})</summary><ul>${r.blockMap.map(m=>`<li>${esc(m.technique)} → <span class="code">${esc(m.code)}</span></li>`).join('')}</ul></details>`:''}
     ${r.gaps?.length?`<details open style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Нет в библиотеке (${r.gaps.length}) — сделаю в чате</summary><ul>${r.gaps.map(g=>`<li><b>${esc(g.technique)}</b>${g.seen?` — ${esc(g.seen)}`:''}${g.proposal?`. Предложение: ${esc(g.proposal)}`:''}</li>`).join('')}</ul></details>`:''}
@@ -224,7 +225,7 @@ function openPremont(base){
       const body={name, kind:'premontage', aesthetic:$('#pm-aest').value.trim(), bg:ru.bg||'светлая', palette:Object.values(passport.colors), fonts:'', motion:'', sound:SOUND[0], blocks:[],
         recipe:$('#pm-recipe').value.trim(), soundNotes:$('#pm-sound').value.trim(), speech:$('#pm-speech').value.trim(), blockMap:r.blockMap||[], gaps:r.gaps||[], deep:false,
         refs:done.map(f=>({id:f.id, name:f.file.name, size:f.file.size, metrics:{duration:f.m.duration, shots:f.m.shots, cutsPerMin:f.m.cutsPerMin, avgShot:f.m.avgShot, cuts:f.m.cuts, palette:f.m.palette}, sound:f.snd, analysis:f.analysis})),
-        rules:{dna:$('#pm-dna').value.trim()?dnaFromText($('#pm-dna').value):null, style:styleAll, win:ru.win||'popout', bg:ru.bg||'светлая', subAnim:subOk?ru.subAnim:'static', titleAnim:'static', target:tgt, punch:ru.punch??true, progress:!!ru.progress, speed:ru.speed||null,
+        rules:{dna:$('#pm-dna').value.trim()?dnaFromText($('#pm-dna').value):null, style:styleAll, speaker:$('#pm-speaker').value, win:ru.win||'popout', bg:ru.bg||'светлая', subAnim:subOk?ru.subAnim:'static', titleAnim:'static', target:tgt, punch:ru.punch??true, progress:!!ru.progress, speed:ru.speed||null,
           assets:base?.rules?.assets||'', assetsList:base?.rules?.assetsList||'', allowed, passport},
         previewId:done[0]?.id||null, previewKind:'video', createdAt:new Date().toISOString()};
       const ref=base ? db.collection('templates').doc(base.id) : db.collection('templates').doc();
