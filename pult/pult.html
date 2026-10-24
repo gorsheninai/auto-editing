@@ -138,6 +138,13 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .s-draft{color:var(--muted)} .s-story{color:var(--mode-b)} .s-images{color:var(--warn)} .s-edit{color:var(--mode-c)} .s-done{color:var(--ok)}
 .swatches{display:flex;gap:4px}
 .swatches i{width:18px;height:18px;border-radius:4px;border:1px solid var(--line)}
+.stylepick{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.stylecard{display:grid;gap:6px;align-content:start;text-align:left;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);font:inherit;cursor:pointer;min-width:0}
+.stylecard:hover{border-color:var(--accent)}
+.stylecard:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.stylecard:disabled{opacity:.6;cursor:progress}
+.stylecard b{font-size:15px}
+.stylecard .hint{overflow-wrap:anywhere}
 [hidden]{display:none!important}
 :root{--k-gen:#E0559B;--k-l2d:#3D63F2;--k-motion:#8B5CF6;--k-d3:#0E9F8A;--k-kinetic:#D9482B;--k-media:#C98A00}
 .k-gen{background:var(--k-gen)}.k-l2d{background:var(--k-l2d)}.k-motion{background:var(--k-motion)}.k-d3{background:var(--k-d3)}.k-kinetic{background:var(--k-kinetic)}.k-media{background:var(--k-media)}
@@ -196,7 +203,7 @@ details > summary{list-style-position:inside}
     <div class="brand"><h1>Пульт монтажа</h1><span class="tc">auto-editing · 00:00:46:00</span></div>
     <nav role="tablist" aria-label="Разделы">
       <button class="tab" role="tab" id="tab-reels" data-view="reels">Ролики</button>
-      <button class="tab" role="tab" id="tab-templates" data-view="templates">Шаблоны</button>
+      <button class="tab" role="tab" id="tab-templates" data-view="templates">Стили</button>
       <button class="tab" role="tab" id="tab-library" data-view="library">Библиотека</button>
       <button class="tab" role="tab" id="tab-assets" data-view="assets">Ассеты</button>
       <button class="tab" role="tab" id="tab-presets" data-view="presets" hidden>Пресеты</button>
@@ -210,7 +217,7 @@ details > summary{list-style-position:inside}
   <!-- РОЛИКИ -->
   <section id="view-reels" hidden>
     <div class="head">
-      <div><h2>Ролики</h2><p>Стиль → текст → картинки → материалы → настройки → раскадровка → монтаж. Монтаж идёт в чате с Claude: нажми «Скопировать задание» и вставь его туда.</p></div>
+      <div><h2>Ролики</h2><p>Выбери стиль → вставь текст и видео аватара → раскадровка → задание для чата. Стиль разбирается один раз в «Стилях», дальше ролики делаются по нему только по тексту.</p></div>
       <div class="row"><span id="delDraftsBox"></span><button class="btn primary" id="newReel">Новый ролик</button></div>
     </div>
     <div id="reelEditor" hidden></div>
@@ -220,8 +227,8 @@ details > summary{list-style-position:inside}
   <!-- ШАБЛОНЫ -->
   <section id="view-templates" hidden>
     <div class="head">
-      <div><h2>Шаблоны монтажа</h2><p>Готовые наборы: стиль, доли кадра, субтитры, звук и блоки. Выбери шаблон, и новый ролик начнётся с его настроек.</p></div>
-      <div class="row" style="gap:8px"><button class="btn primary" id="newPremont" hidden>Новый премонтаж из референсов</button><button class="btn" id="newTpl" hidden>Добавить шаблон</button></div>
+      <div><h2>Стили</h2><p>Стиль собирается премонтажом из референсов один раз и потом берётся в каждый ролик: кадры повторно не отправляются. Стиль можно дополнять новыми референсами.</p></div>
+      <div class="row" style="gap:8px"><button class="btn primary" id="newPremont" hidden>Новый стиль из референсов</button><button class="btn" id="newTpl" hidden>Описать стиль вручную</button></div>
     </div>
     <div id="tplEditor" hidden></div>
     <div id="tplList"></div>
@@ -391,7 +398,7 @@ function renderReels(){
   renderDelDrafts();
   const L = $('#reelList');
   if(!S.projects.length){
-    L.innerHTML = `<div class="empty"><strong>Роликов пока нет</strong>Нажми «Новый ролик» или выбери шаблон во вкладке «Шаблоны». Здесь появится список с этапами: черновик, раскадровка, картинки, монтаж, готово.</div>`;
+    L.innerHTML = `<div class="empty"><strong>Роликов пока нет</strong>Нажми «Новый ролик» и выбери стиль. Новый стиль собирается во вкладке «Стили» из референсов. Здесь появится список с этапами: черновик, раскадровка, картинки, монтаж, готово.</div>`;
     return;
   }
   const rows = [...S.projects].sort((x,y)=>(y.updatedAt||'').localeCompare(x.updatedAt||'')).map(p=>{
@@ -399,7 +406,7 @@ function renderReels(){
     const sh = rowShares(p.sbRows); const t = tplOf(p.templateId);
     return `<div class="projrow" tabindex="0" data-open="${esc(p.id)}">
       <div style="min-width:0"><h3>${esc(p.title||'Без названия')}</h3>
-      <div class="sub">${esc(t?t.name:'без шаблона')} · обновлён ${esc((p.updatedAt||'').slice(0,10))}</div></div>
+      <div class="sub">${esc(t?'стиль «'+t.name+'»':'без стиля')} · обновлён ${esc((p.updatedAt||'').slice(0,10))}</div></div>
       ${sh?strip(sh.a,sh.b,sh.c):'<span></span>'}
       <span class="pill s-${esc(st[0])}">${esc(st[1])}</span>
       ${canWrite?`<span class="rowdel" data-delbox="${esc(p.id)}"><button class="btn ghost danger" type="button" data-del="${esc(p.id)}" aria-label="Удалить ролик">Удалить</button></span>`:''}</div>`;
@@ -560,6 +567,29 @@ async function createReel(tplId){
   const t=tplOf(tplId);
   const body={...blankReel(tplId), title: t ? `${t.name} · ${new Date().toLocaleDateString('ru-RU')}` : titleFrom(''), refs:[], createdAt:now, updatedAt:now};
   if(await write(()=>ref.set(body),'Ролик создан')) openReel({...body, id:ref.id});
+}
+/* «Новый ролик»: сначала выбор стиля — стиль разобран один раз, ролик по нему делается только по тексту */
+function pickStyle(){
+  if(!db||!canWrite) return;
+  const E=$('#reelEditor'); E.hidden=false; E.dataset.pid='';
+  const list=[...S.templates].sort((x,y)=>(y.updatedAt||y.createdAt||'').localeCompare(x.updatedAt||x.createdAt||''));
+  const sw=t=>{ const c=(t.rules?.passport?PP_COLORS.map(([k])=>t.rules.passport.colors?.[k]):(t.palette||[])).filter(Boolean).slice(0,7);
+    return c.length?`<span class="swatches" aria-hidden="true">${c.map(x=>`<i style="background:${esc(x)}"></i>`).join('')}</span>`:''; };
+  E.innerHTML=`<div class="panel" id="stylePick"><h3>Новый ролик: какой стиль?</h3>
+    <p class="hint" style="margin:0 0 12px">Стиль уже разобран, поэтому ролик по нему делается только по тексту: кадры референсов Claude больше не смотрит.</p>
+    ${list.length?`<div class="stylepick">${list.map(t=>`<button type="button" class="stylecard" data-style="${esc(t.id)}">
+      <b>${esc(t.name)}</b>${sw(t)}<span class="hint">${esc(t.aesthetic||'')}</span>
+      <span class="hint">${t.rules?.dna?'стиль в 3 слоя':t.rules?.style?'стиль текстом':'только карточка'}${t.refs?.length?` · референсов ${t.refs.length}`:''}${t.spec?' · цифры ✓':''}</span></button>`).join('')}</div>`
+      :`<div class="empty"><strong>Стилей пока нет</strong>Собери первый из 1–5 референсов: это делается один раз.</div>`}
+    <div class="row" style="margin-top:14px;gap:8px">
+      <button class="btn" type="button" id="sp-new">Новый стиль из референсов</button>
+      <button class="btn ghost" type="button" id="sp-none">Без стиля, всё вручную</button>
+      <button class="btn ghost" type="button" id="sp-close">Отмена</button></div></div>`;
+  E.querySelectorAll('[data-style]').forEach(b=>b.onclick=()=>{ b.disabled=true; createReel(b.dataset.style); });
+  $('#sp-none').onclick=()=>createReel();
+  $('#sp-new').onclick=()=>{ E.hidden=true; E.innerHTML=''; show('templates'); openPremont(); };
+  $('#sp-close').onclick=()=>{ E.hidden=true; E.innerHTML=''; };
+  E.scrollIntoView({behavior:'smooth', block:'start'});
 }
 function openReel(p){
   const E = $('#reelEditor'); E.hidden = false; E.dataset.pid = p.id;
@@ -756,6 +786,9 @@ function openReel(p){
     const hasModes = curRows.length && curRows.every(r=>r.mode);
     const need2d = curRows.some(r=>r.kind==='l2d'||r.kind==='gen');
     const st=[['Стиль',!!d.style],['Текст',!!d.script],['Картинки',!!d.gpt],['Материалы',!!(p.timing||curWordsLen())],['Настройки',true],['Раскадровка',!!hasModes],['Монтаж',$('#r-status').value==='done']];
+    /* ролик по стилю: шаг «Картинки» появляется, только если раскадровке нужны картинки */
+    if(p.quick && tplOf(p.templateId)){ $('#r-sec-3').hidden = p.mode!=='own' && !need2d && !d.gpt;
+      let i=0; document.querySelectorAll('#reelForm section.step').forEach(sec=>{ if(sec.hidden) return; const h=sec.querySelector('h4'); h.textContent=`${++i} · ${h.textContent.replace(/^\d+\s·\s/,'')}`; }); }
     const order=[...document.querySelectorAll('#reelForm section.step')].filter(x=>!x.hidden).map(x=>+x.id.slice(6));
     $('#r-steps').innerHTML = order.map((sec,j)=>{ const [n,ok]=st[sec-1]; return `<a href="#r-sec-${sec}" class="stepchip${ok?' ok':''}" data-sec="${sec}"><span class="code">${ok?'✓':j+1}</span>${esc(n)}</a>`; }).join('');
     $('#r-steps').querySelectorAll('a').forEach(a=>a.onclick=e=>{ e.preventDefault(); $('#r-sec-'+a.dataset.sec).scrollIntoView({behavior:'smooth',block:'start'}); });
@@ -1580,7 +1613,7 @@ function collect(){
     win:readWin(), subAnim:(v('#r-subAnim')==='__auto'?'static':v('#r-subAnim'))||'static', titleAnim:(v('#r-titleAnim')==='__auto'?'static':v('#r-titleAnim'))||'static', ctaOn:!!$('#r-ctaOn')?.checked, punch:!!$('#r-punch')?.checked, progress:!!$('#r-progress')?.checked, ctaText:v('#r-ctaText').trim(), status:v('#r-status'),
     gptPrompt:v('#r-gpt'), styleAnalysis:v('#r-style'), sbRows:curRows, storyboard:rowsText(curRows), target:readTarget(), sub:readSub()};
 }
-$('#newReel').addEventListener('click', ()=>createReel());
+$('#newReel').addEventListener('click', ()=>pickStyle());
 
 
 
@@ -1723,21 +1756,24 @@ DNA — главное: стиль тремя слоями. core — тольк�
 Доли target в сумме 100 и соответствуют разборам. Цвета — из палитры замеров и кадров, текст читается на фоне.`;
 
 $('#newPremont').addEventListener('click', ()=>openPremont());
-function openPremont(){
+/* base — существующий стиль: его разобранные референсы берутся без повторной оплаты, новые добавляются, рецепт пересобирается в тот же стиль */
+function openPremont(base){
   const E=$('#tplEditor'); E.hidden=false;
   const files=[]; let result=null, ctl=null;
-  E.innerHTML=`<form class="panel" id="pmForm" novalidate><h3>Премонтаж из референсов</h3>
-    <p>Загрузи до 5 роликов в одной подаче. Пульт замерит склейки, звук и палитру, Claude разберёт кадры каждого ролика и соберёт общий рецепт: стиль, паспорт, правила, структуру и звук. Сохраняется как шаблон с кнопкой «Создать монтаж».</p>
+  if(base) for(const r of (base.refs||[])) if(r&&r.analysis) files.push({old:true, id:r.id, file:{name:r.name, size:r.size||0}, m:{...(r.metrics||{})}, snd:r.sound||null, analysis:r.analysis, state:'уже в стиле'});
+  E.innerHTML=`<form class="panel" id="pmForm" novalidate><h3>${base?`Дополнить стиль «${esc(base.name)}»`:'Новый стиль из референсов'}</h3>
+    <p>${base?'Добавь до 5 новых роликов. Уже разобранные референсы стиля Claude заново не смотрит: он разберёт только новые и пересоберёт рецепт стиля по всем вместе.':'Загрузи до 5 роликов одного стиля. Пульт замерит склейки, звук и палитру, Claude один раз разберёт кадры каждого ролика и соберёт стиль: ядро, приёмы, паспорт, структуру и звук. Дальше ролики в этом стиле делаются только по тексту.'}</p>
     <div class="row" style="gap:8px"><label class="btn" style="cursor:pointer">Выбрать видео<input type="file" id="pm-files" accept="video/mp4,video/webm,video/quicktime" multiple hidden></label><span class="hint">До 5 файлов, каждый до 20 МБ. Лучше mp4.</span></div>
     <div id="pm-list" style="margin-top:12px"></div>
     <div class="row" style="margin-top:12px;gap:8px"><button class="btn primary" type="button" id="pm-go" disabled>Разобрать</button><button class="btn ghost" type="button" id="pm-stop" hidden>Остановить</button><button class="btn ghost" type="button" id="pm-close">Закрыть</button><span class="hint" id="pm-note"><i class="mdl">Модель: обычная для каждого ролика, повышенная для сводки · кэш вкл.</i></span></div>
     <div id="pm-out"></div></form>`;
   const list=$('#pm-list'), note=$('#pm-note');
   const show=()=>{ list.innerHTML = files.length ? `<div class="projlist">${files.map((f,i)=>`<div class="projrow" style="cursor:default;grid-template-columns:minmax(0,1fr) auto">
-      <div style="min-width:0"><h3 style="font-size:15px">${i+1}. ${esc(f.file.name)}</h3><div class="sub">${fmtSize(f.file.size)}${f.m?` · ${f.m.duration} с · ${f.m.shots} планов · ${f.m.cutsPerMin} склеек/мин · план ≈ ${f.m.avgShot} с`:''}${f.snd?` · речь ${Math.round(f.snd.speechShare*100)}% · ${f.snd.music}`:''}</div></div>
-      <span class="chip">${esc(f.state||'ждёт')}</span></div>`).join('')}</div>` : ''; $('#pm-go').disabled=!files.length; };
-  $('#pm-files').onchange=e=>{ for(const f of e.target.files){ if(files.length>=5){ toast('Не больше 5 роликов'); break; } if(f.size>20*1024*1024){ toast(`«${f.name}» больше 20 МБ — сожми или обрежь`); continue; } files.push({file:f}); } e.target.value=''; show(); };
+      <div style="min-width:0"><h3 style="font-size:15px">${i+1}. ${esc(f.file.name)}</h3><div class="sub">${fmtSize(f.file.size)}${f.m?.duration?` · ${f.m.duration} с · ${f.m.shots} планов · ${f.m.cutsPerMin} склеек/мин · план ≈ ${f.m.avgShot} с`:''}${f.snd?` · речь ${Math.round(f.snd.speechShare*100)}% · ${f.snd.music}`:''}</div></div>
+      <span class="chip">${esc(f.state||'ждёт')}</span></div>`).join('')}</div>` : ''; $('#pm-go').disabled = base ? !files.some(f=>!f.old) : !files.length; };
+  $('#pm-files').onchange=e=>{ for(const f of e.target.files){ if(files.filter(x=>!x.old).length>=5){ toast('Не больше 5 роликов'); break; } if(f.size>20*1024*1024){ toast(`«${f.name}» больше 20 МБ — сожми или обрежь`); continue; } files.push({file:f}); } e.target.value=''; show(); };
   $('#pm-close').onclick=()=>{ ctl?.abort(); E.hidden=true; E.innerHTML=''; };
+  show(); E.scrollIntoView({behavior:'smooth',block:'start'});
   $('#pm-stop').onclick=()=>ctl?.abort();
   $('#pm-go').onclick=async ()=>{
     if(!sample){ toast('Claude недоступен в этом просмотре'); return; }
@@ -1783,7 +1819,7 @@ function openPremont(){
     const r=result, pp=r.passport||{}, ru=r.rules||{}, have=new Set(S.blocks.map(b=>b.code||b.id));
     const allowed=(r.allowed||[]).filter(c=>have.has(c));
     $('#pm-out').innerHTML=`<div class="fields" style="margin-top:18px">
-      <div class="f"><label for="pm-name">Название</label><input type="text" id="pm-name" value="${esc(r.name||'Премонтаж')}"></div>
+      <div class="f"><label for="pm-name">Название</label><input type="text" id="pm-name" value="${esc(base?base.name:(r.name||'Стиль'))}"></div>
       <div class="f wide"><label for="pm-aest">Суть</label><input type="text" id="pm-aest" value="${esc(r.aesthetic||'')}"></div>
       <div class="f wide"><label for="pm-dna">Стиль тремя слоями: ядро, приёмы, структура</label><textarea id="pm-dna" spellcheck="false" style="min-height:300px;font-family:var(--mono);font-size:13px;line-height:1.45">${esc(r.dna?dnaToText({name:r.name,...r.dna}):'')}</textarea><span class="hint">Ядро держится в каждом ролике, приёмы ставятся по смыслу текста. Можно править: строка на пункт, поля через « | ».</span></div>
       <div class="f wide"><label for="pm-style">Стиль</label><textarea id="pm-style" style="min-height:200px">${esc(r.style||'')}</textarea></div>
@@ -1795,9 +1831,9 @@ function openPremont(){
     <p class="hint">${esc(ppSummary({...PP_DEF,...pp,fonts:{...PP_DEF.fonts,...(pp.fonts||{})}}))} · окно: ${esc(winName(ru.win||'popout'))} · доли ${ru.target?`${ru.target.a}/${ru.target.b}/${ru.target.c}`:'по смыслу'} · субтитры: ${esc(ru.subAnim||'static')} · блоков: ${allowed.length||'все'}</p>
     ${r.blockMap?.length?`<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Приёмы → наши блоки (${r.blockMap.length})</summary><ul>${r.blockMap.map(m=>`<li>${esc(m.technique)} → <span class="code">${esc(m.code)}</span></li>`).join('')}</ul></details>`:''}
     ${r.gaps?.length?`<details open style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Нет в библиотеке (${r.gaps.length}) — сделаю в чате</summary><ul>${r.gaps.map(g=>`<li><b>${esc(g.technique)}</b>${g.seen?` — ${esc(g.seen)}`:''}${g.proposal?`. Предложение: ${esc(g.proposal)}`:''}</li>`).join('')}</ul></details>`:''}
-    <div class="row" style="margin-top:14px"><button class="btn primary" type="button" id="pm-save">Сохранить премонтаж</button><span class="hint">Палитра, шрифты и правила потом правятся в «Настроить».</span></div>`;
+    <div class="row" style="margin-top:14px"><button class="btn primary" type="button" id="pm-save">${base?'Обновить стиль':'Сохранить стиль'}</button><span class="hint">Палитра, шрифты и правила потом правятся в «Настроить».</span></div>`;
     $('#pm-save').onclick=async ()=>{
-      const name=$('#pm-name').value.trim()||'Премонтаж', done=files.filter(f=>f.analysis);
+      const name=$('#pm-name').value.trim()||'Стиль', done=files.filter(f=>f.analysis);
       const styleAll=[$('#pm-style').value.trim(), 'РЕЦЕПТ СТРУКТУРЫ:\n'+$('#pm-recipe').value.trim(), 'ЗВУК:\n'+$('#pm-sound').value.trim(), 'ПОДАЧА РЕЧИ:\n'+$('#pm-speech').value.trim()].join('\n\n');
       const t0=ru.target, tgt = t0 && (+t0.a)+(+t0.b)+(+t0.c)===100 ? {a:+t0.a,b:+t0.b,c:+t0.c} : null;
       const subOk = ru.subAnim && (ru.subAnim==='static' || S.textanims.some(a=>a.id===ru.subAnim));
@@ -1808,16 +1844,18 @@ function openPremont(){
         recipe:$('#pm-recipe').value.trim(), soundNotes:$('#pm-sound').value.trim(), speech:$('#pm-speech').value.trim(), blockMap:r.blockMap||[], gaps:r.gaps||[], deep:false,
         refs:done.map(f=>({id:f.id, name:f.file.name, size:f.file.size, metrics:{duration:f.m.duration, shots:f.m.shots, cutsPerMin:f.m.cutsPerMin, avgShot:f.m.avgShot, cuts:f.m.cuts, palette:f.m.palette}, sound:f.snd, analysis:f.analysis})),
         rules:{dna:$('#pm-dna').value.trim()?dnaFromText($('#pm-dna').value):null, style:styleAll, win:ru.win||'popout', bg:ru.bg||'светлая', subAnim:subOk?ru.subAnim:'static', titleAnim:'static', target:tgt, punch:ru.punch??true, progress:!!ru.progress, speed:ru.speed||null,
-          assets:'', assetsList:'', allowed, passport},
+          assets:base?.rules?.assets||'', assetsList:base?.rules?.assetsList||'', allowed, passport},
         previewId:done[0]?.id||null, previewKind:'video', createdAt:new Date().toISOString()};
-      const ref=db.collection('templates').doc();
-      if(!await write(()=>ref.set(body),'Премонтаж сохранён')) return;
+      const ref=base ? db.collection('templates').doc(base.id) : db.collection('templates').doc();
+      if(base){ delete body.createdAt; body.previewId=base.previewId||body.previewId; body.previewKind=base.previewKind||body.previewKind; body.updatedAt=new Date().toISOString();
+        if(base.rules?.titleAnim) body.rules.titleAnim=base.rules.titleAnim; }
+      if(!await write(()=>base?ref.update(body):ref.set(body), base?'Стиль обновлён':'Стиль сохранён')) return;
       /* референсы — в Ассеты, раздел «Референсы» */
-      for(const f of done){ const code=nextAssetCode('ref');
-        await write(()=>db.collection('assets').doc(code).set({code, name:f.file.name.replace(/\.[^.]+$/,''), section:'ref', group:'Рилсы', when:`референс премонтажа «${name}»`, tags:'', license:'', source:'референс',
+      for(const f of done.filter(x=>!x.old)){ const code=nextAssetCode('ref');
+        await write(()=>db.collection('assets').doc(code).set({code, name:f.file.name.replace(/\.[^.]+$/,''), section:'ref', group:'Рилсы', when:`референс стиля «${name}»`, tags:'', license:'', source:'референс',
           drive:'', fileId:f.id, fileKind:'video', fileName:f.file.name, size:f.file.size, previewId:null, previewKind:null, previewState:'done', templateId:ref.id, createdAt:new Date().toISOString()}));
         S.assets.push({id:code, code}); }
-      $('#pm-out').innerHTML=`<div class="empty" style="margin-top:16px"><strong>Премонтаж «${esc(name)}» сохранён</strong>Он в списке шаблонов с кнопкой «Создать монтаж». Для точности нажми «Глубокий разбор» на карточке и вставь задание в чат — я уточню рецепт по видео и звуку.
+      $('#pm-out').innerHTML=`<div class="empty" style="margin-top:16px"><strong>Стиль «${esc(name)}» ${base?'обновлён':'сохранён'}</strong>Теперь «Новый ролик» → выбери этот стиль → вставь текст и видео аватара. Для точности можно нажать «Глубокий разбор» на карточке стиля и вставить задание в чат: я уточню рецепт по видео и звуку.
         <div class="row" style="justify-content:center;margin-top:10px"><button class="btn primary" type="button" id="pm-deep">Скопировать задание на глубокий разбор</button></div></div>`;
       $('#pm-deep').onclick=()=>copyText(deepTask({...body,id:ref.id}),'Задание скопировано: вставь его в чат');
     };
@@ -1829,18 +1867,18 @@ function quickPanel(p, ro){
   const t=tplOf(p.templateId); if(!p.quick || !t) return '';
   const m=p.mode==='own'?'own':'auto';
   return `<div class="quick" id="r-quick">
-    <div class="row" style="justify-content:space-between;gap:10px"><b>Монтаж по шаблону «${esc(t.name)}»</b>
+    <div class="row" style="justify-content:space-between;gap:10px"><b>Ролик в стиле «${esc(t.name)}»</b>
       <div class="row" role="group" aria-label="Режим" style="gap:6px">
         <button type="button" class="chipbtn" data-qmode="auto" aria-pressed="${m==='auto'}">Авто</button>
         <button type="button" class="chipbtn" data-qmode="own" aria-pressed="${m==='own'}">Свои настройки</button></div></div>
     <ol>
       <li>Вставь текст ролика и выбери видео аватара в «Материалах».</li>
-      <li>Нажми «Собрать раскадровку»: пульт посчитает паузы и подберёт сцены по правилам шаблона${tplAllowed(t)?` (блоков в шаблоне: ${tplAllowed(t).length})`:''}.</li>
+      <li>Нажми «Собрать раскадровку»: пульт бесплатно посчитает паузы и тайминги, Claude одним текстовым запросом подберёт сцены по стилю${tplAllowed(t)?` (блоков в стиле: ${tplAllowed(t).length})`:''}. Кадры референсов не отправляются.</li>
       <li>Проверь таблицу раскадровки и поправь, что не нравится.</li>
-      <li>«Составить промпт» в «Картинках» → вставь его в ChatGPT.</li>
+      <li>Если раскадровке нужны картинки, появится шаг «Картинки»: «Составить промпт» → ChatGPT.</li>
       <li>«Скопировать задание для чата» → в чате соберётся готовый ролик.</li>
     </ol>
-    <div class="row"><button class="btn primary" type="button" id="r-quickGo"${ro}>Собрать раскадровку</button><span class="hint" id="r-quickNote">${m==='auto'?(t.rules?.dna?'Авто: раскадровка по смыслу текста из приёмов стиля; ядро стиля держится во всём ролике.':t.spec?'Авто: ритм, субтитры, звук и грейд — по спецификации референсов.':'Авто: стиль, окно, субтитры и доли берутся из шаблона.'):'Свои настройки: стиль и настройки открыты, их можно поменять.'}</span></div>
+    <div class="row"><button class="btn primary" type="button" id="r-quickGo"${ro}>Собрать раскадровку</button><span class="hint" id="r-quickNote">${m==='auto'?(t.rules?.dna?'Авто: раскадровка по смыслу текста из приёмов стиля; ядро стиля держится во всём ролике.':t.spec?'Авто: ритм, субтитры, звук и грейд — по спецификации референсов.':'Авто: стиль, окно, субтитры и доли берутся из стиля.'):'Свои настройки: стиль и настройки открыты, их можно поменять.'}</span></div>
   </div>`;
 }
 function wireQuick(p, api){
@@ -1856,7 +1894,7 @@ function wireQuick(p, api){
   };
   box.querySelectorAll('[data-qmode]').forEach(b=>b.onclick=async ()=>{
     p.mode=b.dataset.qmode; apply();
-    note.textContent = p.mode==='auto' ? 'Авто: стиль, окно, субтитры и доли берутся из шаблона.' : 'Свои настройки: шаги «Стиль» и «Настройки» открыты.';
+    note.textContent = p.mode==='auto' ? 'Авто: стиль, окно, субтитры и доли берутся из стиля.' : 'Свои настройки: шаги «Стиль» и «Настройки» открыты.';
     if(canWrite) await write(()=>docRef.update({mode:p.mode, updatedAt:new Date().toISOString()}));
   });
   apply();
@@ -1865,10 +1903,10 @@ function wireQuick(p, api){
     const go=$('#r-quickGo'); go.disabled=true;
     try{
       if(api.needSend()){ note.textContent='Шаг 1 из 2: считаю паузы и хронометраж…'; if(!await api.sendMaterials()){ note.textContent='Не хватает материалов: проверь текст и видео в «Материалах».'; return; } }
-      note.textContent='Шаг 2 из 2: Claude подбирает сцены по правилам шаблона… обычно до минуты.';
+      note.textContent='Шаг 2 из 2: Claude подбирает сцены по стилю… обычно до минуты.';
       const withTarget = (!!t?.rules?.target && !t?.spec && !t?.rules?.dna) || (p.mode==='own' && !$('#r-manual').hidden);
       const ok = await api.propose(withTarget);
-      if(ok){ note.textContent='Раскадровка готова — проверь таблицу ниже, затем «Составить промпт» для картинок.'; $('#r-sec-6').scrollIntoView({behavior:'smooth',block:'start'}); }
+      if(ok){ note.textContent='Раскадровка готова: проверь таблицу ниже.'+($('#r-sec-3').hidden?' Картинки из ChatGPT не нужны, можно сразу копировать задание для чата.':' Затем «Составить промпт» в шаге «Картинки».'); $('#r-sec-6').scrollIntoView({behavior:'smooth',block:'start'}); }
       else note.textContent='Раскадровка не собралась — подробности в шаге «Раскадровка». Нажми ещё раз.';
     } finally{ go.disabled=false; }
   };
@@ -1881,8 +1919,8 @@ function openTplRules(t){
   const anim=role=>animOptions(role,'').filter(x=>x[0]!=='__auto');
   const tg=r.target||{a:10,b:60,c:30};
   const pp={...PP_DEF, ...(r.passport||{}), colors:{...PP_DEF.colors, ...(r.passport?.colors||{})}, fonts:{...PP_DEF.fonts, ...(r.passport?.fonts||{})}};
-  E.innerHTML=`<form class="panel" id="tplRules" novalidate><h3>Правила шаблона «${esc(t.name)}»</h3>
-    <p>По этим правилам «Создать монтаж» собирает раскадровку сам: стиль, окно спикера, субтитры, доли кадра и какие блоки библиотеки можно брать.</p>
+  E.innerHTML=`<form class="panel" id="tplRules" novalidate><h3>Настройки стиля «${esc(t.name)}»</h3>
+    <p>По этим правилам ролик в этом стиле собирает раскадровку сам: стиль, окно спикера, субтитры, доли кадра и какие блоки библиотеки можно брать.</p>
     <div class="fields">
       <div class="f wide"><label for="tr-dna">Стиль тремя слоями: ядро, приёмы, структура</label><textarea id="tr-dna" spellcheck="false" style="min-height:340px;font-family:var(--mono);font-size:13px;line-height:1.45" placeholder="${esc(DNA_FORMAT)}">${esc(r.dna?dnaToText(r.dna):'')}</textarea><span class="hint">По строке на пункт, поля через « | ». Ядро держится в каждом ролике; приёмы Claude ставит по смыслу текста, по правилу «когда»; структура — как устроен ролик во времени. Коды приёмов, которые сборка знает: ${Object.keys(DNA_CODES).join(', ')}; новый код — опиши, сделаю блок в чате.</span></div>
       <div class="f wide"><label for="tr-style">${r.dna?'Дополнительно к стилю (свободный текст)':'Стиль монтажа'}</label><textarea id="tr-style" style="min-height:${r.dna?90:180}px">${esc(r.dna?(r.style||''):(r.style||tplStyle(t)))}</textarea><span class="hint">${r.dna?'Необязательно: то, что не легло в три слоя.':'Уходит в поле «Стиль ролика». Лучше описать стиль тремя слоями выше.'}</span></div>
@@ -1976,7 +2014,7 @@ radius — одно из 0.3, 0.6, 1, 1.6. motion — soft | spring | snappy. te
 function renderTemplates(){
   $('#newTpl').hidden = !canEdit; $('#newPremont').hidden = !canEdit;
   const L = $('#tplList');
-  if(!S.templates.length){ L.innerHTML = `<div class="empty"><strong>Шаблонов пока нет</strong>Сюда попадут готовые варианты монтажа: стиль, доли кадра, субтитры и набор блоков.</div>`; return; }
+  if(!S.templates.length){ L.innerHTML = `<div class="empty"><strong>Стилей пока нет</strong>Нажми «Новый стиль из референсов»: загрузи 1–5 роликов, и пульт один раз разберёт их в стиль.</div>`; return; }
   L.innerHTML = `<div class="grid">${S.templates.map(t=>{
     const pr = presetOf(t.presetId);
     return `<article class="card">
@@ -1999,14 +2037,16 @@ function renderTemplates(){
         ${t.spec?`<p class="hint" style="margin:4px 0 0">Цифры ядра: ${esc(specSummary(t.spec))}</p>`:''}
         ${t.rules?.passport?`<div class="swatches" aria-label="Паспорт" style="margin-top:8px">${PP_COLORS.map(([k])=>t.rules.passport.colors?.[k]).filter(Boolean).map(c=>`<i style="background:${esc(c)}" title="${esc(c)}"></i>`).join('')}</div><p class="hint" style="margin:4px 0 0">${esc(ppSummary(t.rules.passport))}</p>`:''}
         <div class="actions">
-          <button class="btn primary" data-use="${esc(t.id)}"${canWrite&&db?'':' disabled'}>Создать монтаж</button>
+          <button class="btn primary" data-use="${esc(t.id)}"${canWrite&&db?'':' disabled'}>Новый ролик в этом стиле</button>
           ${canEdit?`<button class="btn" type="button" data-tplcfg="${esc(t.id)}">Настроить</button>`:''}
+          ${t.kind==='premontage'&&canEdit?`<button class="btn" type="button" data-more="${esc(t.id)}">Дополнить референсами</button>`:''}
           ${t.kind==='premontage'?`<button class="btn ghost" type="button" data-deep="${esc(t.id)}">Глубокий разбор</button>`:''}
           ${canEdit?`<label class="btn ghost" style="cursor:pointer">Превью<input type="file" accept="image/*,video/mp4,video/webm" data-tplprev="${esc(t.id)}" hidden></label>`:''}
         </div>
       </div></article>`; }).join('')}</div>`;
   wireVideos(L);
   L.querySelectorAll('[data-use]').forEach(b=>b.addEventListener('click',()=>{ show('reels'); createReel(b.dataset.use); }));
+  L.querySelectorAll('[data-more]').forEach(b=>b.addEventListener('click',()=>openPremont(tplOf(b.dataset.more))));
   L.querySelectorAll('[data-tplcfg]').forEach(b=>b.addEventListener('click',()=>openTplRules(tplOf(b.dataset.tplcfg))));
   L.querySelectorAll('[data-deep]').forEach(b=>b.addEventListener('click',()=>copyText(deepTask(tplOf(b.dataset.deep)),'Задание на глубокий разбор скопировано: вставь его в чат')));
   L.querySelectorAll('[data-tplprev]').forEach(inp=>inp.addEventListener('change', async ()=>{
@@ -2016,7 +2056,7 @@ function renderTemplates(){
 }
 $('#newTpl').addEventListener('click', ()=>{
   const E=$('#tplEditor'); E.hidden=false;
-  E.innerHTML = `<form class="panel" id="tplForm" novalidate><h3>Новый шаблон</h3><p>Превью можно добавить после создания, кнопкой на карточке.</p>
+  E.innerHTML = `<form class="panel" id="tplForm" novalidate><h3>Новый стиль вручную</h3><p>Превью можно добавить после создания, кнопкой на карточке.</p>
     <div class="fields">
       <div class="f"><label for="t-name">Название</label><input type="text" id="t-name" placeholder="Светлый моушн с глиняным 3D"></div>
       <div class="f"><label for="t-preset">Пресет долей</label><select id="t-preset">${opts(S.presets.map(x=>[x.id,x.name]),'')}</select></div>
@@ -2028,14 +2068,14 @@ $('#newTpl').addEventListener('click', ()=>{
       <div class="f"><label for="t-sound">Звук</label><select id="t-sound">${opts(SOUND,SOUND[0])}</select></div>
       <div class="f wide"><label for="t-blocks">Блоки</label><input type="text" id="t-blocks" placeholder="MPath, MCycle, S3Jobs"><span class="hint">Коды из библиотеки через запятую</span></div>
     </div>
-    <div class="row" style="margin-top:14px"><button class="btn primary" type="submit">Создать шаблон</button><button class="btn ghost" type="button" id="t-close">Закрыть</button></div></form>`;
+    <div class="row" style="margin-top:14px"><button class="btn primary" type="submit">Создать стиль</button><button class="btn ghost" type="button" id="t-close">Закрыть</button></div></form>`;
   $('#t-close').onclick=()=>{E.hidden=true;E.innerHTML='';};
   $('#tplForm').addEventListener('submit', async e=>{
     e.preventDefault(); const name=$('#t-name').value.trim(); if(!name){ toast('Заполни название'); return; }
     const split = s=>s.split(',').map(x=>x.trim()).filter(Boolean);
     const body={name, aesthetic:$('#t-aest').value.trim(), presetId:$('#t-preset').value, bg:$('#t-bg').value, palette:split($('#t-pal').value),
       fonts:$('#t-fonts').value.trim(), motion:$('#t-motion').value.trim(), sound:$('#t-sound').value, blocks:split($('#t-blocks').value), createdAt:new Date().toISOString()};
-    if(await write(()=>db.collection('templates').add(body),'Шаблон создан')){ E.hidden=true; E.innerHTML=''; }
+    if(await write(()=>db.collection('templates').add(body),'Стиль создан')){ E.hidden=true; E.innerHTML=''; }
   });
 });
 

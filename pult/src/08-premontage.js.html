@@ -137,21 +137,24 @@ DNA — главное: стиль тремя слоями. core — тольк�
 Доли target в сумме 100 и соответствуют разборам. Цвета — из палитры замеров и кадров, текст читается на фоне.`;
 
 $('#newPremont').addEventListener('click', ()=>openPremont());
-function openPremont(){
+/* base — существующий стиль: его разобранные референсы берутся без повторной оплаты, новые добавляются, рецепт пересобирается в тот же стиль */
+function openPremont(base){
   const E=$('#tplEditor'); E.hidden=false;
   const files=[]; let result=null, ctl=null;
-  E.innerHTML=`<form class="panel" id="pmForm" novalidate><h3>Премонтаж из референсов</h3>
-    <p>Загрузи до 5 роликов в одной подаче. Пульт замерит склейки, звук и палитру, Claude разберёт кадры каждого ролика и соберёт общий рецепт: стиль, паспорт, правила, структуру и звук. Сохраняется как шаблон с кнопкой «Создать монтаж».</p>
+  if(base) for(const r of (base.refs||[])) if(r&&r.analysis) files.push({old:true, id:r.id, file:{name:r.name, size:r.size||0}, m:{...(r.metrics||{})}, snd:r.sound||null, analysis:r.analysis, state:'уже в стиле'});
+  E.innerHTML=`<form class="panel" id="pmForm" novalidate><h3>${base?`Дополнить стиль «${esc(base.name)}»`:'Новый стиль из референсов'}</h3>
+    <p>${base?'Добавь до 5 новых роликов. Уже разобранные референсы стиля Claude заново не смотрит: он разберёт только новые и пересоберёт рецепт стиля по всем вместе.':'Загрузи до 5 роликов одного стиля. Пульт замерит склейки, звук и палитру, Claude один раз разберёт кадры каждого ролика и соберёт стиль: ядро, приёмы, паспорт, структуру и звук. Дальше ролики в этом стиле делаются только по тексту.'}</p>
     <div class="row" style="gap:8px"><label class="btn" style="cursor:pointer">Выбрать видео<input type="file" id="pm-files" accept="video/mp4,video/webm,video/quicktime" multiple hidden></label><span class="hint">До 5 файлов, каждый до 20 МБ. Лучше mp4.</span></div>
     <div id="pm-list" style="margin-top:12px"></div>
     <div class="row" style="margin-top:12px;gap:8px"><button class="btn primary" type="button" id="pm-go" disabled>Разобрать</button><button class="btn ghost" type="button" id="pm-stop" hidden>Остановить</button><button class="btn ghost" type="button" id="pm-close">Закрыть</button><span class="hint" id="pm-note"><i class="mdl">Модель: обычная для каждого ролика, повышенная для сводки · кэш вкл.</i></span></div>
     <div id="pm-out"></div></form>`;
   const list=$('#pm-list'), note=$('#pm-note');
   const show=()=>{ list.innerHTML = files.length ? `<div class="projlist">${files.map((f,i)=>`<div class="projrow" style="cursor:default;grid-template-columns:minmax(0,1fr) auto">
-      <div style="min-width:0"><h3 style="font-size:15px">${i+1}. ${esc(f.file.name)}</h3><div class="sub">${fmtSize(f.file.size)}${f.m?` · ${f.m.duration} с · ${f.m.shots} планов · ${f.m.cutsPerMin} склеек/мин · план ≈ ${f.m.avgShot} с`:''}${f.snd?` · речь ${Math.round(f.snd.speechShare*100)}% · ${f.snd.music}`:''}</div></div>
-      <span class="chip">${esc(f.state||'ждёт')}</span></div>`).join('')}</div>` : ''; $('#pm-go').disabled=!files.length; };
-  $('#pm-files').onchange=e=>{ for(const f of e.target.files){ if(files.length>=5){ toast('Не больше 5 роликов'); break; } if(f.size>20*1024*1024){ toast(`«${f.name}» больше 20 МБ — сожми или обрежь`); continue; } files.push({file:f}); } e.target.value=''; show(); };
+      <div style="min-width:0"><h3 style="font-size:15px">${i+1}. ${esc(f.file.name)}</h3><div class="sub">${fmtSize(f.file.size)}${f.m?.duration?` · ${f.m.duration} с · ${f.m.shots} планов · ${f.m.cutsPerMin} склеек/мин · план ≈ ${f.m.avgShot} с`:''}${f.snd?` · речь ${Math.round(f.snd.speechShare*100)}% · ${f.snd.music}`:''}</div></div>
+      <span class="chip">${esc(f.state||'ждёт')}</span></div>`).join('')}</div>` : ''; $('#pm-go').disabled = base ? !files.some(f=>!f.old) : !files.length; };
+  $('#pm-files').onchange=e=>{ for(const f of e.target.files){ if(files.filter(x=>!x.old).length>=5){ toast('Не больше 5 роликов'); break; } if(f.size>20*1024*1024){ toast(`«${f.name}» больше 20 МБ — сожми или обрежь`); continue; } files.push({file:f}); } e.target.value=''; show(); };
   $('#pm-close').onclick=()=>{ ctl?.abort(); E.hidden=true; E.innerHTML=''; };
+  show(); E.scrollIntoView({behavior:'smooth',block:'start'});
   $('#pm-stop').onclick=()=>ctl?.abort();
   $('#pm-go').onclick=async ()=>{
     if(!sample){ toast('Claude недоступен в этом просмотре'); return; }
@@ -197,7 +200,7 @@ function openPremont(){
     const r=result, pp=r.passport||{}, ru=r.rules||{}, have=new Set(S.blocks.map(b=>b.code||b.id));
     const allowed=(r.allowed||[]).filter(c=>have.has(c));
     $('#pm-out').innerHTML=`<div class="fields" style="margin-top:18px">
-      <div class="f"><label for="pm-name">Название</label><input type="text" id="pm-name" value="${esc(r.name||'Премонтаж')}"></div>
+      <div class="f"><label for="pm-name">Название</label><input type="text" id="pm-name" value="${esc(base?base.name:(r.name||'Стиль'))}"></div>
       <div class="f wide"><label for="pm-aest">Суть</label><input type="text" id="pm-aest" value="${esc(r.aesthetic||'')}"></div>
       <div class="f wide"><label for="pm-dna">Стиль тремя слоями: ядро, приёмы, структура</label><textarea id="pm-dna" spellcheck="false" style="min-height:300px;font-family:var(--mono);font-size:13px;line-height:1.45">${esc(r.dna?dnaToText({name:r.name,...r.dna}):'')}</textarea><span class="hint">Ядро держится в каждом ролике, приёмы ставятся по смыслу текста. Можно править: строка на пункт, поля через « | ».</span></div>
       <div class="f wide"><label for="pm-style">Стиль</label><textarea id="pm-style" style="min-height:200px">${esc(r.style||'')}</textarea></div>
@@ -209,9 +212,9 @@ function openPremont(){
     <p class="hint">${esc(ppSummary({...PP_DEF,...pp,fonts:{...PP_DEF.fonts,...(pp.fonts||{})}}))} · окно: ${esc(winName(ru.win||'popout'))} · доли ${ru.target?`${ru.target.a}/${ru.target.b}/${ru.target.c}`:'по смыслу'} · субтитры: ${esc(ru.subAnim||'static')} · блоков: ${allowed.length||'все'}</p>
     ${r.blockMap?.length?`<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Приёмы → наши блоки (${r.blockMap.length})</summary><ul>${r.blockMap.map(m=>`<li>${esc(m.technique)} → <span class="code">${esc(m.code)}</span></li>`).join('')}</ul></details>`:''}
     ${r.gaps?.length?`<details open style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Нет в библиотеке (${r.gaps.length}) — сделаю в чате</summary><ul>${r.gaps.map(g=>`<li><b>${esc(g.technique)}</b>${g.seen?` — ${esc(g.seen)}`:''}${g.proposal?`. Предложение: ${esc(g.proposal)}`:''}</li>`).join('')}</ul></details>`:''}
-    <div class="row" style="margin-top:14px"><button class="btn primary" type="button" id="pm-save">Сохранить премонтаж</button><span class="hint">Палитра, шрифты и правила потом правятся в «Настроить».</span></div>`;
+    <div class="row" style="margin-top:14px"><button class="btn primary" type="button" id="pm-save">${base?'Обновить стиль':'Сохранить стиль'}</button><span class="hint">Палитра, шрифты и правила потом правятся в «Настроить».</span></div>`;
     $('#pm-save').onclick=async ()=>{
-      const name=$('#pm-name').value.trim()||'Премонтаж', done=files.filter(f=>f.analysis);
+      const name=$('#pm-name').value.trim()||'Стиль', done=files.filter(f=>f.analysis);
       const styleAll=[$('#pm-style').value.trim(), 'РЕЦЕПТ СТРУКТУРЫ:\n'+$('#pm-recipe').value.trim(), 'ЗВУК:\n'+$('#pm-sound').value.trim(), 'ПОДАЧА РЕЧИ:\n'+$('#pm-speech').value.trim()].join('\n\n');
       const t0=ru.target, tgt = t0 && (+t0.a)+(+t0.b)+(+t0.c)===100 ? {a:+t0.a,b:+t0.b,c:+t0.c} : null;
       const subOk = ru.subAnim && (ru.subAnim==='static' || S.textanims.some(a=>a.id===ru.subAnim));
@@ -222,16 +225,18 @@ function openPremont(){
         recipe:$('#pm-recipe').value.trim(), soundNotes:$('#pm-sound').value.trim(), speech:$('#pm-speech').value.trim(), blockMap:r.blockMap||[], gaps:r.gaps||[], deep:false,
         refs:done.map(f=>({id:f.id, name:f.file.name, size:f.file.size, metrics:{duration:f.m.duration, shots:f.m.shots, cutsPerMin:f.m.cutsPerMin, avgShot:f.m.avgShot, cuts:f.m.cuts, palette:f.m.palette}, sound:f.snd, analysis:f.analysis})),
         rules:{dna:$('#pm-dna').value.trim()?dnaFromText($('#pm-dna').value):null, style:styleAll, win:ru.win||'popout', bg:ru.bg||'светлая', subAnim:subOk?ru.subAnim:'static', titleAnim:'static', target:tgt, punch:ru.punch??true, progress:!!ru.progress, speed:ru.speed||null,
-          assets:'', assetsList:'', allowed, passport},
+          assets:base?.rules?.assets||'', assetsList:base?.rules?.assetsList||'', allowed, passport},
         previewId:done[0]?.id||null, previewKind:'video', createdAt:new Date().toISOString()};
-      const ref=db.collection('templates').doc();
-      if(!await write(()=>ref.set(body),'Премонтаж сохранён')) return;
+      const ref=base ? db.collection('templates').doc(base.id) : db.collection('templates').doc();
+      if(base){ delete body.createdAt; body.previewId=base.previewId||body.previewId; body.previewKind=base.previewKind||body.previewKind; body.updatedAt=new Date().toISOString();
+        if(base.rules?.titleAnim) body.rules.titleAnim=base.rules.titleAnim; }
+      if(!await write(()=>base?ref.update(body):ref.set(body), base?'Стиль обновлён':'Стиль сохранён')) return;
       /* референсы — в Ассеты, раздел «Референсы» */
-      for(const f of done){ const code=nextAssetCode('ref');
-        await write(()=>db.collection('assets').doc(code).set({code, name:f.file.name.replace(/\.[^.]+$/,''), section:'ref', group:'Рилсы', when:`референс премонтажа «${name}»`, tags:'', license:'', source:'референс',
+      for(const f of done.filter(x=>!x.old)){ const code=nextAssetCode('ref');
+        await write(()=>db.collection('assets').doc(code).set({code, name:f.file.name.replace(/\.[^.]+$/,''), section:'ref', group:'Рилсы', when:`референс стиля «${name}»`, tags:'', license:'', source:'референс',
           drive:'', fileId:f.id, fileKind:'video', fileName:f.file.name, size:f.file.size, previewId:null, previewKind:null, previewState:'done', templateId:ref.id, createdAt:new Date().toISOString()}));
         S.assets.push({id:code, code}); }
-      $('#pm-out').innerHTML=`<div class="empty" style="margin-top:16px"><strong>Премонтаж «${esc(name)}» сохранён</strong>Он в списке шаблонов с кнопкой «Создать монтаж». Для точности нажми «Глубокий разбор» на карточке и вставь задание в чат — я уточню рецепт по видео и звуку.
+      $('#pm-out').innerHTML=`<div class="empty" style="margin-top:16px"><strong>Стиль «${esc(name)}» ${base?'обновлён':'сохранён'}</strong>Теперь «Новый ролик» → выбери этот стиль → вставь текст и видео аватара. Для точности можно нажать «Глубокий разбор» на карточке стиля и вставить задание в чат: я уточню рецепт по видео и звуку.
         <div class="row" style="justify-content:center;margin-top:10px"><button class="btn primary" type="button" id="pm-deep">Скопировать задание на глубокий разбор</button></div></div>`;
       $('#pm-deep').onclick=()=>copyText(deepTask({...body,id:ref.id}),'Задание скопировано: вставь его в чат');
     };

@@ -4,7 +4,7 @@
     <div class="brand"><h1>Пульт монтажа</h1><span class="tc">auto-editing · 00:00:46:00</span></div>
     <nav role="tablist" aria-label="Разделы">
       <button class="tab" role="tab" id="tab-reels" data-view="reels">Ролики</button>
-      <button class="tab" role="tab" id="tab-templates" data-view="templates">Шаблоны</button>
+      <button class="tab" role="tab" id="tab-templates" data-view="templates">Стили</button>
       <button class="tab" role="tab" id="tab-library" data-view="library">Библиотека</button>
       <button class="tab" role="tab" id="tab-assets" data-view="assets">Ассеты</button>
       <button class="tab" role="tab" id="tab-presets" data-view="presets" hidden>Пресеты</button>
@@ -18,7 +18,7 @@
   <!-- РОЛИКИ -->
   <section id="view-reels" hidden>
     <div class="head">
-      <div><h2>Ролики</h2><p>Стиль → текст → картинки → материалы → настройки → раскадровка → монтаж. Монтаж идёт в чате с Claude: нажми «Скопировать задание» и вставь его туда.</p></div>
+      <div><h2>Ролики</h2><p>Выбери стиль → вставь текст и видео аватара → раскадровка → задание для чата. Стиль разбирается один раз в «Стилях», дальше ролики делаются по нему только по тексту.</p></div>
       <div class="row"><span id="delDraftsBox"></span><button class="btn primary" id="newReel">Новый ролик</button></div>
     </div>
     <div id="reelEditor" hidden></div>
@@ -28,8 +28,8 @@
   <!-- ШАБЛОНЫ -->
   <section id="view-templates" hidden>
     <div class="head">
-      <div><h2>Шаблоны монтажа</h2><p>Готовые наборы: стиль, доли кадра, субтитры, звук и блоки. Выбери шаблон, и новый ролик начнётся с его настроек.</p></div>
-      <div class="row" style="gap:8px"><button class="btn primary" id="newPremont" hidden>Новый премонтаж из референсов</button><button class="btn" id="newTpl" hidden>Добавить шаблон</button></div>
+      <div><h2>Стили</h2><p>Стиль собирается премонтажом из референсов один раз и потом берётся в каждый ролик: кадры повторно не отправляются. Стиль можно дополнять новыми референсами.</p></div>
+      <div class="row" style="gap:8px"><button class="btn primary" id="newPremont" hidden>Новый стиль из референсов</button><button class="btn" id="newTpl" hidden>Описать стиль вручную</button></div>
     </div>
     <div id="tplEditor" hidden></div>
     <div id="tplList"></div>

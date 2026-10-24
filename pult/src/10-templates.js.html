@@ -2,7 +2,7 @@
 function renderTemplates(){
   $('#newTpl').hidden = !canEdit; $('#newPremont').hidden = !canEdit;
   const L = $('#tplList');
-  if(!S.templates.length){ L.innerHTML = `<div class="empty"><strong>Шаблонов пока нет</strong>Сюда попадут готовые варианты монтажа: стиль, доли кадра, субтитры и набор блоков.</div>`; return; }
+  if(!S.templates.length){ L.innerHTML = `<div class="empty"><strong>Стилей пока нет</strong>Нажми «Новый стиль из референсов»: загрузи 1–5 роликов, и пульт один раз разберёт их в стиль.</div>`; return; }
   L.innerHTML = `<div class="grid">${S.templates.map(t=>{
     const pr = presetOf(t.presetId);
     return `<article class="card">
@@ -25,14 +25,16 @@ function renderTemplates(){
         ${t.spec?`<p class="hint" style="margin:4px 0 0">Цифры ядра: ${esc(specSummary(t.spec))}</p>`:''}
         ${t.rules?.passport?`<div class="swatches" aria-label="Паспорт" style="margin-top:8px">${PP_COLORS.map(([k])=>t.rules.passport.colors?.[k]).filter(Boolean).map(c=>`<i style="background:${esc(c)}" title="${esc(c)}"></i>`).join('')}</div><p class="hint" style="margin:4px 0 0">${esc(ppSummary(t.rules.passport))}</p>`:''}
         <div class="actions">
-          <button class="btn primary" data-use="${esc(t.id)}"${canWrite&&db?'':' disabled'}>Создать монтаж</button>
+          <button class="btn primary" data-use="${esc(t.id)}"${canWrite&&db?'':' disabled'}>Новый ролик в этом стиле</button>
           ${canEdit?`<button class="btn" type="button" data-tplcfg="${esc(t.id)}">Настроить</button>`:''}
+          ${t.kind==='premontage'&&canEdit?`<button class="btn" type="button" data-more="${esc(t.id)}">Дополнить референсами</button>`:''}
           ${t.kind==='premontage'?`<button class="btn ghost" type="button" data-deep="${esc(t.id)}">Глубокий разбор</button>`:''}
           ${canEdit?`<label class="btn ghost" style="cursor:pointer">Превью<input type="file" accept="image/*,video/mp4,video/webm" data-tplprev="${esc(t.id)}" hidden></label>`:''}
         </div>
       </div></article>`; }).join('')}</div>`;
   wireVideos(L);
   L.querySelectorAll('[data-use]').forEach(b=>b.addEventListener('click',()=>{ show('reels'); createReel(b.dataset.use); }));
+  L.querySelectorAll('[data-more]').forEach(b=>b.addEventListener('click',()=>openPremont(tplOf(b.dataset.more))));
   L.querySelectorAll('[data-tplcfg]').forEach(b=>b.addEventListener('click',()=>openTplRules(tplOf(b.dataset.tplcfg))));
   L.querySelectorAll('[data-deep]').forEach(b=>b.addEventListener('click',()=>copyText(deepTask(tplOf(b.dataset.deep)),'Задание на глубокий разбор скопировано: вставь его в чат')));
   L.querySelectorAll('[data-tplprev]').forEach(inp=>inp.addEventListener('change', async ()=>{
@@ -42,7 +44,7 @@ function renderTemplates(){
 }
 $('#newTpl').addEventListener('click', ()=>{
   const E=$('#tplEditor'); E.hidden=false;
-  E.innerHTML = `<form class="panel" id="tplForm" novalidate><h3>Новый шаблон</h3><p>Превью можно добавить после создания, кнопкой на карточке.</p>
+  E.innerHTML = `<form class="panel" id="tplForm" novalidate><h3>Новый стиль вручную</h3><p>Превью можно добавить после создания, кнопкой на карточке.</p>
     <div class="fields">
       <div class="f"><label for="t-name">Название</label><input type="text" id="t-name" placeholder="Светлый моушн с глиняным 3D"></div>
       <div class="f"><label for="t-preset">Пресет долей</label><select id="t-preset">${opts(S.presets.map(x=>[x.id,x.name]),'')}</select></div>
@@ -54,14 +56,14 @@ $('#newTpl').addEventListener('click', ()=>{
       <div class="f"><label for="t-sound">Звук</label><select id="t-sound">${opts(SOUND,SOUND[0])}</select></div>
       <div class="f wide"><label for="t-blocks">Блоки</label><input type="text" id="t-blocks" placeholder="MPath, MCycle, S3Jobs"><span class="hint">Коды из библиотеки через запятую</span></div>
     </div>
-    <div class="row" style="margin-top:14px"><button class="btn primary" type="submit">Создать шаблон</button><button class="btn ghost" type="button" id="t-close">Закрыть</button></div></form>`;
+    <div class="row" style="margin-top:14px"><button class="btn primary" type="submit">Создать стиль</button><button class="btn ghost" type="button" id="t-close">Закрыть</button></div></form>`;
   $('#t-close').onclick=()=>{E.hidden=true;E.innerHTML='';};
   $('#tplForm').addEventListener('submit', async e=>{
     e.preventDefault(); const name=$('#t-name').value.trim(); if(!name){ toast('Заполни название'); return; }
     const split = s=>s.split(',').map(x=>x.trim()).filter(Boolean);
     const body={name, aesthetic:$('#t-aest').value.trim(), presetId:$('#t-preset').value, bg:$('#t-bg').value, palette:split($('#t-pal').value),
       fonts:$('#t-fonts').value.trim(), motion:$('#t-motion').value.trim(), sound:$('#t-sound').value, blocks:split($('#t-blocks').value), createdAt:new Date().toISOString()};
-    if(await write(()=>db.collection('templates').add(body),'Шаблон создан')){ E.hidden=true; E.innerHTML=''; }
+    if(await write(()=>db.collection('templates').add(body),'Стиль создан')){ E.hidden=true; E.innerHTML=''; }
   });
 });
 

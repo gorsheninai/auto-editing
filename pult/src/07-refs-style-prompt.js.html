@@ -414,7 +414,7 @@ function collect(){
     win:readWin(), subAnim:(v('#r-subAnim')==='__auto'?'static':v('#r-subAnim'))||'static', titleAnim:(v('#r-titleAnim')==='__auto'?'static':v('#r-titleAnim'))||'static', ctaOn:!!$('#r-ctaOn')?.checked, punch:!!$('#r-punch')?.checked, progress:!!$('#r-progress')?.checked, ctaText:v('#r-ctaText').trim(), status:v('#r-status'),
     gptPrompt:v('#r-gpt'), styleAnalysis:v('#r-style'), sbRows:curRows, storyboard:rowsText(curRows), target:readTarget(), sub:readSub()};
 }
-$('#newReel').addEventListener('click', ()=>createReel());
+$('#newReel').addEventListener('click', ()=>pickStyle());
 
 
 

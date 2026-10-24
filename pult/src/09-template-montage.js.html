@@ -3,18 +3,18 @@ function quickPanel(p, ro){
   const t=tplOf(p.templateId); if(!p.quick || !t) return '';
   const m=p.mode==='own'?'own':'auto';
   return `<div class="quick" id="r-quick">
-    <div class="row" style="justify-content:space-between;gap:10px"><b>Монтаж по шаблону «${esc(t.name)}»</b>
+    <div class="row" style="justify-content:space-between;gap:10px"><b>Ролик в стиле «${esc(t.name)}»</b>
       <div class="row" role="group" aria-label="Режим" style="gap:6px">
         <button type="button" class="chipbtn" data-qmode="auto" aria-pressed="${m==='auto'}">Авто</button>
         <button type="button" class="chipbtn" data-qmode="own" aria-pressed="${m==='own'}">Свои настройки</button></div></div>
     <ol>
       <li>Вставь текст ролика и выбери видео аватара в «Материалах».</li>
-      <li>Нажми «Собрать раскадровку»: пульт посчитает паузы и подберёт сцены по правилам шаблона${tplAllowed(t)?` (блоков в шаблоне: ${tplAllowed(t).length})`:''}.</li>
+      <li>Нажми «Собрать раскадровку»: пульт бесплатно посчитает паузы и тайминги, Claude одним текстовым запросом подберёт сцены по стилю${tplAllowed(t)?` (блоков в стиле: ${tplAllowed(t).length})`:''}. Кадры референсов не отправляются.</li>
       <li>Проверь таблицу раскадровки и поправь, что не нравится.</li>
-      <li>«Составить промпт» в «Картинках» → вставь его в ChatGPT.</li>
+      <li>Если раскадровке нужны картинки, появится шаг «Картинки»: «Составить промпт» → ChatGPT.</li>
       <li>«Скопировать задание для чата» → в чате соберётся готовый ролик.</li>
     </ol>
-    <div class="row"><button class="btn primary" type="button" id="r-quickGo"${ro}>Собрать раскадровку</button><span class="hint" id="r-quickNote">${m==='auto'?(t.rules?.dna?'Авто: раскадровка по смыслу текста из приёмов стиля; ядро стиля держится во всём ролике.':t.spec?'Авто: ритм, субтитры, звук и грейд — по спецификации референсов.':'Авто: стиль, окно, субтитры и доли берутся из шаблона.'):'Свои настройки: стиль и настройки открыты, их можно поменять.'}</span></div>
+    <div class="row"><button class="btn primary" type="button" id="r-quickGo"${ro}>Собрать раскадровку</button><span class="hint" id="r-quickNote">${m==='auto'?(t.rules?.dna?'Авто: раскадровка по смыслу текста из приёмов стиля; ядро стиля держится во всём ролике.':t.spec?'Авто: ритм, субтитры, звук и грейд — по спецификации референсов.':'Авто: стиль, окно, субтитры и доли берутся из стиля.'):'Свои настройки: стиль и настройки открыты, их можно поменять.'}</span></div>
   </div>`;
 }
 function wireQuick(p, api){
@@ -30,7 +30,7 @@ function wireQuick(p, api){
   };
   box.querySelectorAll('[data-qmode]').forEach(b=>b.onclick=async ()=>{
     p.mode=b.dataset.qmode; apply();
-    note.textContent = p.mode==='auto' ? 'Авто: стиль, окно, субтитры и доли берутся из шаблона.' : 'Свои настройки: шаги «Стиль» и «Настройки» открыты.';
+    note.textContent = p.mode==='auto' ? 'Авто: стиль, окно, субтитры и доли берутся из стиля.' : 'Свои настройки: шаги «Стиль» и «Настройки» открыты.';
     if(canWrite) await write(()=>docRef.update({mode:p.mode, updatedAt:new Date().toISOString()}));
   });
   apply();
@@ -39,10 +39,10 @@ function wireQuick(p, api){
     const go=$('#r-quickGo'); go.disabled=true;
     try{
       if(api.needSend()){ note.textContent='Шаг 1 из 2: считаю паузы и хронометраж…'; if(!await api.sendMaterials()){ note.textContent='Не хватает материалов: проверь текст и видео в «Материалах».'; return; } }
-      note.textContent='Шаг 2 из 2: Claude подбирает сцены по правилам шаблона… обычно до минуты.';
+      note.textContent='Шаг 2 из 2: Claude подбирает сцены по стилю… обычно до минуты.';
       const withTarget = (!!t?.rules?.target && !t?.spec && !t?.rules?.dna) || (p.mode==='own' && !$('#r-manual').hidden);
       const ok = await api.propose(withTarget);
-      if(ok){ note.textContent='Раскадровка готова — проверь таблицу ниже, затем «Составить промпт» для картинок.'; $('#r-sec-6').scrollIntoView({behavior:'smooth',block:'start'}); }
+      if(ok){ note.textContent='Раскадровка готова: проверь таблицу ниже.'+($('#r-sec-3').hidden?' Картинки из ChatGPT не нужны, можно сразу копировать задание для чата.':' Затем «Составить промпт» в шаге «Картинки».'); $('#r-sec-6').scrollIntoView({behavior:'smooth',block:'start'}); }
       else note.textContent='Раскадровка не собралась — подробности в шаге «Раскадровка». Нажми ещё раз.';
     } finally{ go.disabled=false; }
   };
@@ -55,8 +55,8 @@ function openTplRules(t){
   const anim=role=>animOptions(role,'').filter(x=>x[0]!=='__auto');
   const tg=r.target||{a:10,b:60,c:30};
   const pp={...PP_DEF, ...(r.passport||{}), colors:{...PP_DEF.colors, ...(r.passport?.colors||{})}, fonts:{...PP_DEF.fonts, ...(r.passport?.fonts||{})}};
-  E.innerHTML=`<form class="panel" id="tplRules" novalidate><h3>Правила шаблона «${esc(t.name)}»</h3>
-    <p>По этим правилам «Создать монтаж» собирает раскадровку сам: стиль, окно спикера, субтитры, доли кадра и какие блоки библиотеки можно брать.</p>
+  E.innerHTML=`<form class="panel" id="tplRules" novalidate><h3>Настройки стиля «${esc(t.name)}»</h3>
+    <p>По этим правилам ролик в этом стиле собирает раскадровку сам: стиль, окно спикера, субтитры, доли кадра и какие блоки библиотеки можно брать.</p>
     <div class="fields">
       <div class="f wide"><label for="tr-dna">Стиль тремя слоями: ядро, приёмы, структура</label><textarea id="tr-dna" spellcheck="false" style="min-height:340px;font-family:var(--mono);font-size:13px;line-height:1.45" placeholder="${esc(DNA_FORMAT)}">${esc(r.dna?dnaToText(r.dna):'')}</textarea><span class="hint">По строке на пункт, поля через « | ». Ядро держится в каждом ролике; приёмы Claude ставит по смыслу текста, по правилу «когда»; структура — как устроен ролик во времени. Коды приёмов, которые сборка знает: ${Object.keys(DNA_CODES).join(', ')}; новый код — опиши, сделаю блок в чате.</span></div>
       <div class="f wide"><label for="tr-style">${r.dna?'Дополнительно к стилю (свободный текст)':'Стиль монтажа'}</label><textarea id="tr-style" style="min-height:${r.dna?90:180}px">${esc(r.dna?(r.style||''):(r.style||tplStyle(t)))}</textarea><span class="hint">${r.dna?'Необязательно: то, что не легло в три слоя.':'Уходит в поле «Стиль ролика». Лучше описать стиль тремя слоями выше.'}</span></div>

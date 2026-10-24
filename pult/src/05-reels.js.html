@@ -4,7 +4,7 @@ function renderReels(){
   renderDelDrafts();
   const L = $('#reelList');
   if(!S.projects.length){
-    L.innerHTML = `<div class="empty"><strong>Роликов пока нет</strong>Нажми «Новый ролик» или выбери шаблон во вкладке «Шаблоны». Здесь появится список с этапами: черновик, раскадровка, картинки, монтаж, готово.</div>`;
+    L.innerHTML = `<div class="empty"><strong>Роликов пока нет</strong>Нажми «Новый ролик» и выбери стиль. Новый стиль собирается во вкладке «Стили» из референсов. Здесь появится список с этапами: черновик, раскадровка, картинки, монтаж, готово.</div>`;
     return;
   }
   const rows = [...S.projects].sort((x,y)=>(y.updatedAt||'').localeCompare(x.updatedAt||'')).map(p=>{
@@ -12,7 +12,7 @@ function renderReels(){
     const sh = rowShares(p.sbRows); const t = tplOf(p.templateId);
     return `<div class="projrow" tabindex="0" data-open="${esc(p.id)}">
       <div style="min-width:0"><h3>${esc(p.title||'Без названия')}</h3>
-      <div class="sub">${esc(t?t.name:'без шаблона')} · обновлён ${esc((p.updatedAt||'').slice(0,10))}</div></div>
+      <div class="sub">${esc(t?'стиль «'+t.name+'»':'без стиля')} · обновлён ${esc((p.updatedAt||'').slice(0,10))}</div></div>
       ${sh?strip(sh.a,sh.b,sh.c):'<span></span>'}
       <span class="pill s-${esc(st[0])}">${esc(st[1])}</span>
       ${canWrite?`<span class="rowdel" data-delbox="${esc(p.id)}"><button class="btn ghost danger" type="button" data-del="${esc(p.id)}" aria-label="Удалить ролик">Удалить</button></span>`:''}</div>`;
@@ -173,6 +173,29 @@ async function createReel(tplId){
   const t=tplOf(tplId);
   const body={...blankReel(tplId), title: t ? `${t.name} · ${new Date().toLocaleDateString('ru-RU')}` : titleFrom(''), refs:[], createdAt:now, updatedAt:now};
   if(await write(()=>ref.set(body),'Ролик создан')) openReel({...body, id:ref.id});
+}
+/* «Новый ролик»: сначала выбор стиля — стиль разобран один раз, ролик по нему делается только по тексту */
+function pickStyle(){
+  if(!db||!canWrite) return;
+  const E=$('#reelEditor'); E.hidden=false; E.dataset.pid='';
+  const list=[...S.templates].sort((x,y)=>(y.updatedAt||y.createdAt||'').localeCompare(x.updatedAt||x.createdAt||''));
+  const sw=t=>{ const c=(t.rules?.passport?PP_COLORS.map(([k])=>t.rules.passport.colors?.[k]):(t.palette||[])).filter(Boolean).slice(0,7);
+    return c.length?`<span class="swatches" aria-hidden="true">${c.map(x=>`<i style="background:${esc(x)}"></i>`).join('')}</span>`:''; };
+  E.innerHTML=`<div class="panel" id="stylePick"><h3>Новый ролик: какой стиль?</h3>
+    <p class="hint" style="margin:0 0 12px">Стиль уже разобран, поэтому ролик по нему делается только по тексту: кадры референсов Claude больше не смотрит.</p>
+    ${list.length?`<div class="stylepick">${list.map(t=>`<button type="button" class="stylecard" data-style="${esc(t.id)}">
+      <b>${esc(t.name)}</b>${sw(t)}<span class="hint">${esc(t.aesthetic||'')}</span>
+      <span class="hint">${t.rules?.dna?'стиль в 3 слоя':t.rules?.style?'стиль текстом':'только карточка'}${t.refs?.length?` · референсов ${t.refs.length}`:''}${t.spec?' · цифры ✓':''}</span></button>`).join('')}</div>`
+      :`<div class="empty"><strong>Стилей пока нет</strong>Собери первый из 1–5 референсов: это делается один раз.</div>`}
+    <div class="row" style="margin-top:14px;gap:8px">
+      <button class="btn" type="button" id="sp-new">Новый стиль из референсов</button>
+      <button class="btn ghost" type="button" id="sp-none">Без стиля, всё вручную</button>
+      <button class="btn ghost" type="button" id="sp-close">Отмена</button></div></div>`;
+  E.querySelectorAll('[data-style]').forEach(b=>b.onclick=()=>{ b.disabled=true; createReel(b.dataset.style); });
+  $('#sp-none').onclick=()=>createReel();
+  $('#sp-new').onclick=()=>{ E.hidden=true; E.innerHTML=''; show('templates'); openPremont(); };
+  $('#sp-close').onclick=()=>{ E.hidden=true; E.innerHTML=''; };
+  E.scrollIntoView({behavior:'smooth', block:'start'});
 }
 function openReel(p){
   const E = $('#reelEditor'); E.hidden = false; E.dataset.pid = p.id;
@@ -369,6 +392,9 @@ function openReel(p){
     const hasModes = curRows.length && curRows.every(r=>r.mode);
     const need2d = curRows.some(r=>r.kind==='l2d'||r.kind==='gen');
     const st=[['Стиль',!!d.style],['Текст',!!d.script],['Картинки',!!d.gpt],['Материалы',!!(p.timing||curWordsLen())],['Настройки',true],['Раскадровка',!!hasModes],['Монтаж',$('#r-status').value==='done']];
+    /* ролик по стилю: шаг «Картинки» появляется, только если раскадровке нужны картинки */
+    if(p.quick && tplOf(p.templateId)){ $('#r-sec-3').hidden = p.mode!=='own' && !need2d && !d.gpt;
+      let i=0; document.querySelectorAll('#reelForm section.step').forEach(sec=>{ if(sec.hidden) return; const h=sec.querySelector('h4'); h.textContent=`${++i} · ${h.textContent.replace(/^\d+\s·\s/,'')}`; }); }
     const order=[...document.querySelectorAll('#reelForm section.step')].filter(x=>!x.hidden).map(x=>+x.id.slice(6));
     $('#r-steps').innerHTML = order.map((sec,j)=>{ const [n,ok]=st[sec-1]; return `<a href="#r-sec-${sec}" class="stepchip${ok?' ok':''}" data-sec="${sec}"><span class="code">${ok?'✓':j+1}</span>${esc(n)}</a>`; }).join('');
     $('#r-steps').querySelectorAll('a').forEach(a=>a.onclick=e=>{ e.preventDefault(); $('#r-sec-'+a.dataset.sec).scrollIntoView({behavior:'smooth',block:'start'}); });
